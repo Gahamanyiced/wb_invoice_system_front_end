@@ -13,8 +13,8 @@ RUN npm run build
 # Stage 2: Serve the built app using Nginx
 FROM nginx:latest
 
-# Copy the production build (Vite outputs to "dist" by default) to Nginx's html directory
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Copy the built React app from the previous stage to the Nginx HTML directory
+COPY --from=builder /app/build /usr/share/nginx/html
 
 # Copy custom nginx configuration file
 COPY ./nginx.conf /etc/nginx/conf.d/default.conf
