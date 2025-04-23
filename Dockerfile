@@ -8,7 +8,7 @@ RUN npm install
 
 # Copy all source files and build the production app
 COPY . .
-RUN npm run build -- --mode production
+RUN npm run build 
 
 # Stage 2: Serve the built app using Nginx
 FROM nginx:latest
