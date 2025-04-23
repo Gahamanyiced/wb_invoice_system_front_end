@@ -4,6 +4,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile  # Path to your Dockerfile
-    container_name: wb_report_system_front_end
+    container_name: wb_invoice_system_front_end
     ports:
       - "8094:95"
