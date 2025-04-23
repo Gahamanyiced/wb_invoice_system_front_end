@@ -1,0 +1,9 @@
+version: '3'
+services:
+  wb_report_system_front_end:
+    build:
+      context: .
+      dockerfile: Dockerfile  # Path to your Dockerfile
+    container_name: wb_report_system_front_end
+    ports:
+      - "8089:95"
