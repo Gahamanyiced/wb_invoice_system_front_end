@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { toast } from 'react-toastify';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { login } from '../features/auth/authSlice';
+import { login, externalLogin } from '../features/auth/authSlice';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { loginValidation } from '../validations/auth';
+import { loginValidation, supplierLoginValidation } from '../validations/auth';
 import {
   Container,
   Typography,
@@ -19,11 +19,14 @@ import {
   useTheme,
   useMediaQuery,
   CircularProgress,
-  Paper,
   Card,
   CardContent,
   Divider,
   Link,
+  FormControlLabel,
+  Radio,
+  RadioGroup,
+  FormControl,
 } from '@mui/material';
 import Logo from '../assets/images/logo.jpg';
 import Visibility from '@mui/icons-material/Visibility';
@@ -31,37 +34,71 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import CloudDownloadOutlinedIcon from '@mui/icons-material/CloudDownloadOutlined';
+import BusinessIcon from '@mui/icons-material/Business';
+import BadgeIcon from '@mui/icons-material/Badge';
+import EmailIcon from '@mui/icons-material/Email';
 
 function Login() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { isLoading } = useSelector((state) => state.auth);
   const [showPassword, setShowPassword] = useState(false);
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm({
+  const [userType, setUserType] = useState('staff');
+  
+  // Create separate form instances for each user type with their own validation schema
+  const staffForm = useForm({
     resolver: yupResolver(loginValidation),
+    mode: 'onBlur'
   });
+  
+  const supplierForm = useForm({
+    resolver: yupResolver(supplierLoginValidation),
+    mode: 'onBlur'
+  });
+  
+  // Get the appropriate form based on user type
+  const currentForm = userType === 'staff' ? staffForm : supplierForm;
+  const { register, handleSubmit, formState: { errors } } = currentForm;
 
   const handleClickShowPassword = () => {
     setShowPassword(!showPassword);
   };
 
+  const handleUserTypeChange = (event) => {
+    setUserType(event.target.value);
+  };
+
   const onSubmit = async (data) => {
-    // Remove @rwandair.com from the username if it exists
-    if (data.username.includes('@rwandair.com')) {
-      data.username = data.username.replace('@rwandair.com', '');
-    }
     try {
-      await dispatch(login(data)).unwrap();
-      toast.success(`Check your email for OTP`);
-      navigate('/verify-otp');
+      if (userType === 'supplier') {
+        // Use externalLogin for suppliers with email/password payload
+        const supplierPayload = {
+          email: data.username, // Using the username field for email
+          password: data.password
+        };
+        
+        await dispatch(externalLogin(supplierPayload)).unwrap();
+        toast.success(`Supplier login successful`);
+        navigate('/'); // Navigate to supplier dashboard
+      } else {
+        // Use regular login for staff with username/password payload
+        // For staff, remove @rwandair.com from the username if it exists
+        if (data.username.includes('@rwandair.com')) {
+          data.username = data.username.replace('@rwandair.com', '');
+        }
+        
+        const staffPayload = {
+          username: data.username,
+          password: data.password
+        };
+        
+        await dispatch(login(staffPayload)).unwrap();
+        toast.success(`Check your email for OTP`);
+        navigate('/verify-otp');
+      }
     } catch (error) {
       toast.error(error);
-      navigate('/');
+      navigate('/login');
     }
   };
 
@@ -179,21 +216,67 @@ function Login() {
               <Divider />
             </Box>
 
+            {/* User Type Selection */}
+            <Box sx={{ mb: 3 }}>
+              <FormControl component="fieldset">
+                <RadioGroup
+                  row
+                  aria-label="user-type"
+                  name="user-type"
+                  value={userType}
+                  onChange={handleUserTypeChange}
+                  sx={{ 
+                    justifyContent: 'center',
+                    '& .MuiFormControlLabel-root': {
+                      mx: 2
+                    }
+                  }}
+                >
+                  <FormControlLabel 
+                    value="staff" 
+                    control={<Radio />} 
+                    label={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <BadgeIcon color="action" />
+                        <Typography>Staff</Typography>
+                      </Box>
+                    }
+                  />
+                  <FormControlLabel 
+                    value="supplier" 
+                    control={<Radio />} 
+                    label={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <BusinessIcon color="action" />
+                        <Typography>Supplier</Typography>
+                      </Box>
+                    }
+                  />
+                </RadioGroup>
+              </FormControl>
+            </Box>
+
             {/* Form */}
             <form onSubmit={handleSubmit(onSubmit)}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                {/* Username Field */}
+                {/* Username/Email Field */}
                 <TextField
                   {...register('username')}
-                  label="Username"
-                  placeholder="Enter your username without @rwandair.com"
-                  type="text"
+                  label={userType === 'supplier' ? 'Email' : 'Username'}
+                  placeholder={userType === 'supplier' 
+                    ? "Enter your email address" 
+                    : "Enter your username"}
+                  type={userType === 'supplier' ? 'email' : 'text'}
                   variant="outlined"
                   fullWidth
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
-                        <PersonOutlineIcon color="action" />
+                        {userType === 'supplier' ? (
+                          <EmailIcon color="action" />
+                        ) : (
+                          <PersonOutlineIcon color="action" />
+                        )}
                       </InputAdornment>
                     ),
                   }}
@@ -232,28 +315,37 @@ function Login() {
                 />
 
                 {/* Account Links */}
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                  <Link
-                    component={RouterLink}
-                    to="/register"
-                    underline="hover"
-                    sx={{ 
-                      fontSize: '0.875rem',
-                      color: '#00529B'
-                    }}
-                  >
-                    Create account
-                  </Link>
-                  <Link
-                    href="#"
-                    underline="hover"
-                    sx={{ 
-                      fontSize: '0.875rem',
-                      color: '#00529B'
-                    }}
-                  >
-                    Forgot password?
-                  </Link>
+                <Box sx={{ 
+                  display: 'flex', 
+                  justifyContent: userType === 'supplier' ? 'space-between' : 'flex-start',
+                  mb: 2 
+                }}>
+                  {userType === 'supplier' && (
+                    <Link
+                      component={RouterLink}
+                      to="/register"
+                      underline="hover"
+                      sx={{ 
+                        fontSize: '0.875rem',
+                        color: '#00529B'
+                      }}
+                    >
+                      Register as supplier
+                    </Link>
+                  )}
+                  
+                  {userType === 'supplier' && (
+                    <Link
+                      href="#"
+                      underline="hover"
+                      sx={{ 
+                        fontSize: '0.875rem',
+                        color: '#00529B'
+                      }}
+                    >
+                      Forgot password?
+                    </Link>
+                  )}
                 </Box>
 
                 {/* Submit Button */}
@@ -263,12 +355,12 @@ function Login() {
                   fullWidth
                   disabled={isLoading}
                   sx={{
-                    bgcolor: '#00529B',
+                    bgcolor: userType === 'supplier' ? '#0D7335' : '#00529B',
                     padding: '0.75rem',
                     borderRadius: '8px',
                     fontWeight: 600,
                     '&:hover': {
-                      bgcolor: '#003a6d',
+                      bgcolor: userType === 'supplier' ? '#075c2a' : '#003a6d',
                     },
                   }}
                 >

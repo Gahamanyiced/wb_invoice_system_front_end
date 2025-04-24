@@ -109,6 +109,18 @@ export const updateUser = createAsyncThunk(
   }
 );
 
+//update supplier
+export const updateSupplier = createAsyncThunk(
+  'user/updateSupplier',
+  async (data, thunkAPI) => {
+    try {
+      return await userService.updateSupplier(data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  }
+);
+
 export const userSlice = createSlice({
   name: 'user',
   initialState,
@@ -142,7 +154,7 @@ export const userSlice = createSlice({
         state.error = action.payload;
         state.users = [];
       })
-      
+
       // getNextSigners
       .addCase(getNextSigners.pending, (state) => {
         state.isLoading = true;
@@ -159,7 +171,7 @@ export const userSlice = createSlice({
         state.error = action.payload;
         state.users = [];
       })
-      
+
       // getCeoSigner
       .addCase(getCeoSigner.pending, (state) => {
         state.isLoading = true;
@@ -176,7 +188,7 @@ export const userSlice = createSlice({
         state.error = action.payload;
         state.users = '';
       })
-      
+
       // getDceoSigner
       .addCase(getDceoSigner.pending, (state) => {
         state.isLoading = true;
@@ -193,7 +205,7 @@ export const userSlice = createSlice({
         state.error = action.payload;
         state.users = '';
       })
-      
+
       // getDepartmentNextSigners
       .addCase(getDepartmentNextSigners.pending, (state) => {
         state.isLoading = true;
@@ -210,7 +222,7 @@ export const userSlice = createSlice({
         state.error = action.payload;
         state.users = [];
       })
-      
+
       // getAllUsers
       .addCase(getAllUsers.pending, (state) => {
         state.isLoading = true;
@@ -227,7 +239,7 @@ export const userSlice = createSlice({
         state.error = action.payload;
         state.users = [];
       })
-      
+
       // getAllUsersWithNoPagination
       .addCase(getAllUsersWithNoPagination.pending, (state) => {
         state.isLoading = true;
@@ -244,7 +256,7 @@ export const userSlice = createSlice({
         state.error = action.payload;
         state.allUsers = [];
       })
-      
+
       // updateUser
       .addCase(updateUser.pending, (state) => {
         state.isLoading = true;
@@ -257,6 +269,22 @@ export const userSlice = createSlice({
         state.user = action.payload;
       })
       .addCase(updateUser.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+        state.user = '';
+      })
+      // updateSupplier
+      .addCase(updateSupplier.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+        state.user = '';
+      })
+      .addCase(updateSupplier.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.error = null;
+        state.user = action.payload;
+      })
+      .addCase(updateSupplier.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
         state.user = '';

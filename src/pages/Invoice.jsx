@@ -307,7 +307,7 @@ export default function Invoice() {
 
   const handleUpdate = (data) => {
     if (
-      (user?.role === 'staff' && isInvoiceEditable(data)) ||
+      ((user?.role === 'staff' ||user?.role === 'supplier')  && isInvoiceEditable(data)) ||
       (user?.role === 'admin' &&
         indexInvoice === 2 &&
         isInvoiceEditable(data)) ||
@@ -559,7 +559,7 @@ export default function Invoice() {
                     />
                   </Tooltip>
 
-                  {user?.role === 'staff' ||
+                  {user?.role === 'staff' || user?.role === 'supplier' ||
                   (user?.role === 'admin' && indexInvoice === 2) ||
                   ((user?.role === 'signer' || user?.role === 'signer_admin') &&
                     indexInvoice === 2) ? (

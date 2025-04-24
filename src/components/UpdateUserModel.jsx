@@ -12,22 +12,38 @@ import {
   Typography,
   Select,
   MenuItem,
+  Paper,
 } from '@mui/material';
 
 const style = {
-  box: {
+  modal: {
     position: 'absolute',
     top: '50%',
     left: '50%',
     transform: 'translate(-50%, -50%)',
-    width: 900,
+    width: 500,
+    maxWidth: '95%',
     bgcolor: 'background.paper',
-    border: '2px solid #000',
+    borderRadius: '12px',
     boxShadow: 24,
-    p: 4,
+    p: 0,
+    overflow: 'hidden',
   },
-  button: {
-    marginBottom: '20px',
+  header: {
+    bgcolor: '#00529B',
+    color: 'white',
+    py: 2,
+    px: 3,
+  },
+  content: {
+    p: 3,
+  },
+  footer: {
+    p: 2,
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: 2,
+    borderTop: '1px solid rgba(0, 0, 0, 0.12)',
   },
 };
 
@@ -61,24 +77,33 @@ function UpdateUserModel({ defaultValues, open, handleClose, setUpdateTrigger })
   };
 
   return (
-    <div>
-      <Modal
-        open={open}
-        onClose={handleClose}
-        aria-labelledby="modal-modal-title"
-        aria-describedby="modal-modal-description"
-      >
-        <Box sx={style.box}>
-          <Grid container spacing={2}>
-            <Grid item xs={12}>
-              <Typography variant="h6">Details</Typography>
-            </Grid>
+    <Modal
+      open={open}
+      onClose={handleClose}
+      aria-labelledby="update-user-modal-title"
+    >
+      <Box sx={style.modal}>
+        {/* Header */}
+        <Box sx={style.header}>
+          <Typography variant="h6" id="update-user-modal-title">
+            Update User
+          </Typography>
+        </Box>
+
+        {/* Content */}
+        <Box sx={style.content}>
+          <Box container sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 3 }}>
+            <Box>
+              <Typography variant="subtitle1" sx={{ mb: 1 }}>
+                User: {defaultValues?.email || defaultValues?.firstname || 'Selected User'}
+              </Typography>
+            </Box>
             
-            <Grid item xs={12}>
-              <FormControl fullWidth>
-                <InputLabel>ROLE</InputLabel>
+            <Box>
+              <FormControl fullWidth sx={{ mb: 3 }}>
+                <InputLabel>Role</InputLabel>
                 <Select
-                  label="ROLE"
+                  label="Role"
                   name="role"
                   value={formData.role}
                   onChange={handleChange}
@@ -86,12 +111,13 @@ function UpdateUserModel({ defaultValues, open, handleClose, setUpdateTrigger })
                   <MenuItem value="admin">Admin</MenuItem>
                   <MenuItem value="signer">Signer</MenuItem>
                   <MenuItem value="staff">Staff</MenuItem>
-                  <MenuItem value="signer_admin">Signer_Admin</MenuItem>
+                  <MenuItem value="signer_admin">Signer Admin</MenuItem>
+                  <MenuItem value="supplier">Supplier</MenuItem>
                 </Select>
               </FormControl>
-            </Grid>
+            </Box>
 
-            <Grid item xs={12}>
+            <Box>
               <FormControl fullWidth>
                 <InputLabel>Approval Status</InputLabel>
                 <Select
@@ -104,28 +130,33 @@ function UpdateUserModel({ defaultValues, open, handleClose, setUpdateTrigger })
                   <MenuItem value={false}>Not Approved</MenuItem>
                 </Select>
               </FormControl>
-            </Grid>
-
-            <Box sx={{ display: 'flex', flexDirection: 'row', p: 1 }}>
-              <Button
-                variant="contained"
-                sx={{ marginTop: '20px', bgcolor: 'purple' }}
-                onClick={submit}
-              >
-                Update
-              </Button>
-              <Button
-                variant="contained"
-                sx={{ marginTop: '20px', bgcolor: 'blue', marginLeft: '20px' }}
-                onClick={handleClose}
-              >
-                Close
-              </Button>
             </Box>
-          </Grid>
+          </Box>
         </Box>
-      </Modal>
-    </div>
+
+        {/* Footer */}
+        <Box sx={style.footer}>
+          <Button
+            variant="outlined"
+            onClick={handleClose}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={submit}
+            sx={{ 
+              bgcolor: '#00529B',
+              '&:hover': {
+                bgcolor: '#003a6d',
+              }
+            }}
+          >
+            Update User
+          </Button>
+        </Box>
+      </Box>
+    </Modal>
   );
 }
 

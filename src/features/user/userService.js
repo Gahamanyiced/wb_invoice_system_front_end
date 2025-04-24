@@ -78,7 +78,7 @@ const getAllUsers = async (data) => {
       Authorization: `Bearer ${token}`,
     },
   });
-  console.log('response.data',response.data);
+  console.log('response.data', response.data);
 
   return response.data;
 };
@@ -105,6 +105,17 @@ const updateUser = async (id, data) => {
   return response.data;
 };
 
+const updateSupplier = async (data) => {
+  const token = localStorage.getItem('token');
+  const response = await http.patch(`/auth/supplier_profile_update/`, data, {
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data;
+};
+
 const userService = {
   getAllSigners,
   getNextSigners,
@@ -114,6 +125,7 @@ const userService = {
   getCeoSigner,
   getDceoSigner,
   updateUser,
+  updateSupplier,
 };
 
 export default userService;

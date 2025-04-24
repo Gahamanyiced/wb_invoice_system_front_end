@@ -197,7 +197,7 @@ function VerifyOtp() {
                 />
 
                 {/* Resend OTP Link */}
-                <Box sx={{ textAlign: 'center', mb: 1 }}>
+                {/* <Box sx={{ textAlign: 'center', mb: 1 }}>
                   <Typography variant="body2" color="text.secondary">
                     Didn't receive the code?{' '}
                     <Link
@@ -211,7 +211,7 @@ function VerifyOtp() {
                       Resend OTP
                     </Link>
                   </Typography>
-                </Box>
+                </Box> */}
 
                 {/* Submit Button */}
                 <Button

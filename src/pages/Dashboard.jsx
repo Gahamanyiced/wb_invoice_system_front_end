@@ -78,24 +78,45 @@ function Dashboard() {
       }
     }
   }, [dispatch, index, department, year, user]);
-  
+
   const data = [
-    { month: 'January', Invoices: invoiceDashboard?.monthly_counts?.January?.invoices },
+    {
+      month: 'January',
+      Invoices: invoiceDashboard?.monthly_counts?.January?.invoices,
+    },
     {
       month: 'February',
       Invoices: invoiceDashboard?.monthly_counts?.February?.invoices,
     },
-    { month: 'March', Invoices: invoiceDashboard?.monthly_counts?.March?.invoices },
-    { month: 'April', Invoices: invoiceDashboard?.monthly_counts?.April?.invoices },
+    {
+      month: 'March',
+      Invoices: invoiceDashboard?.monthly_counts?.March?.invoices,
+    },
+    {
+      month: 'April',
+      Invoices: invoiceDashboard?.monthly_counts?.April?.invoices,
+    },
     { month: 'May', Invoices: invoiceDashboard?.monthly_counts?.May?.invoices },
-    { month: 'June', Invoices: invoiceDashboard?.monthly_counts?.June?.invoices },
-    { month: 'July', Invoices: invoiceDashboard?.monthly_counts?.July?.invoices },
-    { month: 'August', Invoices: invoiceDashboard?.monthly_counts?.August?.invoices },
+    {
+      month: 'June',
+      Invoices: invoiceDashboard?.monthly_counts?.June?.invoices,
+    },
+    {
+      month: 'July',
+      Invoices: invoiceDashboard?.monthly_counts?.July?.invoices,
+    },
+    {
+      month: 'August',
+      Invoices: invoiceDashboard?.monthly_counts?.August?.invoices,
+    },
     {
       month: 'September',
       Invoices: invoiceDashboard?.monthly_counts?.September?.invoices,
     },
-    { month: 'October', Invoices: invoiceDashboard?.monthly_counts?.October?.invoices },
+    {
+      month: 'October',
+      Invoices: invoiceDashboard?.monthly_counts?.October?.invoices,
+    },
     {
       month: 'November',
       Invoices: invoiceDashboard?.monthly_counts?.November?.invoices,
@@ -133,7 +154,8 @@ function Dashboard() {
               ...(((user?.role === 'signer' || user?.role === 'signer_admin') &&
                 anotherDashboardIndex === 2) ||
               user.role === 'admin' ||
-              user.role === 'staff'
+              user.role === 'staff' ||
+              user.role === 'supplier'
                 ? [
                     {
                       number: invoiceDashboard?.total_approved_invoices,
@@ -156,7 +178,8 @@ function Dashboard() {
               ...(((user?.role === 'signer' || user?.role === 'signer_admin') &&
                 anotherDashboardIndex === 2) ||
               user.role === 'admin' ||
-              user.role === 'staff'
+              user.role === 'staff' ||
+              user.role === 'supplier'
                 ? [
                     {
                       number: invoiceDashboard?.total_rollback_invoices,
@@ -171,7 +194,8 @@ function Dashboard() {
               ...(((user?.role === 'signer' || user?.role === 'signer_admin') &&
                 anotherDashboardIndex === 2) ||
               user.role === 'admin' ||
-              user.role === 'staff'
+              user.role === 'staff' ||
+              user.role === 'supplier'
                 ? [
                     {
                       number: invoiceDashboard?.total_processing_invoices,
@@ -210,7 +234,8 @@ function Dashboard() {
               ...(((user?.role === 'signer' || user?.role === 'signer_admin') &&
                 anotherDashboardIndex === 2) ||
               user.role === 'admin' ||
-              user.role === 'staff'
+              user.role === 'staff' ||
+              user.role === 'supplier'
                 ? [
                     {
                       number: invoiceDashboard?.total_forwarded_invoices,

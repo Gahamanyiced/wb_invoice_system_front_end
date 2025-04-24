@@ -13,6 +13,7 @@ import ProtectedRoute from './ProtectedRoute';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import DownloadPdf from './components/DownloadPdf';
+import Profile from './pages/Profile';
 
 export const isAuthenticated = () => {
   try {
@@ -44,6 +45,7 @@ function App() {
             <Route path="/section" element={<Section />} />
             <Route path="signing-flow" element={<SigningFlow />} />
             <Route path="download-pdf" element={<DownloadPdf />} />
+            <Route path="/profile" element={<Profile />} />
           </Route>
         </Routes>
       </Router>

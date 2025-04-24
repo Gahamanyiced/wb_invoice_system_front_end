@@ -11,6 +11,32 @@ const login = async (userData) => {
   if (response.data.status === 200) {
     localStorage.setItem('username', JSON.stringify(userData.username));
   }
+
+  return response.data;
+};
+
+const externalLogin = async (userData) => {
+  const response = await http.post('/auth/external_login/', userData, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  
+    // localStorage.removeItem('username');
+    localStorage.setItem('user', JSON.stringify(response.data.user));
+    localStorage.setItem('token', response.data.tokens.access);
+  
+  return response.data;
+};
+
+const register = async (userData) => {
+  const response = await http.post('/auth/supplier_register/', userData, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
   return response.data;
 };
 
@@ -45,6 +71,8 @@ const logout = () => {
 
 const authService = {
   login,
+  register,
+  externalLogin,
   logout,
   VerifyOtp,
 };
