@@ -24,7 +24,6 @@ import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
-import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import AssignmentTurnedInOutlinedIcon from '@mui/icons-material/AssignmentTurnedInOutlined';
 
@@ -32,12 +31,26 @@ import AssignmentTurnedInOutlinedIcon from '@mui/icons-material/AssignmentTurned
 import { setIndex } from '../features/invoice/invoiceSlice';
 import { setDashboardIndex, setCardIndex } from '../features/dashboard/dashboardSlice';
 
+// Color constants
+const COLORS = {
+  primary: '#00529B',        // RwandAir blue (primary brand color)
+  sidebar: '#192a45',        // Dark blue sidebar background
+  textPrimary: '#FFFFFF',    // White text
+  textSecondary: 'rgba(255, 255, 255, 0.7)', // Dimmed white text
+  textMuted: 'rgba(255, 255, 255, 0.5)', // More dimmed white text
+  divider: 'rgba(255, 255, 255, 0.1)', // Very subtle white
+  hoverBg: 'rgba(255, 255, 255, 0.1)', // Subtle white hover background
+  activeBg: '#00529B',       // Active item background (primary)
+  activeSubBg: 'rgba(0, 82, 155, 0.2)', // Translucent primary for sub-items
+  shadow: 'rgba(0, 82, 155, 0.3)' // Shadow color
+};
+
 // Styled components
 const SidebarContainer = styled(Box)(({ theme }) => ({
   height: '100vh',
   width: '280px',
-  backgroundColor: '#192a45',
-  color: '#fff',
+  backgroundColor: COLORS.sidebar,
+  color: COLORS.textPrimary,
   display: 'flex',
   flexDirection: 'column',
   justifyContent: 'space-between',
@@ -56,7 +69,7 @@ const LogoContainer = styled(Box)({
 
 const StyledNavLink = styled(NavLink)(({ theme }) => ({
   textDecoration: 'none',
-  color: 'rgba(255, 255, 255, 0.7)',
+  color: COLORS.textSecondary,
   display: 'flex',
   alignItems: 'center',
   padding: '12px 20px',
@@ -66,14 +79,14 @@ const StyledNavLink = styled(NavLink)(({ theme }) => ({
   position: 'relative',
   
   '&:hover': {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    color: '#fff',
+    backgroundColor: COLORS.hoverBg,
+    color: COLORS.textPrimary,
   },
   
   '&.active': {
-    backgroundColor: '#00529B',
-    color: '#fff',
-    boxShadow: '0 4px 10px rgba(0, 82, 155, 0.3)',
+    backgroundColor: COLORS.activeBg,
+    color: COLORS.textPrimary,
+    boxShadow: `0 4px 10px ${COLORS.shadow}`,
     
     '&:before': {
       content: '""',
@@ -83,17 +96,35 @@ const StyledNavLink = styled(NavLink)(({ theme }) => ({
       transform: 'translateY(-50%)',
       width: '4px',
       height: '60%',
-      backgroundColor: '#fff',
+      backgroundColor: COLORS.textPrimary,
       borderRadius: '0 4px 4px 0',
     }
   },
 }));
 
+const MenuLink = styled(Box)({
+  textDecoration: 'none',
+  color: COLORS.textSecondary,
+  display: 'flex',
+  alignItems: 'center',
+  padding: '12px 20px',
+  borderRadius: '8px',
+  margin: '4px 12px',
+  transition: 'all 0.2s',
+  position: 'relative',
+  cursor: 'pointer',
+  
+  '&:hover': {
+    backgroundColor: COLORS.hoverBg,
+    color: COLORS.textPrimary,
+  },
+});
+
 const MenuHeading = styled(Typography)({
   fontSize: '11px',
   textTransform: 'uppercase',
   letterSpacing: '1px',
-  color: 'rgba(255, 255, 255, 0.5)',
+  color: COLORS.textMuted,
   padding: '8px 24px',
   marginTop: '16px',
 });
@@ -109,7 +140,7 @@ const MenuIcon = styled(Box)({
 
 const SubMenuItem = styled(Box)(({ theme }) => ({
   padding: '10px 20px 10px 56px',
-  color: 'rgba(255, 255, 255, 0.6)',
+  color: COLORS.textSecondary,
   borderRadius: '8px',
   margin: '2px 12px',
   cursor: 'pointer',
@@ -118,20 +149,20 @@ const SubMenuItem = styled(Box)(({ theme }) => ({
   position: 'relative',
   
   '&:hover': {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    color: '#fff',
+    backgroundColor: COLORS.hoverBg,
+    color: COLORS.textPrimary,
   },
   
   '&.active': {
-    backgroundColor: 'rgba(0, 82, 155, 0.2)',
-    color: '#fff',
+    backgroundColor: COLORS.activeSubBg,
+    color: COLORS.textPrimary,
   },
 }));
 
 const UserProfileSection = styled(Box)({
   padding: '16px',
   marginTop: 'auto',
-  borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+  borderTop: `1px solid ${COLORS.divider}`,
   display: 'flex',
   alignItems: 'center',
   gap: '12px',
@@ -204,12 +235,15 @@ export default function Sidebar() {
   };
   
   const handleLogout = () => {
+    // Clear all authentication data
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('username');
     localStorage.removeItem('index');
-    navigate('/login');
-  };
+    
+    // Force navigation to login page
+    navigate('/login', { replace: true });
+  }
   
   // Get initials for avatar
   const getInitials = () => {
@@ -228,7 +262,7 @@ export default function Sidebar() {
           />
         </LogoContainer>
         
-        <Divider sx={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', my: 1 }} />
+        <Divider sx={{ backgroundColor: COLORS.divider, my: 1 }} />
         
         <MenuHeading>Main</MenuHeading>
         
@@ -369,32 +403,32 @@ export default function Sidebar() {
           )}
           
           {/* Verification (if user is approved) */}
-          {/* {user?.is_approved === true && (
+          {user?.is_approved === true && (
             <StyledNavLink to="/verify-invoice">
               <MenuIcon>
                 <FactCheckOutlinedIcon fontSize="small" />
               </MenuIcon>
               <Typography sx={{ fontSize: '15px' }}>Verify Invoice</Typography>
             </StyledNavLink>
-          )} */}
+          )}
         </List>
       </Box>
       
       {/* User Profile and Logout Section */}
       <Box>
         <Box sx={{ px: 3, pb: 2 }}>
-          <StyledNavLink onClick={handleLogout} to="#">
+          <MenuLink onClick={handleLogout}>
             <MenuIcon>
               <LogoutOutlinedIcon fontSize="small" />
             </MenuIcon>
             <Typography sx={{ fontSize: '15px' }}>Logout</Typography>
-          </StyledNavLink>
+          </MenuLink>
         </Box>
         
         <UserProfileSection>
           <Avatar 
             sx={{ 
-              bgcolor: '#00529B',
+              bgcolor: COLORS.primary,
               width: 38,
               height: 38
             }}
@@ -405,7 +439,7 @@ export default function Sidebar() {
             <Typography variant="body2" sx={{ fontWeight: 500 }}>
               {firstName.charAt(0).toUpperCase() + firstName.slice(1)}
             </Typography>
-            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
+            <Typography variant="caption" sx={{ color: COLORS.textSecondary }}>
               {user?.role?.charAt(0).toUpperCase() + user?.role?.slice(1) || 'User'}
             </Typography>
           </UserInfo>
