@@ -58,8 +58,8 @@ const ForwardingInvoiceDialog = (props) => {
   const [selectedIds, setSelectedIds] = useState();
   const [final, setFinal] = useState(false);
   const { users } = useSelector((state) => state.user);
+  console.log('users', users);
   const [user, setUser] = useState(JSON?.parse(localStorage?.getItem('user')));
- 
 
   const dispatch = useDispatch();
 
@@ -104,7 +104,7 @@ const ForwardingInvoiceDialog = (props) => {
           />
         </FormControl>
       )}
-      
+
       <Box
         sx={{
           display: 'flex',
@@ -123,7 +123,7 @@ const ForwardingInvoiceDialog = (props) => {
           label="Mark As Final Aproval"
         />
       </Box>
-      
+
       <DialogActions>
         {props.loading ? (
           <CircularProgress size="25px" />

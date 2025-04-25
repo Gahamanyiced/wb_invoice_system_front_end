@@ -403,14 +403,14 @@ export default function Sidebar() {
           )}
           
           {/* Verification (if user is approved) */}
-          {user?.is_approved === true && (
+          {/* {user?.is_approved === true && (
             <StyledNavLink to="/verify-invoice">
               <MenuIcon>
                 <FactCheckOutlinedIcon fontSize="small" />
               </MenuIcon>
               <Typography sx={{ fontSize: '15px' }}>Verify Invoice</Typography>
             </StyledNavLink>
-          )}
+          )} */}
         </List>
       </Box>
       
