@@ -267,48 +267,50 @@ export default function Sidebar() {
         <MenuHeading>Main</MenuHeading>
         
         <List sx={{ p: 0 }}>
-          {/* Dashboard Menu */}
-          <Box>
-            <StyledNavLink 
-              to="/dashboard" 
-              onClick={toggleDashboardMenu}
-            >
-              <MenuIcon>
-                <DashboardOutlinedIcon fontSize="small" />
-              </MenuIcon>
-              <Typography sx={{ flexGrow: 1, fontSize: '15px' }}>Dashboard</Typography>
-              {dashboardMenuOpen ? (
-                <KeyboardArrowUpIcon fontSize="small" />
-              ) : (
-                <KeyboardArrowDownIcon fontSize="small" />
-              )}
-            </StyledNavLink>
-            
-            <Collapse in={dashboardMenuOpen} timeout="auto" unmountOnExit>
-              {user?.role === 'admin' && (
-                <SubMenuItem 
-                  className={activeDashboardOption === 1 ? 'active' : ''}
-                  onClick={() => handleDashboardOption(1)}
-                >
-                  All Invoices
-                </SubMenuItem>
-              )}
-              <SubMenuItem 
-                className={activeDashboardOption === 2 ? 'active' : ''} 
-                onClick={() => handleDashboardOption(2)}
+          {/* Dashboard Menu - Only shown for non-supplier roles */}
+          
+            <Box>
+              <StyledNavLink 
+                to="/dashboard" 
+                onClick={toggleDashboardMenu}
               >
-                My Invoices
-              </SubMenuItem>
-              {(user?.role === 'signer' || user?.role === 'signer_admin') && (
+                <MenuIcon>
+                  <DashboardOutlinedIcon fontSize="small" />
+                </MenuIcon>
+                <Typography sx={{ flexGrow: 1, fontSize: '15px' }}>Dashboard</Typography>
+                {dashboardMenuOpen ? (
+                  <KeyboardArrowUpIcon fontSize="small" />
+                ) : (
+                  <KeyboardArrowDownIcon fontSize="small" />
+                )}
+              </StyledNavLink>
+              
+              <Collapse in={dashboardMenuOpen} timeout="auto" unmountOnExit>
+                {user?.role === 'admin' && (
+                  <SubMenuItem 
+                    className={activeDashboardOption === 1 ? 'active' : ''}
+                    onClick={() => handleDashboardOption(1)}
+                  >
+                    All Invoices
+                  </SubMenuItem>
+                )}
                 <SubMenuItem 
-                  className={activeDashboardOption === 3 ? 'active' : ''}
-                  onClick={() => handleDashboardOption(3)}
+                  className={activeDashboardOption === 2 ? 'active' : ''} 
+                  onClick={() => handleDashboardOption(2)}
                 >
-                  Invoices To Sign
+                  My Invoices
                 </SubMenuItem>
-              )}
-            </Collapse>
-          </Box>
+                {(user?.role === 'signer' || user?.role === 'signer_admin') && (
+                  <SubMenuItem 
+                    className={activeDashboardOption === 3 ? 'active' : ''}
+                    onClick={() => handleDashboardOption(3)}
+                  >
+                    Invoices To Sign
+                  </SubMenuItem>
+                )}
+              </Collapse>
+            </Box>
+          
           
           {/* Invoice Menu */}
           <Box>

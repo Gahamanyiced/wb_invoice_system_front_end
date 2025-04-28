@@ -307,13 +307,14 @@ export default function Invoice() {
 
   const handleUpdate = (data) => {
     if (
-      ((user?.role === 'staff' ||user?.role === 'supplier')  && isInvoiceEditable(data)) ||
+      ((user?.role === 'staff' ||
+        user?.role === 'supplier' ||
+        user?.role === 'signer_admin') &&
+        isInvoiceEditable(data)) ||
       (user?.role === 'admin' &&
         indexInvoice === 2 &&
         isInvoiceEditable(data)) ||
-      ((user?.role === 'signer' || user?.role === 'signer_admin') &&
-        indexInvoice === 2 &&
-        isInvoiceEditable(data))
+      (user?.role === 'signer' && indexInvoice === 2 && isInvoiceEditable(data))
     ) {
       setSelectedUpdate(data);
       setOpenUpdate(true);
@@ -438,7 +439,7 @@ export default function Invoice() {
         onFilterChange={handleFilterChange}
         config={filterConfig}
       />
-      <Box
+      {/* <Box
         display="flex"
         justifyContent="end"
         alignItems="stretch"
@@ -452,7 +453,7 @@ export default function Invoice() {
         >
           Download
         </Button>
-      </Box>
+      </Box> */}
       <TableContainer
         component={Paper}
         sx={{
@@ -505,22 +506,32 @@ export default function Invoice() {
             {invoices?.results?.map((invoice, index) => (
               <TableRow key={index}>
                 <TableCell align="left">
-                  {invoice?.supplier_number || invoice?.invoice?.supplier_number || '-'}
+                  {invoice?.supplier_number ||
+                    invoice?.invoice?.supplier_number ||
+                    '-'}
                 </TableCell>
                 <TableCell align="left">
-                  {invoice?.supplier_name || invoice?.invoice?.supplier_name || '-'}
+                  {invoice?.supplier_name ||
+                    invoice?.invoice?.supplier_name ||
+                    '-'}
                 </TableCell>
                 <TableCell align="left">
-                  {invoice?.invoice_number || invoice?.invoice?.invoice_number || '-'}
+                  {invoice?.invoice_number ||
+                    invoice?.invoice?.invoice_number ||
+                    '-'}
                 </TableCell>
                 <TableCell align="left">
-                  {invoice?.service_period || invoice?.invoice?.service_period || '-'}
+                  {invoice?.service_period ||
+                    invoice?.invoice?.service_period ||
+                    '-'}
                 </TableCell>
                 <TableCell align="left">
                   {invoice?.gl_code || invoice?.invoice?.gl_code || '-'}
                 </TableCell>
                 <TableCell align="left">
-                  {invoice?.gl_description || invoice?.invoice?.gl_description || '-'}
+                  {invoice?.gl_description ||
+                    invoice?.invoice?.gl_description ||
+                    '-'}
                 </TableCell>
                 <TableCell align="left">
                   {invoice?.location || invoice?.invoice?.location || '-'}
@@ -559,10 +570,11 @@ export default function Invoice() {
                     />
                   </Tooltip>
 
-                  {user?.role === 'staff' || user?.role === 'supplier' ||
+                  {user?.role === 'staff' ||
+                  user?.role === 'supplier' ||
+                  user?.role === 'signer_admin' ||
                   (user?.role === 'admin' && indexInvoice === 2) ||
-                  ((user?.role === 'signer' || user?.role === 'signer_admin') &&
-                    indexInvoice === 2) ? (
+                  (user?.role === 'signer' && indexInvoice === 2) ? (
                     <Tooltip title={hoverEdit ? 'Edit' : ''}>
                       <Chip
                         onClick={() => handleUpdate(invoice)}

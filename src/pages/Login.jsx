@@ -336,7 +336,8 @@ function Login() {
                   
                   {userType === 'supplier' && (
                     <Link
-                      href="#"
+                      component={RouterLink}
+                      to="/forgot-password"
                       underline="hover"
                       sx={{ 
                         fontSize: '0.875rem',

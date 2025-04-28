@@ -138,6 +138,9 @@ export default function InvoiceModal() {
   const { isHeadDepartment } = useSelector((state) => state.department);
   const { users } = useSelector((state) => state.user);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+  
+  // Check if user is a supplier
+  const isSupplier = user?.role === 'supplier';
 
   const [open, setOpen] = useState(false);
   const [form_data, setFormData] = useState({
@@ -199,20 +202,29 @@ export default function InvoiceModal() {
   };
 
   const submit = async () => {
-    // Validation
-    if (!form_data.supplier_number || !form_data.invoice_number || !form_data.gl_code) {
-      toast.error('Please fill all required fields');
-      return;
-    }
+    // For suppliers, only validate document attachments
+    if (isSupplier) {
+      if (documents.length === 1 && !documents[0].name) {
+        toast.error('Please attach at least one document');
+        return;
+      }
+    } 
+    // For other roles, perform full validation
+    else {
+      if (!form_data.supplier_number || !form_data.invoice_number || !form_data.gl_code) {
+        toast.error('Please fill all required fields');
+        return;
+      }
 
-    if (!form_data.amount) {
-      toast.error('Please enter an amount');
-      return;
-    }
+      if (!form_data.amount) {
+        toast.error('Please enter an amount');
+        return;
+      }
 
-    if (documents.length === 1 && !documents[0].name) {
-      toast.error('Please attach at least one document');
-      return;
+      if (documents.length === 1 && !documents[0].name) {
+        toast.error('Please attach at least one document');
+        return;
+      }
     }
 
     const data = new FormData();
@@ -264,182 +276,192 @@ export default function InvoiceModal() {
           </Box>
           
           <Box sx={style.content}>
-            <Box sx={style.section}>
-              <Typography variant="h6" sx={style.sectionTitle}>
-                Supplier Information
-              </Typography>
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth variant="outlined">
-                    <InputLabel sx={style.inputLabel}>Supplier Number *</InputLabel>
-                    <Input
-                      type="number"
-                      name="supplier_number"
-                      value={form_data.supplier_number}
-                      onChange={handleChange}
-                      sx={style.formInputNumber}
-                      required
-                    />
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth variant="outlined">
-                    <InputLabel sx={style.inputLabel}>Supplier Name</InputLabel>
-                    <Input
-                      name="supplier_name"
-                      value={form_data.supplier_name}
-                      onChange={handleChange}
-                    />
-                  </FormControl>
-                </Grid>
-              </Grid>
-            </Box>
+            {/* Only show these sections for non-supplier roles */}
+            {!isSupplier && (
+              <>
+                <Box sx={style.section}>
+                  <Typography variant="h6" sx={style.sectionTitle}>
+                    Supplier Information
+                  </Typography>
+                  <Grid container spacing={3}>
+                    <Grid item xs={12} md={6}>
+                      <FormControl fullWidth variant="outlined">
+                        <InputLabel sx={style.inputLabel}>Supplier Number *</InputLabel>
+                        <Input
+                          type="number"
+                          name="supplier_number"
+                          value={form_data.supplier_number}
+                          onChange={handleChange}
+                          sx={style.formInputNumber}
+                          required
+                        />
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <FormControl fullWidth variant="outlined">
+                        <InputLabel sx={style.inputLabel}>Supplier Name</InputLabel>
+                        <Input
+                          name="supplier_name"
+                          value={form_data.supplier_name}
+                          onChange={handleChange}
+                        />
+                      </FormControl>
+                    </Grid>
+                  </Grid>
+                </Box>
 
-            <Divider sx={{ my: 2 }} />
-            
-            <Box sx={style.section}>
-              <Typography variant="h6" sx={style.sectionTitle}>
-                Invoice Details
-              </Typography>
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth variant="outlined">
-                    <InputLabel sx={style.inputLabel}>Invoice Number *</InputLabel>
-                    <Input
-                      type="number"
-                      name="invoice_number"
-                      value={form_data.invoice_number}
-                      onChange={handleChange}
-                      sx={style.formInputNumber}
-                      required
-                    />
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth variant="outlined">
-                    <InputLabel sx={style.inputLabel}>Service Period</InputLabel>
-                    <Input
-                      name="service_period"
-                      value={form_data.service_period}
-                      onChange={handleChange}
-                    />
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth variant="outlined">
-                    <InputLabel sx={style.inputLabel}>GL Code *</InputLabel>
-                    <Input
-                      type="number"
-                      name="gl_code"
-                      value={form_data.gl_code}
-                      onChange={handleChange}
-                      sx={style.formInputNumber}
-                      required
-                    />
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth variant="outlined">
-                    <InputLabel sx={style.inputLabel}>GL Description</InputLabel>
-                    <Input
-                      name="gl_description"
-                      value={form_data.gl_description}
-                      onChange={handleChange}
-                    />
-                  </FormControl>
-                </Grid>
-              </Grid>
-            </Box>
+                <Divider sx={{ my: 2 }} />
+                
+                <Box sx={style.section}>
+                  <Typography variant="h6" sx={style.sectionTitle}>
+                    Invoice Details
+                  </Typography>
+                  <Grid container spacing={3}>
+                    <Grid item xs={12} md={6}>
+                      <FormControl fullWidth variant="outlined">
+                        <InputLabel sx={style.inputLabel}>Invoice Number *</InputLabel>
+                        <Input
+                          type="number"
+                          name="invoice_number"
+                          value={form_data.invoice_number}
+                          onChange={handleChange}
+                          sx={style.formInputNumber}
+                          required
+                        />
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <FormControl fullWidth variant="outlined">
+                        <InputLabel sx={style.inputLabel}>Service Period</InputLabel>
+                        <Input
+                          name="service_period"
+                          value={form_data.service_period}
+                          onChange={handleChange}
+                        />
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <FormControl fullWidth variant="outlined">
+                        <InputLabel sx={style.inputLabel}>GL Code *</InputLabel>
+                        <Input
+                          type="number"
+                          name="gl_code"
+                          value={form_data.gl_code}
+                          onChange={handleChange}
+                          sx={style.formInputNumber}
+                          required
+                        />
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <FormControl fullWidth variant="outlined">
+                        <InputLabel sx={style.inputLabel}>GL Description</InputLabel>
+                        <Input
+                          name="gl_description"
+                          value={form_data.gl_description}
+                          onChange={handleChange}
+                        />
+                      </FormControl>
+                    </Grid>
+                  </Grid>
+                </Box>
 
-            <Divider sx={{ my: 2 }} />
-            
-            <Box sx={style.section}>
-              <Typography variant="h6" sx={style.sectionTitle}>
-                Financial Information
-              </Typography>
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth variant="outlined">
-                    <InputLabel sx={style.inputLabel}>Location</InputLabel>
-                    <Input
-                      name="location"
-                      value={form_data.location}
-                      onChange={handleChange}
-                    />
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth variant="outlined">
-                    <InputLabel sx={style.inputLabel}>Cost Center</InputLabel>
-                    <Input
-                      name="cost_center"
-                      value={form_data.cost_center}
-                      onChange={handleChange}
-                    />
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth variant="outlined">
-                    <InputLabel id="currency-label" sx={style.inputLabel}>Currency *</InputLabel>
-                    <Select
-                      labelId="currency-label"
-                      name="currency"
-                      value={form_data.currency}
-                      onChange={handleChange}
-                      label="Currency"
-                      required
-                    >
-                      {currencies.map((option) => (
-                        <MenuItem key={option.value} value={option.value}>
-                          {option.label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth variant="outlined">
-                    <InputLabel sx={style.inputLabel}>Amount *</InputLabel>
-                    <Input
-                      type="number"
-                      name="amount"
-                      value={form_data.amount}
-                      onChange={handleChange}
-                      sx={style.formInputNumber}
-                      required
-                    />
-                  </FormControl>
-                </Grid>
-              </Grid>
-            </Box>
+                <Divider sx={{ my: 2 }} />
+                
+                <Box sx={style.section}>
+                  <Typography variant="h6" sx={style.sectionTitle}>
+                    Financial Information
+                  </Typography>
+                  <Grid container spacing={3}>
+                    <Grid item xs={12} md={6}>
+                      <FormControl fullWidth variant="outlined">
+                        <InputLabel sx={style.inputLabel}>Location</InputLabel>
+                        <Input
+                          name="location"
+                          value={form_data.location}
+                          onChange={handleChange}
+                        />
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <FormControl fullWidth variant="outlined">
+                        <InputLabel sx={style.inputLabel}>Cost Center</InputLabel>
+                        <Input
+                          name="cost_center"
+                          value={form_data.cost_center}
+                          onChange={handleChange}
+                        />
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <FormControl fullWidth variant="outlined">
+                        <InputLabel id="currency-label" sx={style.inputLabel}>Currency *</InputLabel>
+                        <Select
+                          labelId="currency-label"
+                          name="currency"
+                          value={form_data.currency}
+                          onChange={handleChange}
+                          label="Currency"
+                          required
+                        >
+                          {currencies.map((option) => (
+                            <MenuItem key={option.value} value={option.value}>
+                              {option.label}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <FormControl fullWidth variant="outlined">
+                        <InputLabel sx={style.inputLabel}>Amount *</InputLabel>
+                        <Input
+                          type="number"
+                          name="amount"
+                          value={form_data.amount}
+                          onChange={handleChange}
+                          sx={style.formInputNumber}
+                          required
+                        />
+                      </FormControl>
+                    </Grid>
+                  </Grid>
+                </Box>
 
-            <Divider sx={{ my: 2 }} />
-
-            {(isHeadDepartment.is_head_of_department || user.role === 'signer_admin') && (
-              <Box sx={style.section}>
-                <Typography variant="h6" sx={style.sectionTitle}>
-                  Approval Workflow
-                </Typography>
-                <FormControl fullWidth variant="outlined">
-                  <Autocomplete
-                    multiple
-                    options={users.results || []}
-                    getOptionLabel={(opt) => `${opt.firstname} ${opt.lastname}`}
-                    value={next_signers.map(id => users.results.find(u => u.id === id)).filter(Boolean)}
-                    onChange={(_, v) => setNextSigners(v.map(opt => opt.id))}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="Next Signers"
-                        placeholder="Select signers"
-                        variant="outlined"
-                      />
-                    )}
-                  />
-                </FormControl>
-              </Box>
+                <Divider sx={{ my: 2 }} />
+              </>
             )}
 
+            {/* Only show for non-suppliers with specific roles */}
+            {!isSupplier && (isHeadDepartment.is_head_of_department || user.role === 'signer_admin') && (
+              <>
+                <Box sx={style.section}>
+                  <Typography variant="h6" sx={style.sectionTitle}>
+                    Approval Workflow
+                  </Typography>
+                  <FormControl fullWidth variant="outlined">
+                    <Autocomplete
+                      multiple
+                      options={users.results || []}
+                      getOptionLabel={(opt) => `${opt.firstname} ${opt.lastname}`}
+                      value={next_signers.map(id => users.results.find(u => u.id === id)).filter(Boolean)}
+                      onChange={(_, v) => setNextSigners(v.map(opt => opt.id))}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Next Signers"
+                          placeholder="Select signers"
+                          variant="outlined"
+                        />
+                      )}
+                    />
+                  </FormControl>
+                </Box>
+                <Divider sx={{ my: 2 }} />
+              </>
+            )}
+
+            {/* This section is shown to all users including suppliers */}
             <Box sx={style.section}>
               <Typography variant="h6" sx={style.sectionTitle}>
                 Attachments

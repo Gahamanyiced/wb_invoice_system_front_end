@@ -159,9 +159,9 @@ const ApprovalBlock = ({ title, name, date, qrDataURL }) => (
     <View style={styles.approvalBlock}>
       <View style={styles.approvalContent}>
         <View style={styles.approvalInfo}>
-          <Text style={styles.approvalTitle}>{title}</Text>
-          <Text style={styles.approvalName}>{name}</Text>
-          <Text style={styles.approvalDate}>{date}</Text>
+          <Text style={styles.approvalTitle}>{title || ''}</Text>
+          <Text style={styles.approvalName}>{name || ''}</Text>
+          <Text style={styles.approvalDate}>{date || ''}</Text>
         </View>
         <View style={styles.qrContainer}>
           {qrDataURL ? (
@@ -183,17 +183,27 @@ const ApprovalBlock = ({ title, name, date, qrDataURL }) => (
 
 // Modified helper function to include time (HH:MM) in the formatted string
 const formatDateNoSlash = (dateString) => {
-  const d = new Date(dateString);
-  const month = (d.getMonth() + 1).toString().padStart(2, '0');
-  const day = d.getDate().toString().padStart(2, '0');
-  const year = d.getFullYear();
-  const hours = d.getHours().toString().padStart(2, '0');
-  const minutes = d.getMinutes().toString().padStart(2, '0');
-  // Returns string as MMDDYYYY HH:MM
-  return `${month}${day}${year}${hours}${minutes}`;
+  try {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return ''; // Return empty string if date is invalid
+    
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = d.getHours().toString().padStart(2, '0');
+    const minutes = d.getMinutes().toString().padStart(2, '0');
+    // Returns string as MMDDYYYY HH:MM
+    return `${month}${day}${year}${hours}${minutes}`;
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return '';
+  }
 };
 
 const MyDocument = ({ invoice, user }) => {
+  // Make sure we have valid data before processing
+  if (!invoice) return null;
+  
   let allHistoryItems = invoice?.invoice_histories || [];
 
   // Filter out items with CEO or DCEO office emails
@@ -239,33 +249,39 @@ const MyDocument = ({ invoice, user }) => {
     intermediateApprovers = signedItems.filter(item => item.id !== finalApprover.id);
   }
   
-  // Prepare approval blocks
+  // Safely prepare approval blocks
   // Always add prepared by first
   const preparedBy = {
     title: 'Prepared by',
-    name: `${invoice?.invoice?.invoice_owner?.firstname} ${invoice?.invoice?.invoice_owner?.lastname}`,
+    name: invoice?.invoice?.invoice_owner 
+      ? `${invoice.invoice.invoice_owner.firstname || ''} ${invoice.invoice.invoice_owner.lastname || ''}` 
+      : '',
     date: invoice?.invoice?.created_at
-      ? new Date(invoice?.invoice?.created_at).toLocaleString()
+      ? new Date(invoice.invoice.created_at).toLocaleString()
       : '',
   };
 
   // Add intermediate approvers
   const approvers = intermediateApprovers.map((item, index) => ({
     title: `Approver ${index + 1}`,
-    name: `${item?.signer?.firstname} ${item?.signer?.lastname}`,
-    date: item?.updated_at ? new Date(item?.updated_at).toLocaleString() : '',
-    qrDataURL: item?.qrDataURL,
+    name: item?.signer 
+      ? `${item.signer.firstname || ''} ${item.signer.lastname || ''}` 
+      : '',
+    date: item?.updated_at ? new Date(item.updated_at).toLocaleString() : '',
+    qrDataURL: item?.qrDataURL || null,
   }));
 
   // Add final approver if exists and has signed
   const finalApproverBlock = finalApprover
     ? {
         title: 'Final Approver',
-        name: `${finalApprover?.signer?.firstname} ${finalApprover?.signer?.lastname}`,
-        date: finalApprover?.updated_at
-          ? new Date(finalApprover?.updated_at).toLocaleString()
+        name: finalApprover?.signer 
+          ? `${finalApprover.signer.firstname || ''} ${finalApprover.signer.lastname || ''}` 
           : '',
-        qrDataURL: finalApprover?.qrDataURL,
+        date: finalApprover?.updated_at
+          ? new Date(finalApprover.updated_at).toLocaleString()
+          : '',
+        qrDataURL: finalApprover?.qrDataURL || null,
       }
     : null;
 
@@ -274,11 +290,6 @@ const MyDocument = ({ invoice, user }) => {
   if (finalApproverBlock) {
     allApprovers.push(finalApproverBlock);
   }
-
-  // Render header with background image
-  const renderHeader = () => (
-    <Image style={styles.backgroundImage} src={backgroundImage} fixed />
-  );
 
   // Helper to chunk array into groups of 3 for better layout control
   const chunkArray = (array, size) => {
@@ -298,7 +309,7 @@ const MyDocument = ({ invoice, user }) => {
   return (
     <Document>
       <Page size="A4" style={styles.page} wrap>
-        {renderHeader()}
+        <Image style={styles.backgroundImage} src={backgroundImage} fixed />
         <View style={styles.contentWrapper}>
           <Text style={styles.title}>INVOICE DETAILS</Text>
           
@@ -370,25 +381,53 @@ const MyDocument = ({ invoice, user }) => {
               <Text style={styles.detailLabel}>Prepared By:</Text>
               <Text style={styles.detailValue}>
                 {invoiceData?.invoice_owner 
-                  ? `${invoiceData.invoice_owner.firstname} ${invoiceData.invoice_owner.lastname}` 
+                  ? `${invoiceData.invoice_owner.firstname || ''} ${invoiceData.invoice_owner.lastname || ''}` 
                   : '-'}
               </Text>
             </View>
           </View>
           
-          {/* Documents section */}
+          {/* Documents section - Safely display only filename */}
           {invoiceData?.documents && invoiceData.documents.length > 0 && (
             <View style={styles.documentsSection}>
               <Text style={styles.sectionTitle}>Attached Documents</Text>
-              {invoiceData.documents.map((doc, index) => (
-                <View key={index} style={styles.documentItem}>
-                  <Text>{`Document ${index + 1}: ${doc.file_data || '-'}`}</Text>
-                </View>
-              ))}
+              {invoiceData.documents.map((doc, index) => {
+                // Safely extract only the filename from the file_data path
+                let displayName = `Document ${index + 1}`;
+                
+                try {
+                  if (doc.filename) {
+                    // If filename property exists, use it directly
+                    displayName = doc.filename;
+                  } else if (doc.file_data && typeof doc.file_data === 'string') {
+                    // Try to extract just the filename from the path
+                    const pathParts = doc.file_data.split('/');
+                    if (pathParts.length > 0) {
+                      let fileName = pathParts[pathParts.length - 1];
+                      // If the path contains query parameters, remove them
+                      if (fileName && fileName.includes('?')) {
+                        fileName = fileName.split('?')[0];
+                      }
+                      if (fileName) {
+                        displayName = fileName;
+                      }
+                    }
+                  }
+                } catch (error) {
+                  console.error('Error processing document name:', error);
+                  // Fall back to default name on error
+                }
+                
+                return (
+                  <View key={index} style={styles.documentItem}>
+                    <Text>{`Document ${index + 1}: ${displayName}`}</Text>
+                  </View>
+                );
+              })}
             </View>
           )}
           
-          {/* Approvals section with improved layout */}
+          {/* Approvals section with improved layout and error handling */}
           <View style={styles.approvalWrapper}>
             <Text style={styles.sectionTitle}>Approvals</Text>
             {approverRows.map((row, rowIndex) => (
@@ -396,9 +435,9 @@ const MyDocument = ({ invoice, user }) => {
                 {row.map((approver, idx) => (
                   <ApprovalBlock
                     key={`${rowIndex}-${idx}`}
-                    title={approver.title}
-                    name={approver.name}
-                    date={approver.date}
+                    title={approver.title || ''}
+                    name={approver.name || ''}
+                    date={approver.date || ''}
                     qrDataURL={approver.qrDataURL}
                   />
                 ))}
@@ -416,7 +455,7 @@ const MyDocument = ({ invoice, user }) => {
           <Text
             style={styles.pageNumber}
             render={({ pageNumber, totalPages }) =>
-              `Page ${pageNumber} of ${totalPages}`
+              `Page ${pageNumber || 1} of ${totalPages || 1}`
             }
             fixed
           />
@@ -430,68 +469,154 @@ const DownloadPdf = () => {
   const location = useLocation();
   const { invoice } = location.state || {};
   const [preparedInvoice, setPreparedInvoice] = useState(null);
-  const user = JSON?.parse(localStorage?.getItem('user'));
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const user = JSON?.parse(localStorage?.getItem('user') || '{}');
 
   useEffect(() => {
     const prepareData = async () => {
-      if (invoice?.invoice_histories) {
-        try {
-          const updatedHistories = await Promise.all(
-            invoice.invoice_histories.map(async (item) => {
-              if (item.status === 'signed' && item.signature) {
-                const public_key = item?.public_key
-                  ?.replace('-----BEGIN PUBLIC KEY-----\n', '')
-                  ?.replace('\n-----END PUBLIC KEY-----', '')
-                  ?.replace(/\n/g, '');
-                const url = `${process.env.REACT_APP_URL}/verify-signature/${
-                  invoice?.invoice?.id || invoice?.id
-                }/${encodeURIComponent(public_key)}/${encodeURIComponent(
-                  item.signature
-                )}`;
-                // Generate QR code with improved settings
-                try {
-                  const qrDataURL = await qrcode.toDataURL(url, {
-                    errorCorrectionLevel: 'H', // High error correction
-                    type: 'image/png',
-                    quality: 1.0, // Highest quality
-                    margin: 2,
-                    scale: 10, // Increased scale for better resolution
-                    width: 120, // Fixed width
-                    color: {
-                      dark: '#000000FF', // Black with full opacity
-                      light: '#FFFFFFFF', // White with full opacity
-                    },
-                  });
-                  return { ...item, qrDataURL };
-                } catch (qrError) {
-                  console.error('Error generating QR code:', qrError);
-                  return item;
+      if (!invoice) {
+        setError('No invoice data available');
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        
+        if (invoice?.invoice_histories && Array.isArray(invoice.invoice_histories)) {
+          try {
+            const updatedHistories = await Promise.all(
+              invoice.invoice_histories.map(async (item) => {
+                if (item?.status === 'signed' && item?.signature) {
+                  try {
+                    const public_key = item?.public_key
+                      ?.replace('-----BEGIN PUBLIC KEY-----\n', '')
+                      ?.replace('\n-----END PUBLIC KEY-----', '')
+                      ?.replace(/\n/g, '');
+                      
+                    if (!public_key) return item;
+                    
+                    const url = `${process.env.REACT_APP_URL}/verify-signature/${
+                      invoice?.invoice?.id || invoice?.id
+                    }/${encodeURIComponent(public_key)}/${encodeURIComponent(
+                      item.signature
+                    )}`;
+                    
+                    // Generate QR code with improved settings
+                    try {
+                      const qrDataURL = await qrcode.toDataURL(url, {
+                        errorCorrectionLevel: 'H',
+                        type: 'image/png',
+                        quality: 0.92,
+                        margin: 2,
+                      });
+                      return { ...item, qrDataURL };
+                    } catch (qrError) {
+                      console.error('Error generating QR code:', qrError);
+                      return item;
+                    }
+                  } catch (itemError) {
+                    console.error('Error processing history item:', itemError);
+                    return item;
+                  }
                 }
-              }
-              return item;
-            })
-          );
-          setPreparedInvoice({ ...invoice, invoice_histories: updatedHistories });
-        } catch (error) {
-          console.error('Error preparing invoice data:', error);
-          setPreparedInvoice(invoice); // Use original invoice if there's an error
+                return item;
+              })
+            );
+            setPreparedInvoice({ ...invoice, invoice_histories: updatedHistories });
+          } catch (historiesError) {
+            console.error('Error processing invoice histories:', historiesError);
+            setPreparedInvoice(invoice);
+          }
+        } else {
+          setPreparedInvoice(invoice);
         }
-      } else {
+        
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error preparing invoice data:', error);
+        setError('Failed to prepare PDF data');
         setPreparedInvoice(invoice);
+        setIsLoading(false);
       }
     };
+    
     prepareData();
   }, [invoice]);
 
-  if (!preparedInvoice) return null;
+  if (isLoading) {
+    return (
+      <div style={{ 
+        width: '100%', 
+        height: '100vh', 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center',
+        flexDirection: 'column',
+        gap: '16px'
+      }}>
+        <div>Loading PDF...</div>
+      </div>
+    );
+  }
 
-  return (
-    <div style={{ width: '100%', height: '100vh' }}>
-      <PDFViewer style={{ width: '100%', height: '100%' }}>
-        <MyDocument invoice={preparedInvoice} user={user} />
-      </PDFViewer>
-    </div>
-  );
+  if (error) {
+    return (
+      <div style={{ 
+        width: '100%', 
+        height: '100vh', 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center',
+        flexDirection: 'column',
+        gap: '16px'
+      }}>
+        <div>Error: {error}</div>
+      </div>
+    );
+  }
+
+  if (!preparedInvoice) {
+    return (
+      <div style={{ 
+        width: '100%', 
+        height: '100vh', 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center' 
+      }}>
+        No invoice data available
+      </div>
+    );
+  }
+
+  // Wrap the PDF rendering in an error boundary
+  try {
+    return (
+      <div style={{ width: '100%', height: '100vh' }}>
+        <PDFViewer style={{ width: '100%', height: '100%' }}>
+          <MyDocument invoice={preparedInvoice} user={user} />
+        </PDFViewer>
+      </div>
+    );
+  } catch (renderError) {
+    console.error('Error rendering PDF:', renderError);
+    return (
+      <div style={{ 
+        width: '100%', 
+        height: '100vh', 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center',
+        flexDirection: 'column',
+        gap: '16px'
+      }}>
+        <div>Error rendering PDF</div>
+        <pre>{renderError.message}</pre>
+      </div>
+    );
+  }
 };
 
 export default DownloadPdf;

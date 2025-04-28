@@ -102,7 +102,7 @@ const style = {
       cursor: 'pointer',
       borderColor: 'rgba(0, 82, 155, 0.5)',
     },
-  }
+  },
 };
 
 function UpdateInvoiceModal({
@@ -111,28 +111,51 @@ function UpdateInvoiceModal({
   handleClose,
   setUpdateTrigger,
 }) {
+  console.log('defaultValues', defaultValues);
   const navigate = useNavigate();
   const [value, setValue] = useState('new');
   const [comment, setComment] = useState('');
   const dispatch = useDispatch();
   const { isLoading } = useSelector((state) => state.invoice);
+
+  // Get user role from localStorage
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const isSupplier = user?.role === 'supplier';
+
   const [formData, setFormData] = useState({
-    supplier_number: defaultValues?.supplier_number || defaultValues?.invoice?.supplier_number || '',
-    supplier_name: defaultValues?.supplier_name || defaultValues?.invoice?.supplier_name || '',
-    invoice_number: defaultValues?.invoice_number || defaultValues?.invoice?.invoice_number || '',
-    service_period: defaultValues?.service_period || defaultValues?.invoice?.service_period || '',
+    supplier_number:
+      defaultValues?.supplier_number ||
+      defaultValues?.invoice?.supplier_number ||
+      '',
+    supplier_name:
+      defaultValues?.supplier_name ||
+      defaultValues?.invoice?.supplier_name ||
+      '',
+    invoice_number:
+      defaultValues?.invoice_number ||
+      defaultValues?.invoice?.invoice_number ||
+      '',
+    service_period:
+      defaultValues?.service_period ||
+      defaultValues?.invoice?.service_period ||
+      '',
     gl_code: defaultValues?.gl_code || defaultValues?.invoice?.gl_code || '',
-    gl_description: defaultValues?.gl_description || defaultValues?.invoice?.gl_description || '',
+    gl_description:
+      defaultValues?.gl_description ||
+      defaultValues?.invoice?.gl_description ||
+      '',
     location: defaultValues?.location || defaultValues?.invoice?.location || '',
-    cost_center: defaultValues?.cost_center || defaultValues?.invoice?.cost_center || '',
+    cost_center:
+      defaultValues?.cost_center || defaultValues?.invoice?.cost_center || '',
     currency: defaultValues?.currency || defaultValues?.invoice?.currency || '',
     amount: defaultValues?.amount || defaultValues?.invoice?.amount || '',
   });
-  
+
   const [documents, setDocuments] = useState(defaultValues?.documents || []);
   const [anotherDocuments, setAnotherDocuments] = useState([]);
   const [selectedDocumentIndices, setSelectedDocumentIndices] = useState([]);
-  const [anotherSelectedDocumentIndices, setAnotherSelectedDocumentIndices] = useState([]);
+  const [anotherSelectedDocumentIndices, setAnotherSelectedDocumentIndices] =
+    useState([]);
   const [replacedDocumentIds, setReplacedDocumentIds] = useState([]);
   const [uploadedFileNames, setUploadedFileNames] = useState([]);
 
@@ -143,7 +166,7 @@ function UpdateInvoiceModal({
   const handleComment = (event) => {
     setComment(event.target.value);
   };
-  
+
   const handleCheckboxChange = (event, index) => {
     if (event.target.checked) {
       setSelectedDocumentIndices([...selectedDocumentIndices, index]);
@@ -165,7 +188,7 @@ function UpdateInvoiceModal({
       const newDocuments = [...anotherDocuments];
       newDocuments[index] = event.target.files[0];
       setAnotherDocuments(newDocuments);
-      
+
       // Store filename for display
       const newFileNames = [...uploadedFileNames];
       newFileNames[index] = event.target.files[0].name;
@@ -178,13 +201,15 @@ function UpdateInvoiceModal({
       const newDocuments = [...documents];
       const selectedIndex = selectedDocumentIndices.shift();
       if (selectedIndex !== undefined) {
-        setReplacedDocumentIds([
-          ...replacedDocumentIds,
-          newDocuments[selectedIndex].id,
-        ]);
+        // Store the document ID regardless of document structure
+        const docId = newDocuments[selectedIndex].id;
+        if (docId) {
+          setReplacedDocumentIds([...replacedDocumentIds, docId]);
+        }
+        
         newDocuments[selectedIndex] = event.target.files[0];
         setSelectedDocumentIndices([...selectedDocumentIndices]);
-        
+
         // Store filename for display
         const newFileNames = [...uploadedFileNames];
         newFileNames[index] = event.target.files[0].name;
@@ -202,15 +227,33 @@ function UpdateInvoiceModal({
   const resetState = () => {
     setValue('new');
     setFormData({
-      supplier_number: defaultValues?.supplier_number || defaultValues?.invoice?.supplier_number || '',
-      supplier_name: defaultValues?.supplier_name || defaultValues?.invoice?.supplier_name || '',
-      invoice_number: defaultValues?.invoice_number || defaultValues?.invoice?.invoice_number || '',
-      service_period: defaultValues?.service_period || defaultValues?.invoice?.service_period || '',
+      supplier_number:
+        defaultValues?.supplier_number ||
+        defaultValues?.invoice?.supplier_number ||
+        '',
+      supplier_name:
+        defaultValues?.supplier_name ||
+        defaultValues?.invoice?.supplier_name ||
+        '',
+      invoice_number:
+        defaultValues?.invoice_number ||
+        defaultValues?.invoice?.invoice_number ||
+        '',
+      service_period:
+        defaultValues?.service_period ||
+        defaultValues?.invoice?.service_period ||
+        '',
       gl_code: defaultValues?.gl_code || defaultValues?.invoice?.gl_code || '',
-      gl_description: defaultValues?.gl_description || defaultValues?.invoice?.gl_description || '',
-      location: defaultValues?.location || defaultValues?.invoice?.location || '',
-      cost_center: defaultValues?.cost_center || defaultValues?.invoice?.cost_center || '',
-      currency: defaultValues?.currency || defaultValues?.invoice?.currency || '',
+      gl_description:
+        defaultValues?.gl_description ||
+        defaultValues?.invoice?.gl_description ||
+        '',
+      location:
+        defaultValues?.location || defaultValues?.invoice?.location || '',
+      cost_center:
+        defaultValues?.cost_center || defaultValues?.invoice?.cost_center || '',
+      currency:
+        defaultValues?.currency || defaultValues?.invoice?.currency || '',
       amount: defaultValues?.amount || defaultValues?.invoice?.amount || '',
     });
     setDocuments(defaultValues?.documents || []);
@@ -225,12 +268,14 @@ function UpdateInvoiceModal({
   const submit = async () => {
     try {
       const data = new FormData();
-      
-      // Add all form fields to the FormData
-      Object.keys(formData).forEach(key => {
-        data.append(key, formData[key]);
-      });
-      
+
+      // Add form fields to the FormData only if user is not a supplier
+      if (!isSupplier) {
+        Object.keys(formData).forEach((key) => {
+          data.append(key, formData[key]);
+        });
+      }
+
       if (comment) {
         data.append('comment', comment);
       }
@@ -248,7 +293,11 @@ function UpdateInvoiceModal({
         });
       }
 
-      await dispatch(updateInvoice({ id: defaultValues?.id, data }));
+      // Determine the correct ID based on user role
+      const isSigner = user?.role === 'signer' || user?.role === 'signer_admin';
+      const invoiceId = isSigner ? (defaultValues?.invoice?.id || defaultValues?.id) : defaultValues?.id;
+
+      await dispatch(updateInvoice({ id: invoiceId, data }));
       toast.success('Invoice Updated Successfully');
       handleCloseUpdate();
       setUpdateTrigger((prev) => !prev);
@@ -275,7 +324,8 @@ function UpdateInvoiceModal({
 
   const getDocumentList = () => {
     if (value === 'change') {
-      return documents?.filter(doc => doc && Object.keys(doc).length > 0) || [];
+      // Return all documents that have valid data regardless of creator
+      return documents?.filter(doc => doc && (doc.id || doc.file_data || doc.filename)) || [];
     } else {
       return [];
     }
@@ -299,12 +349,12 @@ function UpdateInvoiceModal({
         {/* Header */}
         <Box sx={style.header}>
           <Typography variant="h6" component="h2" fontWeight="500">
-            Update Invoice
+            {isSupplier ? 'Update Invoice Documents' : 'Update Invoice'}
           </Typography>
-          <IconButton 
-            edge="end" 
-            color="inherit" 
-            onClick={handleCloseUpdate} 
+          <IconButton
+            edge="end"
+            color="inherit"
+            onClick={handleCloseUpdate}
             aria-label="close"
             size="small"
           >
@@ -314,151 +364,163 @@ function UpdateInvoiceModal({
 
         {/* Content */}
         <Box sx={style.content}>
-          {/* Invoice Information Section */}
+          {/* Invoice Information Section - Only visible for non-suppliers */}
+          {!isSupplier && (
+            <Paper elevation={0} sx={style.section}>
+              <Typography
+                variant="subtitle1"
+                fontWeight="600"
+                color="#00529B"
+                sx={{ mb: 3 }}
+              >
+                Invoice Information
+              </Typography>
+
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="Supplier Number"
+                    name="supplier_number"
+                    value={formData.supplier_number}
+                    onChange={handleChangeFormData}
+                    fullWidth
+                    variant="outlined"
+                    size="small"
+                    sx={{ mb: 2 }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="Supplier Name"
+                    name="supplier_name"
+                    value={formData.supplier_name}
+                    onChange={handleChangeFormData}
+                    fullWidth
+                    variant="outlined"
+                    size="small"
+                    sx={{ mb: 2 }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="Invoice Number"
+                    name="invoice_number"
+                    value={formData.invoice_number}
+                    onChange={handleChangeFormData}
+                    fullWidth
+                    variant="outlined"
+                    size="small"
+                    sx={{ mb: 2 }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="Service Period"
+                    name="service_period"
+                    value={formData.service_period}
+                    onChange={handleChangeFormData}
+                    fullWidth
+                    variant="outlined"
+                    size="small"
+                    sx={{ mb: 2 }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="GL Code"
+                    name="gl_code"
+                    value={formData.gl_code}
+                    onChange={handleChangeFormData}
+                    fullWidth
+                    variant="outlined"
+                    size="small"
+                    sx={{ mb: 2 }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="GL Description"
+                    name="gl_description"
+                    value={formData.gl_description}
+                    onChange={handleChangeFormData}
+                    fullWidth
+                    variant="outlined"
+                    size="small"
+                    sx={{ mb: 2 }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="Location"
+                    name="location"
+                    value={formData.location}
+                    onChange={handleChangeFormData}
+                    fullWidth
+                    variant="outlined"
+                    size="small"
+                    sx={{ mb: 2 }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="Cost Center"
+                    name="cost_center"
+                    value={formData.cost_center}
+                    onChange={handleChangeFormData}
+                    fullWidth
+                    variant="outlined"
+                    size="small"
+                    sx={{ mb: 2 }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="Currency"
+                    name="currency"
+                    value={formData.currency}
+                    onChange={handleChangeFormData}
+                    fullWidth
+                    variant="outlined"
+                    size="small"
+                    sx={{ mb: 2 }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="Amount"
+                    name="amount"
+                    value={formData.amount}
+                    onChange={handleChangeFormData}
+                    fullWidth
+                    variant="outlined"
+                    size="small"
+                    sx={{ mb: 2 }}
+                  />
+                </Grid>
+              </Grid>
+            </Paper>
+          )}
+
+          {/* Comments Section - Available for all users including suppliers */}
           <Paper elevation={0} sx={style.section}>
-            <Typography variant="subtitle1" fontWeight="600" color="#00529B" sx={{ mb: 3 }}>
-              Invoice Information
-            </Typography>
-            
-            <Grid container spacing={3}>
-              <Grid md={6}>
-                <TextField
-                  label="Supplier Number"
-                  name="supplier_number"
-                  value={formData.supplier_number}
-                  onChange={handleChangeFormData}
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  sx={{ mb: 2 }}
-                />
-              </Grid>
-
-              <Grid md={6}>
-                <TextField
-                  label="Supplier Name"
-                  name="supplier_name"
-                  value={formData.supplier_name}
-                  onChange={handleChangeFormData}
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  sx={{ mb: 2 }}
-                />
-              </Grid>
-
-              <Grid md={6}>
-                <TextField
-                  label="Invoice Number"
-                  name="invoice_number"
-                  value={formData.invoice_number}
-                  onChange={handleChangeFormData}
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  sx={{ mb: 2 }}
-                />
-              </Grid>
-
-              <Grid md={6}>
-                <TextField
-                  label="Service Period"
-                  name="service_period"
-                  value={formData.service_period}
-                  onChange={handleChangeFormData}
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  sx={{ mb: 2 }}
-                />
-              </Grid>
-
-              <Grid md={6}>
-                <TextField
-                  label="GL Code"
-                  name="gl_code"
-                  value={formData.gl_code}
-                  onChange={handleChangeFormData}
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  sx={{ mb: 2 }}
-                />
-              </Grid>
-
-              <Grid md={6}>
-                <TextField
-                  label="GL Description"
-                  name="gl_description"
-                  value={formData.gl_description}
-                  onChange={handleChangeFormData}
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  sx={{ mb: 2 }}
-                />
-              </Grid>
-
-              <Grid md={6}>
-                <TextField
-                  label="Location"
-                  name="location"
-                  value={formData.location}
-                  onChange={handleChangeFormData}
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  sx={{ mb: 2 }}
-                />
-              </Grid>
-
-              <Grid md={6}>
-                <TextField
-                  label="Cost Center"
-                  name="cost_center"
-                  value={formData.cost_center}
-                  onChange={handleChangeFormData}
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  sx={{ mb: 2 }}
-                />
-              </Grid>
-
-              <Grid md={6}>
-                <TextField
-                  label="Currency"
-                  name="currency"
-                  value={formData.currency}
-                  onChange={handleChangeFormData}
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  sx={{ mb: 2 }}
-                />
-              </Grid>
-
-              <Grid md={6}>
-                <TextField
-                  label="Amount"
-                  name="amount"
-                  value={formData.amount}
-                  onChange={handleChangeFormData}
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  sx={{ mb: 2 }}
-                />
-              </Grid>
-            </Grid>
-          </Paper>
-
-          {/* Comments Section */}
-          <Paper elevation={0} sx={style.section}>
-            <Typography variant="subtitle1" fontWeight="600" color="#00529B" sx={{ mb: 3 }}>
+            <Typography
+              variant="subtitle1"
+              fontWeight="600"
+              color="#00529B"
+              sx={{ mb: 3 }}
+            >
               Update Comments
             </Typography>
-            
+
             <TextField
               label="Add a comment about this update"
               name="comment"
@@ -468,13 +530,24 @@ function UpdateInvoiceModal({
               multiline
               rows={2}
               variant="outlined"
-              placeholder="Explain the changes you're making to this invoice"
+              placeholder={
+                isSupplier
+                  ? 'Explain the changes to the document(s)'
+                  : "Explain the changes you're making to this invoice"
+              }
             />
           </Paper>
 
-          {/* Document Section */}
+          {/* Document Section - Available for all users including suppliers */}
           <Paper elevation={0} sx={style.section}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Box
+              sx={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                mb: 3,
+              }}
+            >
               <Typography variant="subtitle1" fontWeight="600" color="#00529B">
                 Document Management
               </Typography>
@@ -497,16 +570,30 @@ function UpdateInvoiceModal({
             >
               <FormControlLabel
                 value="change"
-                control={<Radio sx={{ color: '#00529B', '&.Mui-checked': { color: '#00529B' } }} />}
+                control={
+                  <Radio
+                    sx={{
+                      color: '#00529B',
+                      '&.Mui-checked': { color: '#00529B' },
+                    }}
+                  />
+                }
                 label="Replace existing documents"
               />
               <FormControlLabel
                 value="new"
-                control={<Radio sx={{ color: '#00529B', '&.Mui-checked': { color: '#00529B' } }} />}
+                control={
+                  <Radio
+                    sx={{
+                      color: '#00529B',
+                      '&.Mui-checked': { color: '#00529B' },
+                    }}
+                  />
+                }
                 label="Upload additional documents"
               />
             </RadioGroup>
-            
+
             {/* Existing Documents (when "change" is selected) */}
             {value === 'change' && getDocumentList().length > 0 && (
               <Box sx={{ mb: 3 }}>
@@ -515,7 +602,7 @@ function UpdateInvoiceModal({
                 </Typography>
                 <Stack spacing={1}>
                   {getDocumentList().map((doc, index) => (
-                    <Card 
+                    <Card
                       variant="outlined"
                       key={index}
                       sx={{ borderRadius: '8px' }}
@@ -523,31 +610,41 @@ function UpdateInvoiceModal({
                       <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                         <Box sx={style.documentItem}>
                           <Checkbox
-                            onChange={(event) => handleCheckboxChange(event, index)}
-                            sx={{ color: '#00529B', '&.Mui-checked': { color: '#00529B' } }}
+                            onChange={(event) =>
+                              handleCheckboxChange(event, index)
+                            }
+                            sx={{
+                              color: '#00529B',
+                              '&.Mui-checked': { color: '#00529B' },
+                            }}
                           />
                           <DescriptionIcon color="action" />
                           <Box sx={{ flexGrow: 1 }}>
                             <Typography variant="body2" fontWeight="500">
                               Document {index + 1}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {doc.filename || `Invoice_Document_${index + 1}`}
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
+                              {doc.filename || doc.name || `Invoice_Document_${index + 1}`}
                             </Typography>
                           </Box>
-                          <Tooltip title="View Document">
-                            <Button
-                              variant="text"
-                              size="small"
-                              component="a"
-                              href={doc?.file_data}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              sx={{ color: '#00529B' }}
-                            >
-                              View
-                            </Button>
-                          </Tooltip>
+                          {doc.file_data && (
+                            <Tooltip title="View Document">
+                              <Button
+                                variant="text"
+                                size="small"
+                                component="a"
+                                href={doc?.file_data}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                sx={{ color: '#00529B' }}
+                              >
+                                View
+                              </Button>
+                            </Tooltip>
+                          )}
                         </Box>
                       </CardContent>
                     </Card>
@@ -555,35 +652,46 @@ function UpdateInvoiceModal({
                 </Stack>
               </Box>
             )}
-            
+
             {/* Document Upload Section */}
             <Box sx={{ mb: 2 }}>
               <Typography variant="subtitle2" gutterBottom fontWeight="500">
-                {value === 'change' ? 'Upload replacement documents:' : 'Upload new documents:'}
+                {value === 'change'
+                  ? 'Upload replacement documents:'
+                  : 'Upload new documents:'}
               </Typography>
-              
+
               <Stack spacing={2}>
                 {getUploadList().map((index) => (
-                  <Box 
-                    key={index}
-                    sx={style.uploadBox}
-                  >
-                    <label htmlFor={`file-upload-${index}`} style={{ width: '100%', cursor: 'pointer', textAlign: 'center' }}>
+                  <Box key={index} sx={style.uploadBox}>
+                    <label
+                      htmlFor={`file-upload-${index}`}
+                      style={{
+                        width: '100%',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                      }}
+                    >
                       <input
                         id={`file-upload-${index}`}
                         type="file"
                         style={{ display: 'none' }}
                         onChange={(event) => handleFileSelect(event, index)}
                       />
-                      <Box sx={{ 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        alignItems: 'center',
-                        gap: 1
-                      }}>
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: 1,
+                        }}
+                      >
                         {uploadedFileNames[index] ? (
                           <>
-                            <DescriptionIcon fontSize="large" sx={{ color: '#00529B' }} />
+                            <DescriptionIcon
+                              fontSize="large"
+                              sx={{ color: '#00529B' }}
+                            />
                             <Typography variant="body2" fontWeight="500">
                               {uploadedFileNames[index]}
                             </Typography>
@@ -595,9 +703,14 @@ function UpdateInvoiceModal({
                           <>
                             <UploadFileIcon fontSize="large" color="action" />
                             <Typography variant="body2" fontWeight="500">
-                              Click to {value === 'change' ? 'replace' : 'upload'} document
+                              Click to{' '}
+                              {value === 'change' ? 'replace' : 'upload'}{' '}
+                              document
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
                               PDF, DOC, DOCX, JPG, PNG files supported
                             </Typography>
                           </>
@@ -606,9 +719,9 @@ function UpdateInvoiceModal({
                     </label>
                   </Box>
                 ))}
-                
+
                 {getUploadList().length === 0 && (
-                  <Box 
+                  <Box
                     sx={{
                       p: 3,
                       textAlign: 'center',
@@ -617,8 +730,8 @@ function UpdateInvoiceModal({
                     }}
                   >
                     <Typography variant="body2" color="text.secondary">
-                      {value === 'change' 
-                        ? 'Select documents to replace using the checkboxes above' 
+                      {value === 'change'
+                        ? 'Select documents to replace using the checkboxes above'
                         : 'Click "Add Document" to upload new files'}
                     </Typography>
                   </Box>
@@ -637,18 +750,24 @@ function UpdateInvoiceModal({
           >
             Cancel
           </Button>
-          
+
           <Button
             variant="contained"
             onClick={submit}
             disabled={isLoading}
-            startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
-            sx={{ 
+            startIcon={
+              isLoading ? (
+                <CircularProgress size={20} color="inherit" />
+              ) : (
+                <SaveIcon />
+              )
+            }
+            sx={{
               bgcolor: '#00529B',
               '&:hover': {
                 bgcolor: '#003a6d',
               },
-              borderRadius: '8px'
+              borderRadius: '8px',
             }}
           >
             {isLoading ? 'Updating...' : 'Save Changes'}
