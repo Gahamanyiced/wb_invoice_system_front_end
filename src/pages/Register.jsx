@@ -20,6 +20,9 @@ import {
   CircularProgress,
   Tabs,
   Tab,
+  FormControlLabel,
+  Checkbox,
+  Switch,
 } from '@mui/material';
 import Logo from '../assets/images/logo.jpg';
 import { Link, useNavigate } from 'react-router-dom';
@@ -38,9 +41,9 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-import ArticleIcon from '@mui/icons-material/Article';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import NotInterestedIcon from '@mui/icons-material/NotInterested';
 
 // List of common currencies
 const currencies = [
@@ -53,16 +56,6 @@ const currencies = [
   { value: 'TZS', label: 'Tanzanian Shilling (TZS)' },
 ];
 
-// Payment terms options
-const paymentTerms = [
-  { value: 'Net 30', label: 'Net 30 days' },
-  { value: 'Net 45', label: 'Net 45 days' },
-  { value: 'Net 60', label: 'Net 60 days' },
-  { value: 'Net 90', label: 'Net 90 days' },
-  { value: 'Due on Receipt', label: 'Due on Receipt' },
-  { value: 'EOM', label: 'End of Month' },
-];
-
 function SupplierRegister() {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -71,6 +64,8 @@ function SupplierRegister() {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [showPassword, setShowPassword] = useState(false);
   const [tabValue, setTabValue] = useState(0);
+  const [ibanNotApplicable, setIbanNotApplicable] = useState(false);
+  const [swiftNotApplicable, setSwiftNotApplicable] = useState(false);
 
   const [form, setForm] = useState({
     email: '',
@@ -94,7 +89,6 @@ function SupplierRegister() {
       swift_code: '',
       sort_code: '',
       payment_currency: 'RWF',
-      payment_terms: 'Net 30',
     },
   });
 
@@ -123,6 +117,48 @@ function SupplierRegister() {
       setForm((prev) => ({
         ...prev,
         [name]: value,
+      }));
+    }
+  };
+
+  const handleIbanNotApplicable = (e) => {
+    setIbanNotApplicable(e.target.checked);
+    if (e.target.checked) {
+      setForm((prev) => ({
+        ...prev,
+        profile: {
+          ...prev.profile,
+          iban: 'N/A',
+        },
+      }));
+    } else {
+      setForm((prev) => ({
+        ...prev,
+        profile: {
+          ...prev.profile,
+          iban: '',
+        },
+      }));
+    }
+  };
+
+  const handleSwiftNotApplicable = (e) => {
+    setSwiftNotApplicable(e.target.checked);
+    if (e.target.checked) {
+      setForm((prev) => ({
+        ...prev,
+        profile: {
+          ...prev.profile,
+          swift_code: 'N/A',
+        },
+      }));
+    } else {
+      setForm((prev) => ({
+        ...prev,
+        profile: {
+          ...prev.profile,
+          swift_code: '',
+        },
       }));
     }
   };
@@ -385,10 +421,12 @@ function SupplierRegister() {
                       />
                     </Grid>
                   </Grid>
-                  
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
-                    <Button 
-                      variant="contained" 
+
+                  <Box
+                    sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}
+                  >
+                    <Button
+                      variant="contained"
                       onClick={goToNextTab}
                       sx={{ bgcolor: '#00529B' }}
                     >
@@ -518,16 +556,19 @@ function SupplierRegister() {
                       />
                     </Grid>
                   </Grid>
-                  
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
-                    <Button 
-                      variant="outlined" 
-                      onClick={goToPrevTab}
-                    >
+
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      mt: 3,
+                    }}
+                  >
+                    <Button variant="outlined" onClick={goToPrevTab}>
                       Back
                     </Button>
-                    <Button 
-                      variant="contained" 
+                    <Button
+                      variant="contained"
                       onClick={goToNextTab}
                       sx={{ bgcolor: '#00529B' }}
                     >
@@ -544,7 +585,7 @@ function SupplierRegister() {
                     <Grid item xs={12}>
                       <TextField
                         name="profile.street_address"
-                        label="Street Address"
+                        label="Address"
                         value={form.profile.street_address}
                         onChange={handleChange}
                         fullWidth
@@ -599,16 +640,19 @@ function SupplierRegister() {
                       />
                     </Grid>
                   </Grid>
-                  
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
-                    <Button 
-                      variant="outlined" 
-                      onClick={goToPrevTab}
-                    >
+
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      mt: 3,
+                    }}
+                  >
+                    <Button variant="outlined" onClick={goToPrevTab}>
                       Back
                     </Button>
-                    <Button 
-                      variant="contained" 
+                    <Button
+                      variant="contained"
                       onClick={goToNextTab}
                       sx={{ bgcolor: '#00529B' }}
                     >
@@ -679,60 +723,8 @@ function SupplierRegister() {
                         }}
                       />
                     </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        name="profile.iban"
-                        label="IBAN"
-                        value={form.profile.iban}
-                        onChange={handleChange}
-                        fullWidth
-                        margin="normal"
-                        variant="outlined"
-                        InputProps={{
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <CreditCardIcon color="action" />
-                            </InputAdornment>
-                          ),
-                        }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        name="profile.swift_code"
-                        label="SWIFT Code"
-                        value={form.profile.swift_code}
-                        onChange={handleChange}
-                        fullWidth
-                        margin="normal"
-                        variant="outlined"
-                        InputProps={{
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <PaymentsIcon color="action" />
-                            </InputAdornment>
-                          ),
-                        }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        name="profile.sort_code"
-                        label="Sort Code"
-                        value={form.profile.sort_code}
-                        onChange={handleChange}
-                        fullWidth
-                        margin="normal"
-                        variant="outlined"
-                        InputProps={{
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <PaymentsIcon color="action" />
-                            </InputAdornment>
-                          ),
-                        }}
-                      />
-                    </Grid>
+                    
+                    {/* Payment Currency */}
                     <Grid item xs={12} sm={6}>
                       <TextField
                         select
@@ -759,39 +751,156 @@ function SupplierRegister() {
                         ))}
                       </TextField>
                     </Grid>
+
+                    {/* IBAN Field with N/A Toggle */}
                     <Grid item xs={12} sm={6}>
                       <TextField
-                        select
-                        name="profile.payment_terms"
-                        label="Payment Terms"
-                        value={form.profile.payment_terms}
+                        name="profile.iban"
+                        label="IBAN"
+                        value={form.profile.iban}
                         onChange={handleChange}
                         fullWidth
                         required
                         margin="normal"
                         variant="outlined"
+                        disabled={ibanNotApplicable}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <ArticleIcon color="action" />
+                              <CreditCardIcon color="action" />
+                            </InputAdornment>
+                          ),
+                          endAdornment: ibanNotApplicable && (
+                            <InputAdornment position="end">
+                              <Typography 
+                                variant="body2" 
+                                sx={{ 
+                                  bgcolor: '#f0f0f0', 
+                                  px: 1, 
+                                  py: 0.5, 
+                                  borderRadius: 1,
+                                  color: 'text.secondary',
+                                  fontWeight: 'medium'
+                                }}
+                              >
+                                N/A
+                              </Typography>
                             </InputAdornment>
                           ),
                         }}
+                      />
+                      <Box 
+                        sx={{ 
+                          display: 'flex', 
+                          alignItems: 'center',
+                          mt: 1
+                        }}
                       >
-                        {paymentTerms.map((option) => (
-                          <MenuItem key={option.value} value={option.value}>
-                            {option.label}
-                          </MenuItem>
-                        ))}
-                      </TextField>
+                        <Switch
+                          checked={ibanNotApplicable}
+                          onChange={handleIbanNotApplicable}
+                          color="primary"
+                          size="small"
+                        />
+                        <Typography 
+                          variant="body2" 
+                          color="text.secondary"
+                          sx={{ ml: 1 }}
+                        >
+                          IBAN not applicable
+                        </Typography>
+                      </Box>
+                    </Grid>
+
+                    {/* SWIFT Code Field with N/A Toggle */}
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        name="profile.swift_code"
+                        label="SWIFT Code"
+                        value={form.profile.swift_code}
+                        onChange={handleChange}
+                        fullWidth
+                        required
+                        margin="normal"
+                        variant="outlined"
+                        disabled={swiftNotApplicable}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <PaymentsIcon color="action" />
+                            </InputAdornment>
+                          ),
+                          endAdornment: swiftNotApplicable && (
+                            <InputAdornment position="end">
+                              <Typography 
+                                variant="body2" 
+                                sx={{ 
+                                  bgcolor: '#f0f0f0', 
+                                  px: 1, 
+                                  py: 0.5, 
+                                  borderRadius: 1,
+                                  color: 'text.secondary',
+                                  fontWeight: 'medium'
+                                }}
+                              >
+                                N/A
+                              </Typography>
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                      <Box 
+                        sx={{ 
+                          display: 'flex', 
+                          alignItems: 'center',
+                          mt: 1
+                        }}
+                      >
+                        <Switch
+                          checked={swiftNotApplicable}
+                          onChange={handleSwiftNotApplicable}
+                          color="primary"
+                          size="small"
+                        />
+                        <Typography 
+                          variant="body2" 
+                          color="text.secondary"
+                          sx={{ ml: 1 }}
+                        >
+                          SWIFT Code not applicable
+                        </Typography>
+                      </Box>
+                    </Grid>
+
+                    {/* Sort Code */}
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        name="profile.sort_code"
+                        label="Sort Code"
+                        value={form.profile.sort_code}
+                        onChange={handleChange}
+                        fullWidth
+                        margin="normal"
+                        variant="outlined"
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <PaymentsIcon color="action" />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
                     </Grid>
                   </Grid>
-                  
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
-                    <Button 
-                      variant="outlined" 
-                      onClick={goToPrevTab}
-                    >
+
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      mt: 3,
+                    }}
+                  >
+                    <Button variant="outlined" onClick={goToPrevTab}>
                       Back
                     </Button>
                     <Button

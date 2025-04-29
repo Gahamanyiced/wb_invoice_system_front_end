@@ -41,6 +41,7 @@ const MenuProps = {
   },
 };
 
+// List of common currencies
 const currencies = [
   { value: 'RWF', label: 'Rwandan Franc (RWF)' },
   { value: 'USD', label: 'US Dollar (USD)' },
@@ -53,6 +54,19 @@ const currencies = [
   { value: 'AUD', label: 'Australian Dollar (AUD)' },
   { value: 'JPY', label: 'Japanese Yen (JPY)' },
   { value: 'CNY', label: 'Chinese Yuan (CNY)' },
+];
+
+// List of payment terms options
+const paymentTermsOptions = [
+  { value: "net_30", label: "Net 30 - Payment due within 30 days" },
+  { value: "net_45", label: "Net 45 - Payment due within 45 days" },
+  { value: "net_60", label: "Net 60 - Payment due within 60 days" },
+  { value: "net_90", label: "Net 90 - Payment due within 90 days" },
+  { value: "due_on_receipt", label: "Due on Receipt" },
+  { value: "end_of_month", label: "End of Month" },
+  { value: "15_mfg", label: "15 MFG - 15th of month following goods receipt" },
+  { value: "15_mfi", label: "15 MFI - 15th of month following invoice receipt" },
+  { value: "custom", label: "Custom - Enter your own terms" },
 ];
 
 const style = {
@@ -154,9 +168,13 @@ export default function InvoiceModal() {
     cost_center: '',
     currency: 'RWF', // Default to RWF
     amount: '',
+    payment_terms: '', // New field for payment terms
+    payment_terms_description: '', // New field for custom payment terms
+    payment_due_date: '', // New field for payment due date
   });
   const [documents, setDocuments] = useState([{}]);
   const [next_signers, setNextSigners] = useState([]);
+  const [customPaymentTerms, setCustomPaymentTerms] = useState(false);
 
   useEffect(() => {
     dispatch(checkHeadDepartment());
@@ -177,14 +195,27 @@ export default function InvoiceModal() {
       cost_center: '',
       currency: 'RWF',
       amount: '',
+      payment_terms: '', 
+      payment_terms_description: '',
+      payment_due_date: '',
     });
     setDocuments([{}]);
     setNextSigners([]);
+    setCustomPaymentTerms(false);
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+
+    // Check if payment terms is set to custom
+    if (name === 'payment_terms' && value === 'custom') {
+      setCustomPaymentTerms(true);
+    } else if (name === 'payment_terms') {
+      setCustomPaymentTerms(false);
+      // Clear custom description when a standard term is selected
+      setFormData((prev) => ({ ...prev, payment_terms_description: '' }));
+    }
   };
 
   const handleChangeDocument = (e, idx) => {
@@ -202,8 +233,13 @@ export default function InvoiceModal() {
   };
 
   const submit = async () => {
-    // For suppliers, only validate document attachments
+    // For suppliers, validate required fields
     if (isSupplier) {
+      if (!form_data.invoice_number || !form_data.amount || !form_data.currency || !form_data.service_period) {
+        toast.error('Please fill all required fields');
+        return;
+      }
+      
       if (documents.length === 1 && !documents[0].name) {
         toast.error('Please attach at least one document');
         return;
@@ -211,13 +247,24 @@ export default function InvoiceModal() {
     } 
     // For other roles, perform full validation
     else {
-      if (!form_data.supplier_number || !form_data.invoice_number || !form_data.gl_code) {
+      if (!form_data.supplier_number || !form_data.invoice_number || !form_data.gl_code || !form_data.service_period) {
         toast.error('Please fill all required fields');
         return;
       }
 
       if (!form_data.amount) {
         toast.error('Please enter an amount');
+        return;
+      }
+
+      if (!form_data.payment_terms) {
+        toast.error('Please select payment terms');
+        return;
+      }
+
+      // Check payment terms validation
+      if (form_data.payment_terms === 'custom' && !form_data.payment_terms_description) {
+        toast.error('Please provide a description for your custom payment terms');
         return;
       }
 
@@ -276,7 +323,7 @@ export default function InvoiceModal() {
           </Box>
           
           <Box sx={style.content}>
-            {/* Only show these sections for non-supplier roles */}
+            {/* Only show supplier section for non-supplier roles */}
             {!isSupplier && (
               <>
                 <Box sx={style.section}>
@@ -311,35 +358,43 @@ export default function InvoiceModal() {
                 </Box>
 
                 <Divider sx={{ my: 2 }} />
+              </>
+            )}
+            
+            {/* Invoice Details section - shown to all users including suppliers */}
+            <Box sx={style.section}>
+              <Typography variant="h6" sx={style.sectionTitle}>
+                Invoice Details
+              </Typography>
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <FormControl fullWidth variant="outlined">
+                    <InputLabel sx={style.inputLabel}>Invoice Number *</InputLabel>
+                    <Input
+                      type="number"
+                      name="invoice_number"
+                      value={form_data.invoice_number}
+                      onChange={handleChange}
+                      sx={style.formInputNumber}
+                      required
+                    />
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <FormControl fullWidth variant="outlined">
+                    <InputLabel sx={style.inputLabel}>Service Period *</InputLabel>
+                    <Input
+                      name="service_period"
+                      value={form_data.service_period}
+                      onChange={handleChange}
+                      required
+                    />
+                  </FormControl>
+                </Grid>
                 
-                <Box sx={style.section}>
-                  <Typography variant="h6" sx={style.sectionTitle}>
-                    Invoice Details
-                  </Typography>
-                  <Grid container spacing={3}>
-                    <Grid item xs={12} md={6}>
-                      <FormControl fullWidth variant="outlined">
-                        <InputLabel sx={style.inputLabel}>Invoice Number *</InputLabel>
-                        <Input
-                          type="number"
-                          name="invoice_number"
-                          value={form_data.invoice_number}
-                          onChange={handleChange}
-                          sx={style.formInputNumber}
-                          required
-                        />
-                      </FormControl>
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                      <FormControl fullWidth variant="outlined">
-                        <InputLabel sx={style.inputLabel}>Service Period</InputLabel>
-                        <Input
-                          name="service_period"
-                          value={form_data.service_period}
-                          onChange={handleChange}
-                        />
-                      </FormControl>
-                    </Grid>
+                {/* Only show these fields to non-suppliers */}
+                {!isSupplier && (
+                  <>
                     <Grid item xs={12} md={6}>
                       <FormControl fullWidth variant="outlined">
                         <InputLabel sx={style.inputLabel}>GL Code *</InputLabel>
@@ -363,16 +418,22 @@ export default function InvoiceModal() {
                         />
                       </FormControl>
                     </Grid>
-                  </Grid>
-                </Box>
+                  </>
+                )}
+              </Grid>
+            </Box>
 
-                <Divider sx={{ my: 2 }} />
-                
-                <Box sx={style.section}>
-                  <Typography variant="h6" sx={style.sectionTitle}>
-                    Financial Information
-                  </Typography>
-                  <Grid container spacing={3}>
+            <Divider sx={{ my: 2 }} />
+            
+            {/* Financial Information - shown to all users including suppliers */}
+            <Box sx={style.section}>
+              <Typography variant="h6" sx={style.sectionTitle}>
+                Financial Information
+              </Typography>
+              <Grid container spacing={3}>
+                {/* Only show these fields to non-suppliers */}
+                {!isSupplier && (
+                  <>
                     <Grid item xs={12} md={6}>
                       <FormControl fullWidth variant="outlined">
                         <InputLabel sx={style.inputLabel}>Location</InputLabel>
@@ -393,41 +454,118 @@ export default function InvoiceModal() {
                         />
                       </FormControl>
                     </Grid>
-                    <Grid item xs={12} md={6}>
+                  </>
+                )}
+                
+                {/* Currency and Amount - shown to all users including suppliers */}
+                <Grid item xs={12} md={6}>
+                  <FormControl fullWidth variant="outlined">
+                    <InputLabel id="currency-label" sx={style.inputLabel}>Currency *</InputLabel>
+                    <Select
+                      labelId="currency-label"
+                      name="currency"
+                      value={form_data.currency}
+                      onChange={handleChange}
+                      label="Currency"
+                      required
+                    >
+                      {currencies.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <FormControl fullWidth variant="outlined">
+                    <InputLabel sx={style.inputLabel}>Amount *</InputLabel>
+                    <Input
+                      type="number"
+                      name="amount"
+                      value={form_data.amount}
+                      onChange={handleChange}
+                      sx={style.formInputNumber}
+                      required
+                    />
+                  </FormControl>
+                </Grid>
+              </Grid>
+            </Box>
+
+            <Divider sx={{ my: 2 }} />
+
+            {/* Payment Terms Section - only shown to non-suppliers */}
+            {!isSupplier && (
+              <>
+                <Box sx={style.section}>
+                  <Typography variant="h6" sx={style.sectionTitle}>
+                    Payment Terms and Due Date
+                  </Typography>
+                  <Grid container spacing={3}>
+                    <Grid item xs={12} md={customPaymentTerms ? 4 : 6}>
                       <FormControl fullWidth variant="outlined">
-                        <InputLabel id="currency-label" sx={style.inputLabel}>Currency *</InputLabel>
-                        <Select
-                          labelId="currency-label"
-                          name="currency"
-                          value={form_data.currency}
+                        <TextField
+                          select
+                          label="Payment Terms *"
+                          name="payment_terms"
+                          value={form_data.payment_terms}
                           onChange={handleChange}
-                          label="Currency"
+                          variant="outlined"
                           required
+                          fullWidth
+                          InputLabelProps={{
+                            shrink: true,
+                            style: { backgroundColor: 'white', paddingLeft: 5, paddingRight: 5 }
+                          }}
                         >
-                          {currencies.map((option) => (
+                          <MenuItem value="">
+                            <em>Select payment terms</em>
+                          </MenuItem>
+                          {paymentTermsOptions.map((option) => (
                             <MenuItem key={option.value} value={option.value}>
                               {option.label}
                             </MenuItem>
                           ))}
-                        </Select>
+                        </TextField>
                       </FormControl>
                     </Grid>
-                    <Grid item xs={12} md={6}>
-                      <FormControl fullWidth variant="outlined">
-                        <InputLabel sx={style.inputLabel}>Amount *</InputLabel>
-                        <Input
-                          type="number"
-                          name="amount"
-                          value={form_data.amount}
+                    
+                    {customPaymentTerms && (
+                      <Grid item xs={12} md={4}>
+                        <TextField
+                          label="Custom Terms Description *"
+                          name="payment_terms_description"
+                          value={form_data.payment_terms_description}
                           onChange={handleChange}
-                          sx={style.formInputNumber}
+                          variant="outlined"
+                          fullWidth
                           required
+                          InputLabelProps={{
+                            shrink: true,
+                            style: { backgroundColor: 'white', paddingLeft: 5, paddingRight: 5 }
+                          }}
                         />
-                      </FormControl>
+                      </Grid>
+                    )}
+                    
+                    <Grid item xs={12} md={customPaymentTerms ? 4 : 6}>
+                      <TextField
+                        type="date"
+                        name="payment_due_date"
+                        value={form_data.payment_due_date}
+                        onChange={handleChange}
+                        label="Payment Due Date"
+                        variant="outlined"
+                        fullWidth
+                        InputLabelProps={{
+                          shrink: true,
+                          style: { backgroundColor: 'white', paddingLeft: 5, paddingRight: 5 }
+                        }}
+                      />
                     </Grid>
                   </Grid>
                 </Box>
-
                 <Divider sx={{ my: 2 }} />
               </>
             )}

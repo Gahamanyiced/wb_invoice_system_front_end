@@ -75,6 +75,24 @@ const styles = {
   statusChip: {
     fontWeight: 'bold',
     marginLeft: '8px',
+  },
+  button: {
+    backgroundColor: '#00529B',
+    '&:hover': {
+      backgroundColor: '#003a6d',
+    },
+  },
+  denyButton: {
+    backgroundColor: '#00529B',
+    '&:hover': {
+      backgroundColor: '#003a6d',
+    },
+  },
+  rollbackButton: {
+    backgroundColor: '#00529B',
+    '&:hover': {
+      backgroundColor: '#003a6d',
+    },
   }
 };
 
@@ -280,7 +298,7 @@ const Actions = ({ isAllowed, handleApproveClick, invoice }) => {
             <Box sx={styles.buttonContainer}>
               <Button
                 variant="contained"
-                color="primary"
+                sx={styles.button}
                 onClick={() => handleApproveClick(1)}
                 fullWidth
               >
@@ -288,7 +306,7 @@ const Actions = ({ isAllowed, handleApproveClick, invoice }) => {
               </Button>
               <Button
                 variant="contained"
-                color="error"
+                sx={styles.denyButton}
                 onClick={() => handleApproveClick(2)}
                 fullWidth
               >
@@ -296,7 +314,7 @@ const Actions = ({ isAllowed, handleApproveClick, invoice }) => {
               </Button>
               <Button
                 variant="contained"
-                color="warning"
+                sx={styles.rollbackButton}
                 onClick={() => handleApproveClick(3)}
                 fullWidth
               >

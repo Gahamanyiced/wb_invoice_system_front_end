@@ -243,11 +243,17 @@ export default function Sidebar() {
     
     // Force navigation to login page
     navigate('/login', { replace: true });
-  }
+  };
   
   // Get initials for avatar
   const getInitials = () => {
     return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  };
+  
+  // Helper function to capitalize the first letter of a string safely
+  const capitalizeFirstLetter = (string) => {
+    if (!string || typeof string !== 'string') return 'User';
+    return string.charAt(0).toUpperCase() + string.slice(1);
   };
   
   return (
@@ -294,18 +300,20 @@ export default function Sidebar() {
                     All Invoices
                   </SubMenuItem>
                 )}
-                <SubMenuItem 
-                  className={activeDashboardOption === 2 ? 'active' : ''} 
-                  onClick={() => handleDashboardOption(2)}
-                >
-                  My Invoices
-                </SubMenuItem>
+                {(user?.role === 'supplier' || user?.role === 'signer_admin') && (
+                  <SubMenuItem 
+                    className={activeDashboardOption === 2 ? 'active' : ''} 
+                    onClick={() => handleDashboardOption(2)}
+                  >
+                    Invoices Upload
+                  </SubMenuItem>
+                )}
                 {(user?.role === 'signer' || user?.role === 'signer_admin') && (
                   <SubMenuItem 
                     className={activeDashboardOption === 3 ? 'active' : ''}
                     onClick={() => handleDashboardOption(3)}
                   >
-                    Invoices To Sign
+                    Invoice Approval
                   </SubMenuItem>
                 )}
               </Collapse>
@@ -338,18 +346,20 @@ export default function Sidebar() {
                   All Invoices
                 </SubMenuItem>
               )}
-              <SubMenuItem 
-                className={activeInvoiceOption === 2 ? 'active' : ''}
-                onClick={() => handleInvoiceOption(2)}
-              >
-                My Invoices
-              </SubMenuItem>
+              {(user?.role === 'supplier' || user?.role === 'signer_admin') && (
+                <SubMenuItem 
+                  className={activeInvoiceOption === 2 ? 'active' : ''}
+                  onClick={() => handleInvoiceOption(2)}
+                >
+                  Invoices Upload
+                </SubMenuItem>
+              )}
               {(user?.role === 'signer' || user?.role === 'signer_admin') && (
                 <SubMenuItem 
                   className={activeInvoiceOption === 3 ? 'active' : ''}
                   onClick={() => handleInvoiceOption(3)}
                 >
-                  Invoices To Sign
+                  Invoice Approval
                 </SubMenuItem>
               )}
             </Collapse>
@@ -442,7 +452,9 @@ export default function Sidebar() {
               {firstName.charAt(0).toUpperCase() + firstName.slice(1)}
             </Typography>
             <Typography variant="caption" sx={{ color: COLORS.textSecondary }}>
-              {user?.role?.charAt(0).toUpperCase() + user?.role?.slice(1) || 'User'}
+              {user && user.role && typeof user.role === 'string' 
+                ? capitalizeFirstLetter(user.role) 
+                : 'User'}
             </Typography>
           </UserInfo>
         </UserProfileSection>

@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import { useState } from 'react';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -88,23 +88,23 @@ function VerifyOtp() {
             padding: { xs: '0.5rem 1rem', md: '0.5rem 2rem' },
           }}
         >
-          <Box 
-            component="img" 
-            src={Logo} 
+          <Box
+            component="img"
+            src={Logo}
             alt="RwandAir Logo"
-            sx={{ 
+            sx={{
               height: { xs: 40, md: 50 },
-              objectFit: 'contain' 
+              objectFit: 'contain',
             }}
           />
           <Button
             variant="text"
             startIcon={<ArrowBackIcon />}
-            sx={{ 
+            sx={{
               color: '#FFF',
               '&:hover': {
-                backgroundColor: 'rgba(255,255,255,0.1)'
-              }
+                backgroundColor: 'rgba(255,255,255,0.1)',
+              },
             }}
             onClick={handleBackToLogin}
           >
@@ -132,31 +132,27 @@ function VerifyOtp() {
             overflow: 'hidden',
           }}
         >
-          <Box 
-            sx={{ 
-              height: '8px', 
-              background: 'linear-gradient(90deg, #00529B 0%, #0077cc 100%)'
-            }} 
+          <Box
+            sx={{
+              height: '8px',
+              background: 'linear-gradient(90deg, #00529B 0%, #0077cc 100%)',
+            }}
           />
-          
+
           <CardContent sx={{ padding: '2rem' }}>
             {/* Header */}
             <Box sx={{ textAlign: 'center', mb: 4 }}>
               <Typography
                 variant="h5"
-                sx={{ 
-                  color: '#00529B', 
+                sx={{
+                  color: '#00529B',
                   fontWeight: 600,
-                  mb: 1
+                  mb: 1,
                 }}
               >
                 OTP Verification
               </Typography>
-              <Typography 
-                variant="body2" 
-                color="text.secondary"
-                sx={{ mb: 2 }}
-              >
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 Enter the one-time password sent to your email
               </Typography>
               <Divider />
@@ -232,7 +228,7 @@ function VerifyOtp() {
                   {isLoading ? (
                     <CircularProgress size={24} color="inherit" />
                   ) : (
-                    'Verify & Proceed'
+                    'Verify'
                   )}
                 </Button>
               </Box>
@@ -261,14 +257,27 @@ function VerifyOtp() {
               gap: { xs: 1, sm: 0 },
             }}
           >
-            <Typography variant="body2" align="center" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
-              Copyright © {new Date().getFullYear()} RwandAir. All rights reserved.
+            <Typography
+              variant="body2"
+              align="center"
+              sx={{ color: 'rgba(255, 255, 255, 0.8)' }}
+            >
+              Copyright © {new Date().getFullYear()} RwandAir. All rights
+              reserved.
             </Typography>
             <Box sx={{ display: 'flex', gap: 2 }}>
-              <Link href="#" color="inherit" sx={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.875rem' }}>
+              <Link
+                href="#"
+                color="inherit"
+                sx={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.875rem' }}
+              >
                 Privacy Policy
               </Link>
-              <Link href="#" color="inherit" sx={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.875rem' }}>
+              <Link
+                href="#"
+                color="inherit"
+                sx={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.875rem' }}
+              >
                 Terms of Service
               </Link>
             </Box>

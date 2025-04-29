@@ -261,9 +261,9 @@ const MyDocument = ({ invoice, user }) => {
       : '',
   };
 
-  // Add intermediate approvers
+  // Add intermediate approvers - MODIFIED: First approver is now "Verifier"
   const approvers = intermediateApprovers.map((item, index) => ({
-    title: `Approver ${index + 1}`,
+    title: index === 0 ? 'Verifier' : `Approver ${index}`, // First approver is "Verifier", others are "Approver X"
     name: item?.signer 
       ? `${item.signer.firstname || ''} ${item.signer.lastname || ''}` 
       : '',

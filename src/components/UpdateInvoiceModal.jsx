@@ -23,6 +23,9 @@ import {
   Stack,
   Card,
   CardContent,
+  MenuItem,
+  Select,
+  InputLabel,
 } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -34,6 +37,34 @@ import SaveIcon from '@mui/icons-material/Save';
 import DescriptionIcon from '@mui/icons-material/Description';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
+
+// List of common currencies
+const currencies = [
+  { value: 'RWF', label: 'Rwandan Franc (RWF)' },
+  { value: 'USD', label: 'US Dollar (USD)' },
+  { value: 'EUR', label: 'Euro (EUR)' },
+  { value: 'GBP', label: 'British Pound (GBP)' },
+  { value: 'KES', label: 'Kenyan Shilling (KES)' },
+  { value: 'UGX', label: 'Ugandan Shilling (UGX)' },
+  { value: 'TZS', label: 'Tanzanian Shilling (TZS)' },
+  { value: 'CAD', label: 'Canadian Dollar (CAD)' },
+  { value: 'AUD', label: 'Australian Dollar (AUD)' },
+  { value: 'JPY', label: 'Japanese Yen (JPY)' },
+  { value: 'CNY', label: 'Chinese Yuan (CNY)' },
+];
+
+// List of payment terms options
+const paymentTermsOptions = [
+  { value: "net_30", label: "Net 30 - Payment due within 30 days" },
+  { value: "net_45", label: "Net 45 - Payment due within 45 days" },
+  { value: "net_60", label: "Net 60 - Payment due within 60 days" },
+  { value: "net_90", label: "Net 90 - Payment due within 90 days" },
+  { value: "due_on_receipt", label: "Due on Receipt" },
+  { value: "end_of_month", label: "End of Month" },
+  { value: "15_mfg", label: "15 MFG - 15th of month following goods receipt" },
+  { value: "15_mfi", label: "15 MFI - 15th of month following invoice receipt" },
+  { value: "custom", label: "Custom - Enter your own terms" },
+];
 
 const style = {
   modal: {
@@ -113,14 +144,22 @@ function UpdateInvoiceModal({
 }) {
   console.log('defaultValues', defaultValues);
   const navigate = useNavigate();
-  const [value, setValue] = useState('new');
-  const [comment, setComment] = useState('');
   const dispatch = useDispatch();
   const { isLoading } = useSelector((state) => state.invoice);
 
   // Get user role from localStorage
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isSupplier = user?.role === 'supplier';
+
+  // Check if documents are in invoice property or directly in defaultValues
+  const documentsInInvoice = Boolean(defaultValues?.invoice?.documents);
+  
+  // Initialize value state based on whether documents are in invoice property
+  const [value, setValue] = useState(documentsInInvoice ? 'new' : 'new');
+  const [comment, setComment] = useState('');
+  const [customPaymentTerms, setCustomPaymentTerms] = useState(
+    (defaultValues?.payment_terms || defaultValues?.invoice?.payment_terms) === 'custom'
+  );
 
   const [formData, setFormData] = useState({
     supplier_number:
@@ -149,9 +188,25 @@ function UpdateInvoiceModal({
       defaultValues?.cost_center || defaultValues?.invoice?.cost_center || '',
     currency: defaultValues?.currency || defaultValues?.invoice?.currency || '',
     amount: defaultValues?.amount || defaultValues?.invoice?.amount || '',
+    payment_terms: 
+      defaultValues?.payment_terms || 
+      defaultValues?.invoice?.payment_terms || 
+      '',
+    payment_terms_description: 
+      defaultValues?.payment_terms_description || 
+      defaultValues?.invoice?.payment_terms_description || 
+      '',
+    payment_due_date: 
+      defaultValues?.payment_due_date || 
+      defaultValues?.invoice?.payment_due_date || 
+      '',
   });
 
-  const [documents, setDocuments] = useState(defaultValues?.documents || []);
+  // Initialize documents state based on where they're located
+  const [documents, setDocuments] = useState(
+    documentsInInvoice ? defaultValues?.invoice?.documents || [] : defaultValues?.documents || []
+  );
+  
   const [anotherDocuments, setAnotherDocuments] = useState([]);
   const [selectedDocumentIndices, setSelectedDocumentIndices] = useState([]);
   const [anotherSelectedDocumentIndices, setAnotherSelectedDocumentIndices] =
@@ -181,6 +236,15 @@ function UpdateInvoiceModal({
   const handleChangeFormData = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
+
+    // Check if payment terms is set to custom
+    if (name === 'payment_terms' && value === 'custom') {
+      setCustomPaymentTerms(true);
+    } else if (name === 'payment_terms') {
+      setCustomPaymentTerms(false);
+      // Clear custom description when a standard term is selected
+      setFormData((prev) => ({ ...prev, payment_terms_description: '' }));
+    }
   };
 
   const handleChangeForNewDocument = (event, index) => {
@@ -206,7 +270,7 @@ function UpdateInvoiceModal({
         if (docId) {
           setReplacedDocumentIds([...replacedDocumentIds, docId]);
         }
-        
+
         newDocuments[selectedIndex] = event.target.files[0];
         setSelectedDocumentIndices([...selectedDocumentIndices]);
 
@@ -225,7 +289,7 @@ function UpdateInvoiceModal({
   };
 
   const resetState = () => {
-    setValue('new');
+    setValue(documentsInInvoice ? 'new' : 'new');
     setFormData({
       supplier_number:
         defaultValues?.supplier_number ||
@@ -255,22 +319,90 @@ function UpdateInvoiceModal({
       currency:
         defaultValues?.currency || defaultValues?.invoice?.currency || '',
       amount: defaultValues?.amount || defaultValues?.invoice?.amount || '',
+      payment_terms: 
+        defaultValues?.payment_terms || 
+        defaultValues?.invoice?.payment_terms || 
+        '',
+      payment_terms_description: 
+        defaultValues?.payment_terms_description || 
+        defaultValues?.invoice?.payment_terms_description || 
+        '',
+      payment_due_date: 
+        defaultValues?.payment_due_date || 
+        defaultValues?.invoice?.payment_due_date || 
+        '',
     });
-    setDocuments(defaultValues?.documents || []);
+    setDocuments(documentsInInvoice ? defaultValues?.invoice?.documents || [] : defaultValues?.documents || []);
     setSelectedDocumentIndices([]);
     setAnotherSelectedDocumentIndices([]);
     setReplacedDocumentIds([]);
     setAnotherDocuments([]);
     setUploadedFileNames([]);
     setComment('');
+    setCustomPaymentTerms(
+      (defaultValues?.payment_terms || defaultValues?.invoice?.payment_terms) === 'custom'
+    );
+  };
+
+  const validateSupplierForm = () => {
+    if (
+      !formData.invoice_number ||
+      !formData.service_period ||
+      !formData.currency ||
+      !formData.amount
+    ) {
+      toast.error('Please fill all required fields');
+      return false;
+    }
+    return true;
+  };
+
+  const validateNonSupplierForm = () => {
+    if (
+      !formData.invoice_number ||
+      !formData.service_period ||
+      !formData.currency ||
+      !formData.amount
+    ) {
+      toast.error('Please fill all required fields');
+      return false;
+    }
+
+    if (!formData.payment_terms) {
+      toast.error('Please select payment terms');
+      return false;
+    }
+
+    if (formData.payment_terms === 'custom' && !formData.payment_terms_description) {
+      toast.error('Please provide a description for your custom payment terms');
+      return false;
+    }
+
+    return true;
   };
 
   const submit = async () => {
     try {
       const data = new FormData();
 
-      // Add form fields to the FormData only if user is not a supplier
-      if (!isSupplier) {
+      // For suppliers, validate form fields first
+      if (isSupplier) {
+        if (!validateSupplierForm()) {
+          return;
+        }
+
+        // Add only the fields that suppliers can modify
+        data.append('invoice_number', formData.invoice_number);
+        data.append('service_period', formData.service_period);
+        data.append('currency', formData.currency);
+        data.append('amount', formData.amount);
+      } else {
+        // For staff, validate and add all form fields
+        if (!validateNonSupplierForm()) {
+          return;
+        }
+
+        // Add all form fields
         Object.keys(formData).forEach((key) => {
           data.append(key, formData[key]);
         });
@@ -280,7 +412,7 @@ function UpdateInvoiceModal({
         data.append('comment', comment);
       }
 
-      if (value === 'change') {
+      if (value === 'change' && !documentsInInvoice) {
         anotherSelectedDocumentIndices.forEach((documentIndex, index) => {
           data.append('documents', documents[documentIndex]);
           data.append('document_id', replacedDocumentIds[index]);
@@ -295,7 +427,9 @@ function UpdateInvoiceModal({
 
       // Determine the correct ID based on user role
       const isSigner = user?.role === 'signer' || user?.role === 'signer_admin';
-      const invoiceId = isSigner ? (defaultValues?.invoice?.id || defaultValues?.id) : defaultValues?.id;
+      const invoiceId = isSigner
+        ? defaultValues?.invoice?.id || defaultValues?.id
+        : defaultValues?.id;
 
       await dispatch(updateInvoice({ id: invoiceId, data }));
       toast.success('Invoice Updated Successfully');
@@ -307,7 +441,7 @@ function UpdateInvoiceModal({
   };
 
   const handleAddMore = () => {
-    if (value === 'new') {
+    if (value === 'new' || documentsInInvoice) {
       setAnotherDocuments([...anotherDocuments, null]);
     } else {
       setDocuments([...documents, {}]);
@@ -315,24 +449,28 @@ function UpdateInvoiceModal({
   };
 
   const handleFileSelect = (event, index) => {
-    if (value === 'change') {
+    if (value === 'change' && !documentsInInvoice) {
       handleChangeForUpdatingDocument(event, index);
-    } else if (value === 'new') {
+    } else if (value === 'new' || documentsInInvoice) {
       handleChangeForNewDocument(event, index);
     }
   };
 
   const getDocumentList = () => {
-    if (value === 'change') {
+    if (value === 'change' && !documentsInInvoice) {
       // Return all documents that have valid data regardless of creator
-      return documents?.filter(doc => doc && (doc.id || doc.file_data || doc.filename)) || [];
+      return (
+        documents?.filter(
+          (doc) => doc && (doc.id || doc.file_data || doc.filename)
+        ) || []
+      );
     } else {
       return [];
     }
   };
 
   const getUploadList = () => {
-    if (value === 'change') {
+    if (value === 'change' && !documentsInInvoice) {
       return selectedDocumentIndices;
     } else {
       return [...Array(anotherDocuments.length || 1).keys()];
@@ -349,7 +487,7 @@ function UpdateInvoiceModal({
         {/* Header */}
         <Box sx={style.header}>
           <Typography variant="h6" component="h2" fontWeight="500">
-            {isSupplier ? 'Update Invoice Documents' : 'Update Invoice'}
+            Update Invoice
           </Typography>
           <IconButton
             edge="end"
@@ -364,7 +502,176 @@ function UpdateInvoiceModal({
 
         {/* Content */}
         <Box sx={style.content}>
-          {/* Invoice Information Section - Only visible for non-suppliers */}
+          {/* Invoice Information Section */}
+          <Paper elevation={0} sx={style.section}>
+            <Typography
+              variant="subtitle1"
+              fontWeight="600"
+              color="#00529B"
+              sx={{ mb: 3 }}
+            >
+              Invoice Information
+            </Typography>
+
+            <Grid container spacing={3}>
+              {!isSupplier && (
+                <>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      label="Supplier Number"
+                      name="supplier_number"
+                      value={formData.supplier_number}
+                      onChange={handleChangeFormData}
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      sx={{ mb: 2 }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      label="Supplier Name"
+                      name="supplier_name"
+                      value={formData.supplier_name}
+                      onChange={handleChangeFormData}
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      sx={{ mb: 2 }}
+                    />
+                  </Grid>
+                </>
+              )}
+
+              {/* These fields are visible to both suppliers and staff */}
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="Invoice Number *"
+                  name="invoice_number"
+                  value={formData.invoice_number}
+                  onChange={handleChangeFormData}
+                  fullWidth
+                  required
+                  variant="outlined"
+                  size="small"
+                  sx={{ mb: 2 }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="Service Period *"
+                  name="service_period"
+                  value={formData.service_period}
+                  onChange={handleChangeFormData}
+                  fullWidth
+                  required
+                  variant="outlined"
+                  size="small"
+                  sx={{ mb: 2 }}
+                />
+              </Grid>
+
+              {!isSupplier && (
+                <>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      label="GL Code"
+                      name="gl_code"
+                      value={formData.gl_code}
+                      onChange={handleChangeFormData}
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      sx={{ mb: 2 }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      label="GL Description"
+                      name="gl_description"
+                      value={formData.gl_description}
+                      onChange={handleChangeFormData}
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      sx={{ mb: 2 }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      label="Location"
+                      name="location"
+                      value={formData.location}
+                      onChange={handleChangeFormData}
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      sx={{ mb: 2 }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      label="Cost Center"
+                      name="cost_center"
+                      value={formData.cost_center}
+                      onChange={handleChangeFormData}
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      sx={{ mb: 2 }}
+                    />
+                  </Grid>
+                </>
+              )}
+
+              {/* Currency and Amount fields visible to both suppliers and staff */}
+              <Grid item xs={12} md={6}>
+                <FormControl
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  sx={{ mb: 2 }}
+                >
+                  <InputLabel>Currency *</InputLabel>
+                  <Select
+                    name="currency"
+                    value={formData.currency}
+                    onChange={handleChangeFormData}
+                    label="Currency *"
+                    required
+                  >
+                    {currencies.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="Amount *"
+                  name="amount"
+                  value={formData.amount}
+                  onChange={handleChangeFormData}
+                  fullWidth
+                  required
+                  variant="outlined"
+                  size="small"
+                  sx={{ mb: 2 }}
+                  type="number"
+                />
+              </Grid>
+            </Grid>
+          </Paper>
+
+          {/* Payment Terms Section - Only visible to non-suppliers */}
           {!isSupplier && (
             <Paper elevation={0} sx={style.section}>
               <Typography
@@ -373,137 +680,72 @@ function UpdateInvoiceModal({
                 color="#00529B"
                 sx={{ mb: 3 }}
               >
-                Invoice Information
+                Payment Terms and Due Date
               </Typography>
-
               <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12} md={customPaymentTerms ? 4 : 6}>
                   <TextField
-                    label="Supplier Number"
-                    name="supplier_number"
-                    value={formData.supplier_number}
+                    select
+                    label="Payment Terms *"
+                    name="payment_terms"
+                    value={formData.payment_terms}
                     onChange={handleChangeFormData}
-                    fullWidth
                     variant="outlined"
+                    required
+                    fullWidth
                     size="small"
                     sx={{ mb: 2 }}
-                  />
+                    InputLabelProps={{
+                      shrink: true,
+                      style: { backgroundColor: 'white', paddingLeft: 5, paddingRight: 5 }
+                    }}
+                  >
+                    <MenuItem value="">
+                      <em>Select payment terms</em>
+                    </MenuItem>
+                    {paymentTermsOptions.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
                 </Grid>
-
-                <Grid item xs={12} md={6}>
+                
+                {customPaymentTerms && (
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      label="Custom Terms Description *"
+                      name="payment_terms_description"
+                      value={formData.payment_terms_description}
+                      onChange={handleChangeFormData}
+                      variant="outlined"
+                      fullWidth
+                      required
+                      size="small"
+                      sx={{ mb: 2 }}
+                      InputLabelProps={{
+                        shrink: true,
+                        style: { backgroundColor: 'white', paddingLeft: 5, paddingRight: 5 }
+                      }}
+                    />
+                  </Grid>
+                )}
+                
+                <Grid item xs={12} md={customPaymentTerms ? 4 : 6}>
                   <TextField
-                    label="Supplier Name"
-                    name="supplier_name"
-                    value={formData.supplier_name}
+                    type="date"
+                    name="payment_due_date"
+                    value={formData.payment_due_date}
                     onChange={handleChangeFormData}
-                    fullWidth
+                    label="Payment Due Date"
                     variant="outlined"
+                    fullWidth
                     size="small"
                     sx={{ mb: 2 }}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    label="Invoice Number"
-                    name="invoice_number"
-                    value={formData.invoice_number}
-                    onChange={handleChangeFormData}
-                    fullWidth
-                    variant="outlined"
-                    size="small"
-                    sx={{ mb: 2 }}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    label="Service Period"
-                    name="service_period"
-                    value={formData.service_period}
-                    onChange={handleChangeFormData}
-                    fullWidth
-                    variant="outlined"
-                    size="small"
-                    sx={{ mb: 2 }}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    label="GL Code"
-                    name="gl_code"
-                    value={formData.gl_code}
-                    onChange={handleChangeFormData}
-                    fullWidth
-                    variant="outlined"
-                    size="small"
-                    sx={{ mb: 2 }}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    label="GL Description"
-                    name="gl_description"
-                    value={formData.gl_description}
-                    onChange={handleChangeFormData}
-                    fullWidth
-                    variant="outlined"
-                    size="small"
-                    sx={{ mb: 2 }}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    label="Location"
-                    name="location"
-                    value={formData.location}
-                    onChange={handleChangeFormData}
-                    fullWidth
-                    variant="outlined"
-                    size="small"
-                    sx={{ mb: 2 }}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    label="Cost Center"
-                    name="cost_center"
-                    value={formData.cost_center}
-                    onChange={handleChangeFormData}
-                    fullWidth
-                    variant="outlined"
-                    size="small"
-                    sx={{ mb: 2 }}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    label="Currency"
-                    name="currency"
-                    value={formData.currency}
-                    onChange={handleChangeFormData}
-                    fullWidth
-                    variant="outlined"
-                    size="small"
-                    sx={{ mb: 2 }}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    label="Amount"
-                    name="amount"
-                    value={formData.amount}
-                    onChange={handleChangeFormData}
-                    fullWidth
-                    variant="outlined"
-                    size="small"
-                    sx={{ mb: 2 }}
+                    InputLabelProps={{
+                      shrink: true,
+                      style: { backgroundColor: 'white', paddingLeft: 5, paddingRight: 5 }
+                    }}
                   />
                 </Grid>
               </Grid>
@@ -530,11 +772,7 @@ function UpdateInvoiceModal({
               multiline
               rows={2}
               variant="outlined"
-              placeholder={
-                isSupplier
-                  ? 'Explain the changes to the document(s)'
-                  : "Explain the changes you're making to this invoice"
-              }
+              placeholder="Explain the changes you're making to this invoice"
             />
           </Paper>
 
@@ -562,40 +800,52 @@ function UpdateInvoiceModal({
               </Button>
             </Box>
 
-            <RadioGroup
-              row
-              value={value}
-              onChange={handleRadioChange}
-              sx={{ mb: 3 }}
-            >
-              <FormControlLabel
-                value="change"
-                control={
-                  <Radio
-                    sx={{
-                      color: '#00529B',
-                      '&.Mui-checked': { color: '#00529B' },
-                    }}
-                  />
-                }
-                label="Replace existing documents"
-              />
-              <FormControlLabel
-                value="new"
-                control={
-                  <Radio
-                    sx={{
-                      color: '#00529B',
-                      '&.Mui-checked': { color: '#00529B' },
-                    }}
-                  />
-                }
-                label="Upload additional documents"
-              />
-            </RadioGroup>
+            {/* Only show RadioGroup if documents are not in invoice property */}
+            {!documentsInInvoice && (
+              <RadioGroup
+                row
+                value={value}
+                onChange={handleRadioChange}
+                sx={{ mb: 3 }}
+              >
+                <FormControlLabel
+                  value="change"
+                  control={
+                    <Radio
+                      sx={{
+                        color: '#00529B',
+                        '&.Mui-checked': { color: '#00529B' },
+                      }}
+                    />
+                  }
+                  label="Replace existing documents"
+                />
+                <FormControlLabel
+                  value="new"
+                  control={
+                    <Radio
+                      sx={{
+                        color: '#00529B',
+                        '&.Mui-checked': { color: '#00529B' },
+                      }}
+                    />
+                  }
+                  label="Upload document"
+                />
+              </RadioGroup>
+            )}
+            
+            {/* If documents are in invoice property, always set value to "new" */}
+            {documentsInInvoice && (
+              <>
+                {/* Hidden state setter to ensure value is "new" */}
+                {value !== 'new' && setValue('new')}
+                {/* No text displayed here, we'll use the heading below */}
+              </>
+            )}
 
             {/* Existing Documents (when "change" is selected) */}
-            {value === 'change' && getDocumentList().length > 0 && (
+            {value === 'change' && !documentsInInvoice && getDocumentList().length > 0 && (
               <Box sx={{ mb: 3 }}>
                 <Typography variant="subtitle2" gutterBottom fontWeight="500">
                   Select documents to replace:
@@ -627,7 +877,9 @@ function UpdateInvoiceModal({
                               variant="caption"
                               color="text.secondary"
                             >
-                              {doc.filename || doc.name || `Invoice_Document_${index + 1}`}
+                              {doc.filename ||
+                                doc.name ||
+                                `Invoice_Document_${index + 1}`}
                             </Typography>
                           </Box>
                           {doc.file_data && (
@@ -656,7 +908,7 @@ function UpdateInvoiceModal({
             {/* Document Upload Section */}
             <Box sx={{ mb: 2 }}>
               <Typography variant="subtitle2" gutterBottom fontWeight="500">
-                {value === 'change'
+                {value === 'change' && !documentsInInvoice
                   ? 'Upload replacement documents:'
                   : 'Upload new documents:'}
               </Typography>
@@ -704,7 +956,7 @@ function UpdateInvoiceModal({
                             <UploadFileIcon fontSize="large" color="action" />
                             <Typography variant="body2" fontWeight="500">
                               Click to{' '}
-                              {value === 'change' ? 'replace' : 'upload'}{' '}
+                              {value === 'change' && !documentsInInvoice ? 'replace' : 'upload'}{' '}
                               document
                             </Typography>
                             <Typography
@@ -730,7 +982,7 @@ function UpdateInvoiceModal({
                     }}
                   >
                     <Typography variant="body2" color="text.secondary">
-                      {value === 'change'
+                      {value === 'change' && !documentsInInvoice
                         ? 'Select documents to replace using the checkboxes above'
                         : 'Click "Add Document" to upload new files'}
                     </Typography>
