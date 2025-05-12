@@ -1,5 +1,4 @@
 import {
-  Button,
   Table,
   TableHead,
   TableBody,
@@ -15,17 +14,13 @@ import {
 } from '@mui/material';
 import { toast } from 'react-toastify';
 import InvoiceModal from '../components/InvoiceModal';
-import UpdateInvoiceModel from '../components/UpdateInvoiceModal';
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import RootLayout from '../layouts/RootLayout';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import DownloadIcon from '@mui/icons-material/Download';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
-import SearchBar from '../components/SearchBar';
-import SelectBox from '../components/SelectBox';
 import { useNavigate } from 'react-router-dom';
 import {
   getAllApprovedInvoices,
@@ -57,12 +52,8 @@ import InvoiceTracking from './InvoiceTracking';
 import { getInvoiceToSign } from '../features/invoice/invoiceSlice';
 import FilterPanel from '../components/global/FilterPanel';
 import { setFilters } from '../features/invoice/invoiceSlice';
+import DownloadInvoiceComponent from '../components/DownloadInvoiceComponent';
 
-import {
-  getAllInvoiceReport,
-  getInvoiceToSignReport,
-  getUserOwnedInvoiceReport,
-} from '../features/report/reportSlice';
 import { getAllUsersWithNoPagination } from '../features/user/userSlice';
 
 const styles = {
@@ -100,15 +91,10 @@ export default function Invoice() {
   const { allUsers } = useSelector((state) => state.user);
 
   const { invoices, index, filters } = useSelector((state) => state.invoice);
-  // console.log('index', index);
-  // console.log('invoices', invoices);
-
   const { cardIndex, year } = useSelector((state) => state.invoiceDashboard);
 
-  const { invoiceReport } = useSelector((state) => state.report);
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const [showPop, setShowPop] = useState(false);
   const [selectedView, setSelectedView] = useState();
   const [openView, setOpenView] = useState(false);
   const [selectedDelete, setSelectedDelete] = useState();
@@ -122,7 +108,6 @@ export default function Invoice() {
   const [page, setPage] = useState(1);
   const [indexInvoice, setIndexInvoice] = useState();
   const [updateTrigger, setUpdateTrigger] = useState(false);
-  const [buttonClicked, setButtonClicked] = useState(false);
   const [hoverView, setHoverView] = useState(false);
   const [hoverEdit, setHoverEdit] = useState(false);
   const [hoverDelete, setHoverDelete] = useState(false);
@@ -287,20 +272,6 @@ export default function Invoice() {
     filters,
   ]);
 
-  useEffect(() => {
-    if (invoiceReport && buttonClicked) {
-      const blob = new Blob([invoiceReport], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'report.pdf';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    }
-  }, [invoiceReport]);
-
   const handlePageChange = (event, value) => {
     setPage(value);
   };
@@ -366,25 +337,6 @@ export default function Invoice() {
     setSelectedTracking();
   };
 
-  const handleDownloadInvoice = async (e) => {
-    e.preventDefault();
-    setButtonClicked(true);
-    try {
-      if (user?.role === 'admin' && indexInvoice === 1) {
-        await dispatch(getAllInvoiceReport());
-      } else if (
-        (user?.role === 'signer' || user?.role === 'signer_admin') &&
-        indexInvoice === 3
-      ) {
-        await dispatch(getInvoiceToSignReport());
-      } else {
-        await dispatch(getUserOwnedInvoiceReport());
-      }
-    } catch (error) {
-      // console.error('Error downloading invoice report:', error);
-    }
-  };
-
   const handleFilterChange = (field, value) => {
     dispatch(setFilters({ [field]: value }));
   };
@@ -431,6 +383,37 @@ export default function Invoice() {
     ],
   };
 
+  // Determine the report title based on user role and current view
+  const getReportTitle = () => {
+    let title = 'Invoices Report';
+    
+    if (user?.role === 'admin' && indexInvoice === 1) {
+      title = 'All Invoices Report';
+      if (cardIndex === 2) title = 'Pending Invoices Report';
+      if (cardIndex === 3) title = 'Approved Invoices Report';
+      if (cardIndex === 4) title = 'Denied Invoices Report';
+      if (cardIndex === 5) title = 'Rollbacked Invoices Report';
+      if (cardIndex === 6) title = 'Processing Invoices Report';
+      if (cardIndex === 9) title = 'Forwarded Invoices Report';
+    } else if ((user?.role === 'signer' || user?.role === 'signer_admin') && indexInvoice === 3) {
+      title = 'Invoices To Sign Report';
+      if (cardIndex === 2) title = 'Pending Invoices To Sign Report';
+      if (cardIndex === 4) title = 'Denied Invoices To Sign Report';
+      if (cardIndex === 7) title = 'Invoices With To Sign Status Report';
+      if (cardIndex === 8) title = 'Signed Invoices Report';
+    } else {
+      title = 'My Invoices Report';
+      if (cardIndex === 2) title = 'My Pending Invoices Report';
+      if (cardIndex === 3) title = 'My Approved Invoices Report';
+      if (cardIndex === 4) title = 'My Denied Invoices Report';
+      if (cardIndex === 5) title = 'My Rollbacked Invoices Report';
+      if (cardIndex === 6) title = 'My Processing Invoices Report';
+      if (cardIndex === 9) title = 'My Forwarded Invoices Report';
+    }
+    
+    return title;
+  };
+
   return (
     <RootLayout>
       <InvoiceModal />
@@ -439,21 +422,18 @@ export default function Invoice() {
         onFilterChange={handleFilterChange}
         config={filterConfig}
       />
-      {/* <Box
+      <Box
         display="flex"
         justifyContent="end"
         alignItems="stretch"
         sx={{ marginBottom: 2 }}
       >
-        <Button
-          variant="contained"
-          color="success"
-          startIcon={<DownloadIcon />}
-          onClick={handleDownloadInvoice}
-        >
-          Download
-        </Button>
-      </Box> */}
+        {/* Use the new React-PDF based component */}
+        <DownloadInvoiceComponent 
+          invoices={invoices} 
+          title={getReportTitle()}
+        />
+      </Box>
       <TableContainer
         component={Paper}
         sx={{

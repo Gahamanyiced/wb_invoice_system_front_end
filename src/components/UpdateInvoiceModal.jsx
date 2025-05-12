@@ -160,7 +160,9 @@ function UpdateInvoiceModal({
   const [customPaymentTerms, setCustomPaymentTerms] = useState(
     (defaultValues?.payment_terms || defaultValues?.invoice?.payment_terms) === 'custom'
   );
+  const [customTermsInput, setCustomTermsInput] = useState('');
 
+  // Initialize form data
   const [formData, setFormData] = useState({
     supplier_number:
       defaultValues?.supplier_number ||
@@ -190,11 +192,8 @@ function UpdateInvoiceModal({
     amount: defaultValues?.amount || defaultValues?.invoice?.amount || '',
     payment_terms: 
       defaultValues?.payment_terms || 
-      defaultValues?.invoice?.payment_terms || 
-      '',
-    payment_terms_description: 
-      defaultValues?.payment_terms_description || 
-      defaultValues?.invoice?.payment_terms_description || 
+      defaultValues?.invoice?.payment_terms ||
+      (defaultValues?.payment_terms_description || defaultValues?.invoice?.payment_terms_description) || 
       '',
     payment_due_date: 
       defaultValues?.payment_due_date || 
@@ -213,6 +212,43 @@ function UpdateInvoiceModal({
     useState([]);
   const [replacedDocumentIds, setReplacedDocumentIds] = useState([]);
   const [uploadedFileNames, setUploadedFileNames] = useState([]);
+
+  // Initialize state to track if we have a non-standard payment term
+  const [hasNonStandardTerm, setHasNonStandardTerm] = useState(false);
+  const [nonStandardTermValue, setNonStandardTermValue] = useState('');
+
+  // Check if we need to initialize custom payment terms from the data
+  useState(() => {
+    // Check if payment_terms is "custom" or contains a non-standard value
+    const isStandardTerm = (term) => {
+      return !term || paymentTermsOptions.some(option => option.value === term);
+    };
+    
+    const paymentTerms = defaultValues?.payment_terms || defaultValues?.invoice?.payment_terms;
+    
+    if (paymentTerms === 'custom') {
+      // If explicitly "custom", look for value in payment_terms_description
+      setCustomPaymentTerms(true);
+      
+      const customValue = defaultValues?.payment_terms_description || 
+                          defaultValues?.invoice?.payment_terms_description || 
+                          '';
+      
+      setCustomTermsInput(customValue);
+      
+      // Update the form data for payment_terms to use the custom value
+      if (customValue) {
+        setFormData(prev => ({ ...prev, payment_terms: customValue }));
+      }
+    } else if (paymentTerms && !isStandardTerm(paymentTerms)) {
+      // If non-standard term (e.g. "purchase in 23"), treat it as custom value
+      setHasNonStandardTerm(true);
+      setNonStandardTermValue(paymentTerms);
+      
+      // Set the input value for display
+      setCustomTermsInput(paymentTerms);
+    }
+  }, []);
 
   const handleRadioChange = (event) => {
     setValue(event.target.value);
@@ -235,16 +271,38 @@ function UpdateInvoiceModal({
 
   const handleChangeFormData = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
-
-    // Check if payment terms is set to custom
-    if (name === 'payment_terms' && value === 'custom') {
-      setCustomPaymentTerms(true);
-    } else if (name === 'payment_terms') {
-      setCustomPaymentTerms(false);
-      // Clear custom description when a standard term is selected
-      setFormData((prev) => ({ ...prev, payment_terms_description: '' }));
+    
+    if (name === 'payment_terms') {
+      if (value === 'custom') {
+        // When "custom" is selected from dropdown
+        setCustomPaymentTerms(true);
+        
+        // If we have a non-standard term, use it as the initial value
+        if (hasNonStandardTerm) {
+          setCustomTermsInput(nonStandardTermValue);
+          setFormData(prev => ({ ...prev, payment_terms: nonStandardTermValue }));
+        } else {
+          // Otherwise clear the input for a new custom term
+          setCustomTermsInput('');
+          setFormData(prev => ({ ...prev, payment_terms: '' }));
+        }
+      } else {
+        // If switching to a standard term
+        setCustomPaymentTerms(false);
+        setHasNonStandardTerm(false);
+        setFormData(prev => ({ ...prev, [name]: value }));
+      }
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
     }
+  };
+
+  // Handle custom terms input
+  const handleCustomTermsChange = (e) => {
+    const value = e.target.value;
+    setCustomTermsInput(value);
+    // Update the payment_terms field directly with custom input
+    setFormData(prev => ({ ...prev, payment_terms: value }));
   };
 
   const handleChangeForNewDocument = (event, index) => {
@@ -321,11 +379,8 @@ function UpdateInvoiceModal({
       amount: defaultValues?.amount || defaultValues?.invoice?.amount || '',
       payment_terms: 
         defaultValues?.payment_terms || 
-        defaultValues?.invoice?.payment_terms || 
-        '',
-      payment_terms_description: 
-        defaultValues?.payment_terms_description || 
-        defaultValues?.invoice?.payment_terms_description || 
+        defaultValues?.invoice?.payment_terms ||
+        (defaultValues?.payment_terms_description || defaultValues?.invoice?.payment_terms_description) || 
         '',
       payment_due_date: 
         defaultValues?.payment_due_date || 
@@ -342,6 +397,7 @@ function UpdateInvoiceModal({
     setCustomPaymentTerms(
       (defaultValues?.payment_terms || defaultValues?.invoice?.payment_terms) === 'custom'
     );
+    setCustomTermsInput('');
   };
 
   const validateSupplierForm = () => {
@@ -373,8 +429,10 @@ function UpdateInvoiceModal({
       return false;
     }
 
-    if (formData.payment_terms === 'custom' && !formData.payment_terms_description) {
-      toast.error('Please provide a description for your custom payment terms');
+    // When in custom mode, the payment_terms field should contain the custom text
+    // We no longer check payment_terms_description
+    if (customPaymentTerms && !formData.payment_terms) {
+      toast.error('Please provide your custom payment terms');
       return false;
     }
 
@@ -404,7 +462,10 @@ function UpdateInvoiceModal({
 
         // Add all form fields
         Object.keys(formData).forEach((key) => {
-          data.append(key, formData[key]);
+          // Skip payment_terms_description as we're not using it anymore
+          if (key !== 'payment_terms_description') {
+            data.append(key, formData[key]);
+          }
         });
       }
 
@@ -683,41 +744,45 @@ function UpdateInvoiceModal({
                 Payment Terms and Due Date
               </Typography>
               <Grid container spacing={3}>
-                <Grid item xs={12} md={customPaymentTerms ? 4 : 6}>
-                  <TextField
-                    select
-                    label="Payment Terms *"
-                    name="payment_terms"
-                    value={formData.payment_terms}
-                    onChange={handleChangeFormData}
-                    variant="outlined"
-                    required
-                    fullWidth
-                    size="small"
-                    sx={{ mb: 2 }}
-                    InputLabelProps={{
-                      shrink: true,
-                      style: { backgroundColor: 'white', paddingLeft: 5, paddingRight: 5 }
-                    }}
-                  >
-                    <MenuItem value="">
-                      <em>Select payment terms</em>
-                    </MenuItem>
-                    {paymentTermsOptions.map((option) => (
-                      <MenuItem key={option.value} value={option.value}>
-                        {option.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                </Grid>
-                
-                {customPaymentTerms && (
-                  <Grid item xs={12} md={4}>
+                {!customPaymentTerms ? (
+                  <Grid item xs={12} md={6}>
                     <TextField
-                      label="Custom Terms Description *"
-                      name="payment_terms_description"
-                      value={formData.payment_terms_description}
+                      select
+                      label="Payment Terms *"
+                      name="payment_terms"
+                      value={hasNonStandardTerm ? "custom" : formData.payment_terms}
                       onChange={handleChangeFormData}
+                      variant="outlined"
+                      required
+                      fullWidth
+                      size="small"
+                      sx={{ mb: 2 }}
+                      InputLabelProps={{
+                        shrink: true,
+                        style: { backgroundColor: 'white', paddingLeft: 5, paddingRight: 5 }
+                      }}
+                    >
+                      <MenuItem value="">
+                        <em>Select payment terms</em>
+                      </MenuItem>
+                      {paymentTermsOptions.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                      {hasNonStandardTerm && (
+                        <MenuItem value="custom">
+                          Current Custom: {nonStandardTermValue}
+                        </MenuItem>
+                      )}
+                    </TextField>
+                  </Grid>
+                ) : (
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      label="Custom Payment Terms *"
+                      value={customTermsInput}
+                      onChange={handleCustomTermsChange}
                       variant="outlined"
                       fullWidth
                       required
@@ -731,7 +796,7 @@ function UpdateInvoiceModal({
                   </Grid>
                 )}
                 
-                <Grid item xs={12} md={customPaymentTerms ? 4 : 6}>
+                <Grid item xs={12} md={6}>
                   <TextField
                     type="date"
                     name="payment_due_date"

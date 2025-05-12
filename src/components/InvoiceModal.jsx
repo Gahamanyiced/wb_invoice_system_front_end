@@ -168,13 +168,13 @@ export default function InvoiceModal() {
     cost_center: '',
     currency: 'RWF', // Default to RWF
     amount: '',
-    payment_terms: '', // New field for payment terms
-    payment_terms_description: '', // New field for custom payment terms
+    payment_terms: '', // This will now hold all payment terms including custom
     payment_due_date: '', // New field for payment due date
   });
   const [documents, setDocuments] = useState([{}]);
   const [next_signers, setNextSigners] = useState([]);
   const [customPaymentTerms, setCustomPaymentTerms] = useState(false);
+  const [customTermsInput, setCustomTermsInput] = useState('');
 
   useEffect(() => {
     dispatch(checkHeadDepartment());
@@ -195,27 +195,37 @@ export default function InvoiceModal() {
       cost_center: '',
       currency: 'RWF',
       amount: '',
-      payment_terms: '', 
-      payment_terms_description: '',
+      payment_terms: '',
       payment_due_date: '',
     });
     setDocuments([{}]);
     setNextSigners([]);
     setCustomPaymentTerms(false);
+    setCustomTermsInput('');
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-
-    // Check if payment terms is set to custom
-    if (name === 'payment_terms' && value === 'custom') {
-      setCustomPaymentTerms(true);
-    } else if (name === 'payment_terms') {
-      setCustomPaymentTerms(false);
-      // Clear custom description when a standard term is selected
-      setFormData((prev) => ({ ...prev, payment_terms_description: '' }));
+    
+    if (name === 'payment_terms') {
+      if (value === 'custom') {
+        setCustomPaymentTerms(true);
+        // Don't set form_data.payment_terms yet, wait for custom input
+      } else {
+        setCustomPaymentTerms(false);
+        setFormData((prev) => ({ ...prev, [name]: value }));
+      }
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
     }
+  };
+
+  // Handle custom terms input
+  const handleCustomTermsChange = (e) => {
+    const value = e.target.value;
+    setCustomTermsInput(value);
+    // Update the payment_terms field directly with custom input
+    setFormData((prev) => ({ ...prev, payment_terms: value }));
   };
 
   const handleChangeDocument = (e, idx) => {
@@ -262,9 +272,9 @@ export default function InvoiceModal() {
         return;
       }
 
-      // Check payment terms validation
-      if (form_data.payment_terms === 'custom' && !form_data.payment_terms_description) {
-        toast.error('Please provide a description for your custom payment terms');
+      // Verify that custom terms have been entered if custom is selected
+      if (customPaymentTerms && !customTermsInput) {
+        toast.error('Please provide your custom payment terms');
         return;
       }
 
@@ -371,11 +381,10 @@ export default function InvoiceModal() {
                   <FormControl fullWidth variant="outlined">
                     <InputLabel sx={style.inputLabel}>Invoice Number *</InputLabel>
                     <Input
-                      type="number"
+                      type="text"
                       name="invoice_number"
                       value={form_data.invoice_number}
                       onChange={handleChange}
-                      sx={style.formInputNumber}
                       required
                     />
                   </FormControl>
@@ -503,41 +512,40 @@ export default function InvoiceModal() {
                     Payment Terms and Due Date
                   </Typography>
                   <Grid container spacing={3}>
-                    <Grid item xs={12} md={customPaymentTerms ? 4 : 6}>
-                      <FormControl fullWidth variant="outlined">
-                        <TextField
-                          select
-                          label="Payment Terms *"
-                          name="payment_terms"
-                          value={form_data.payment_terms}
-                          onChange={handleChange}
-                          variant="outlined"
-                          required
-                          fullWidth
-                          InputLabelProps={{
-                            shrink: true,
-                            style: { backgroundColor: 'white', paddingLeft: 5, paddingRight: 5 }
-                          }}
-                        >
-                          <MenuItem value="">
-                            <em>Select payment terms</em>
-                          </MenuItem>
-                          {paymentTermsOptions.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
-                              {option.label}
+                    {!customPaymentTerms ? (
+                      <Grid item xs={12} md={6}>
+                        <FormControl fullWidth variant="outlined">
+                          <TextField
+                            select
+                            label="Payment Terms *"
+                            name="payment_terms"
+                            value={customPaymentTerms ? "custom" : form_data.payment_terms}
+                            onChange={handleChange}
+                            variant="outlined"
+                            required
+                            fullWidth
+                            InputLabelProps={{
+                              shrink: true,
+                              style: { backgroundColor: 'white', paddingLeft: 5, paddingRight: 5 }
+                            }}
+                          >
+                            <MenuItem value="">
+                              <em>Select payment terms</em>
                             </MenuItem>
-                          ))}
-                        </TextField>
-                      </FormControl>
-                    </Grid>
-                    
-                    {customPaymentTerms && (
-                      <Grid item xs={12} md={4}>
+                            {paymentTermsOptions.map((option) => (
+                              <MenuItem key={option.value} value={option.value}>
+                                {option.label}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        </FormControl>
+                      </Grid>
+                    ) : (
+                      <Grid item xs={12} md={6}>
                         <TextField
-                          label="Custom Terms Description *"
-                          name="payment_terms_description"
-                          value={form_data.payment_terms_description}
-                          onChange={handleChange}
+                          label="Custom Payment Terms *"
+                          value={customTermsInput}
+                          onChange={handleCustomTermsChange}
                           variant="outlined"
                           fullWidth
                           required
@@ -549,7 +557,7 @@ export default function InvoiceModal() {
                       </Grid>
                     )}
                     
-                    <Grid item xs={12} md={customPaymentTerms ? 4 : 6}>
+                    <Grid item xs={12} md={6}>
                       <TextField
                         type="date"
                         name="payment_due_date"
