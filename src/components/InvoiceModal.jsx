@@ -345,11 +345,10 @@ export default function InvoiceModal() {
                       <FormControl fullWidth variant="outlined">
                         <InputLabel sx={style.inputLabel}>Supplier Number *</InputLabel>
                         <Input
-                          type="number"
+                          type="text"
                           name="supplier_number"
                           value={form_data.supplier_number}
                           onChange={handleChange}
-                          sx={style.formInputNumber}
                           required
                         />
                       </FormControl>
@@ -408,11 +407,10 @@ export default function InvoiceModal() {
                       <FormControl fullWidth variant="outlined">
                         <InputLabel sx={style.inputLabel}>GL Code *</InputLabel>
                         <Input
-                          type="number"
+                          type="text"
                           name="gl_code"
                           value={form_data.gl_code}
                           onChange={handleChange}
-                          sx={style.formInputNumber}
                           required
                         />
                       </FormControl>
