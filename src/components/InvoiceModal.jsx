@@ -15,6 +15,7 @@ import {
   MenuItem,
   Paper,
   Divider,
+  FormHelperText,
 } from '@mui/material';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -26,9 +27,15 @@ import IconButton from '@mui/material/IconButton';
 import { useDispatch, useSelector } from 'react-redux';
 import { addInvoice, getInvoiceByUser } from '../features/invoice/invoiceSlice';
 import { checkHeadDepartment } from '../features/department/departmentSlice';
-import {
-  getAllSigners,
-} from '../features/user/userSlice';
+import { getAllSigners } from '../features/user/userSlice';
+
+// Import the Yup resolver and validation schemas
+import { useForm, Controller } from 'react-hook-form';
+import { yupResolver } from '@hookform/resolvers/yup';
+import { getInvoiceValidationSchema } from '../validations/invoice';
+
+// Import currencies from separate file
+import currencies from '../utils/currencies';
 
 const ITEM_HEIGHT = 48;
 const ITEM_PADDING_TOP = 8;
@@ -40,21 +47,6 @@ const MenuProps = {
     },
   },
 };
-
-// List of common currencies
-const currencies = [
-  { value: 'RWF', label: 'Rwandan Franc (RWF)' },
-  { value: 'USD', label: 'US Dollar (USD)' },
-  { value: 'EUR', label: 'Euro (EUR)' },
-  { value: 'GBP', label: 'British Pound (GBP)' },
-  { value: 'KES', label: 'Kenyan Shilling (KES)' },
-  { value: 'UGX', label: 'Ugandan Shilling (UGX)' },
-  { value: 'TZS', label: 'Tanzanian Shilling (TZS)' },
-  { value: 'CAD', label: 'Canadian Dollar (CAD)' },
-  { value: 'AUD', label: 'Australian Dollar (AUD)' },
-  { value: 'JPY', label: 'Japanese Yen (JPY)' },
-  { value: 'CNY', label: 'Chinese Yuan (CNY)' },
-];
 
 // List of payment terms options
 const paymentTermsOptions = [
@@ -142,6 +134,12 @@ const style = {
       backgroundColor: '#003a6d',
     },
   },
+  errorText: {
+    color: 'error.main',
+    fontSize: '0.75rem',
+    marginTop: '3px',
+    marginLeft: '14px',
+  },
 };
 
 export default function InvoiceModal() {
@@ -157,34 +155,27 @@ export default function InvoiceModal() {
   const isSupplier = user?.role === 'supplier';
 
   const [open, setOpen] = useState(false);
-  const [form_data, setFormData] = useState({
-    supplier_number: '',
-    supplier_name: '',
-    invoice_number: '',
-    service_period: '',
-    gl_code: '',
-    gl_description: '',
-    location: '',
-    cost_center: '',
-    currency: 'RWF', // Default to RWF
-    amount: '',
-    payment_terms: '', // This will now hold all payment terms including custom
-    payment_due_date: '', // New field for payment due date
-  });
   const [documents, setDocuments] = useState([{}]);
   const [next_signers, setNextSigners] = useState([]);
   const [customPaymentTerms, setCustomPaymentTerms] = useState(false);
   const [customTermsInput, setCustomTermsInput] = useState('');
-
-  useEffect(() => {
-    dispatch(checkHeadDepartment());
-    dispatch(getAllSigners());
-  }, [dispatch]);
-
-  const handleOpen = () => setOpen(true);
-  const handleClose = () => {
-    setOpen(false);
-    setFormData({
+  
+  // Get the validation schema based on user role
+  const validationSchema = getInvoiceValidationSchema(user?.role);
+  
+  // Initialize the form with react-hook-form and yup resolver
+  const { 
+    control, 
+    handleSubmit, 
+    reset, 
+    setValue, 
+    register,
+    formState: { errors },
+    watch 
+  } = useForm({
+    resolver: yupResolver(validationSchema),
+    mode: 'onSubmit', // Change validation mode to onSubmit to avoid premature validation
+    defaultValues: {
       supplier_number: '',
       supplier_name: '',
       invoice_number: '',
@@ -197,27 +188,45 @@ export default function InvoiceModal() {
       amount: '',
       payment_terms: '',
       payment_due_date: '',
-    });
+      next_signers_validator: '',
+    }
+  });
+
+  // Watch payment terms field to handle custom payment terms logic
+  const payment_terms = watch('payment_terms');
+
+  // Register a custom field for next signers in the form
+  useEffect(() => {
+    // If signers are selected, register them in the form
+    if (next_signers.length > 0) {
+      setValue('next_signers_validator', next_signers.join(','));
+    }
+  }, [next_signers, setValue]);
+
+  useEffect(() => {
+    dispatch(checkHeadDepartment());
+    dispatch(getAllSigners());
+  }, [dispatch]);
+
+  useEffect(() => {
+    // Handle custom payment terms
+    if (payment_terms === 'custom') {
+      setCustomPaymentTerms(true);
+    } else {
+      setCustomPaymentTerms(false);
+      setCustomTermsInput('');
+    }
+  }, [payment_terms]);
+
+  const handleOpen = () => setOpen(true);
+  
+  const handleClose = () => {
+    setOpen(false);
+    reset();
     setDocuments([{}]);
     setNextSigners([]);
     setCustomPaymentTerms(false);
     setCustomTermsInput('');
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    
-    if (name === 'payment_terms') {
-      if (value === 'custom') {
-        setCustomPaymentTerms(true);
-        // Don't set form_data.payment_terms yet, wait for custom input
-      } else {
-        setCustomPaymentTerms(false);
-        setFormData((prev) => ({ ...prev, [name]: value }));
-      }
-    } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
-    }
   };
 
   // Handle custom terms input
@@ -225,12 +234,31 @@ export default function InvoiceModal() {
     const value = e.target.value;
     setCustomTermsInput(value);
     // Update the payment_terms field directly with custom input
-    setFormData((prev) => ({ ...prev, payment_terms: value }));
+    setValue('payment_terms', value, { shouldValidate: true });
   };
+  
+  // Use this to programmatically submit the form
+  const formRef = React.useRef();
 
   const handleChangeDocument = (e, idx) => {
     const files = [...documents];
-    files[idx] = e.target.files[0];
+    const file = e.target.files[0];
+    
+    // Validate file type (must be PDF)
+    if (file && !file.name.toLowerCase().endsWith('.pdf')) {
+      toast.error('Only PDF files are allowed');
+      e.target.value = null; // Clear the file input
+      return;
+    }
+    
+    // Validate file size (max 10MB)
+    if (file && file.size > 10 * 1024 * 1024) {
+      toast.error('File size must not exceed 10MB');
+      e.target.value = null; // Clear the file input
+      return;
+    }
+    
+    files[idx] = file;
     setDocuments(files);
   };
 
@@ -242,61 +270,72 @@ export default function InvoiceModal() {
     setDocuments(updatedDocs.length ? updatedDocs : [{}]);
   };
 
-  const submit = async () => {
-    // For suppliers, validate required fields
-    if (isSupplier) {
-      if (!form_data.invoice_number || !form_data.amount || !form_data.currency || !form_data.service_period) {
-        toast.error('Please fill all required fields');
-        return;
-      }
-      
-      if (documents.length === 1 && !documents[0].name) {
-        toast.error('Please attach at least one document');
-        return;
-      }
-    } 
-    // For other roles, perform full validation
-    else {
-      if (!form_data.supplier_number || !form_data.invoice_number || !form_data.gl_code || !form_data.service_period) {
-        toast.error('Please fill all required fields');
-        return;
-      }
-
-      if (!form_data.amount) {
-        toast.error('Please enter an amount');
-        return;
-      }
-
-      if (!form_data.payment_terms) {
-        toast.error('Please select payment terms');
-        return;
-      }
-
-      // Verify that custom terms have been entered if custom is selected
-      if (customPaymentTerms && !customTermsInput) {
-        toast.error('Please provide your custom payment terms');
-        return;
-      }
-
-      if (documents.length === 1 && !documents[0].name) {
-        toast.error('Please attach at least one document');
-        return;
-      }
+  const onSubmit = async (data) => {
+    // Validate that at least one next signer is selected when required
+    const shouldValidateSigners = !isSupplier && (isHeadDepartment.is_head_of_department || user.role === 'signer_admin');
+    if (shouldValidateSigners && next_signers.length === 0) {
+      toast.error('Please select at least one next signer');
+      return;
     }
-
-    const data = new FormData();
-    Object.entries(form_data).forEach(([key, val]) => data.append(key, val));
-    if (next_signers.length) data.append('next_signers', next_signers);
+    
+    // Check if at least one document is attached
+    if (documents.every(doc => !doc || !doc.name)) {
+      toast.error('Please attach at least one document');
+      return;
+    }
+    
+    // Validate attachments (file type and size)
+    const hasInvalidFiles = documents.some(doc => {
+      if (doc && doc.name) {
+        // Check file type (must be PDF)
+        if (!doc.name.toLowerCase().endsWith('.pdf')) {
+          toast.error('Only PDF files are allowed');
+          return true;
+        }
+        
+        // Check file size (max 10MB)
+        const maxSize = 10 * 1024 * 1024; // 10MB in bytes
+        if (doc.size > maxSize) {
+          toast.error('File size must not exceed 10MB');
+          return true;
+        }
+      }
+      return false;
+    });
+    
+    if (hasInvalidFiles) {
+      return;
+    }
+    
+    // Format the payment_due_date to YYYY-MM-DD if it exists
+    const formattedData = { ...data };
+    if (formattedData.payment_due_date) {
+      // Convert the date to YYYY-MM-DD format
+      const date = new Date(formattedData.payment_due_date);
+      formattedData.payment_due_date = date.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+    }
+    
+    // Prepare the form data
+    const formData = new FormData();
+    Object.entries(formattedData).forEach(([key, val]) => {
+      if (val !== undefined && val !== null) {
+        formData.append(key, val);
+      }
+    });
+    
+    if (next_signers.length > 0) {
+      formData.append('next_signers', JSON.stringify(next_signers));
+    }
     
     // Only append documents that have files
     documents.forEach((doc) => {
       if (doc && doc.name) {
-        data.append('documents', doc);
+        formData.append('documents', doc);
       }
     });
 
     try {
-      await dispatch(addInvoice(data)).unwrap();
+      await dispatch(addInvoice(formData)).unwrap();
       toast.success('Invoice Added Successfully');
       handleClose();
       dispatch(getInvoiceByUser({ page: 1 }));
@@ -333,347 +372,479 @@ export default function InvoiceModal() {
           </Box>
           
           <Box sx={style.content}>
-            {/* Only show supplier section for non-supplier roles */}
-            {!isSupplier && (
-              <>
-                <Box sx={style.section}>
-                  <Typography variant="h6" sx={style.sectionTitle}>
-                    Supplier Information
-                  </Typography>
-                  <Grid container spacing={3}>
-                    <Grid item xs={12} md={6}>
-                      <FormControl fullWidth variant="outlined">
-                        <InputLabel sx={style.inputLabel}>Supplier Number *</InputLabel>
-                        <Input
-                          type="text"
-                          name="supplier_number"
-                          value={form_data.supplier_number}
-                          onChange={handleChange}
-                          required
-                        />
-                      </FormControl>
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                      <FormControl fullWidth variant="outlined">
-                        <InputLabel sx={style.inputLabel}>Supplier Name</InputLabel>
-                        <Input
-                          name="supplier_name"
-                          value={form_data.supplier_name}
-                          onChange={handleChange}
-                        />
-                      </FormControl>
-                    </Grid>
-                  </Grid>
-                </Box>
-
-                <Divider sx={{ my: 2 }} />
-              </>
-            )}
-            
-            {/* Invoice Details section - shown to all users including suppliers */}
-            <Box sx={style.section}>
-              <Typography variant="h6" sx={style.sectionTitle}>
-                Invoice Details
-              </Typography>
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth variant="outlined">
-                    <InputLabel sx={style.inputLabel}>Invoice Number *</InputLabel>
-                    <Input
-                      type="text"
-                      name="invoice_number"
-                      value={form_data.invoice_number}
-                      onChange={handleChange}
-                      required
-                    />
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth variant="outlined">
-                    <InputLabel sx={style.inputLabel}>Service Period *</InputLabel>
-                    <Input
-                      name="service_period"
-                      value={form_data.service_period}
-                      onChange={handleChange}
-                      required
-                    />
-                  </FormControl>
-                </Grid>
-                
-                {/* Only show these fields to non-suppliers */}
-                {!isSupplier && (
-                  <>
-                    <Grid item xs={12} md={6}>
-                      <FormControl fullWidth variant="outlined">
-                        <InputLabel sx={style.inputLabel}>GL Code *</InputLabel>
-                        <Input
-                          type="text"
-                          name="gl_code"
-                          value={form_data.gl_code}
-                          onChange={handleChange}
-                          required
-                        />
-                      </FormControl>
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                      <FormControl fullWidth variant="outlined">
-                        <InputLabel sx={style.inputLabel}>GL Description</InputLabel>
-                        <Input
-                          name="gl_description"
-                          value={form_data.gl_description}
-                          onChange={handleChange}
-                        />
-                      </FormControl>
-                    </Grid>
-                  </>
-                )}
-              </Grid>
-            </Box>
-
-            <Divider sx={{ my: 2 }} />
-            
-            {/* Financial Information - shown to all users including suppliers */}
-            <Box sx={style.section}>
-              <Typography variant="h6" sx={style.sectionTitle}>
-                Financial Information
-              </Typography>
-              <Grid container spacing={3}>
-                {/* Only show these fields to non-suppliers */}
-                {!isSupplier && (
-                  <>
-                    <Grid item xs={12} md={6}>
-                      <FormControl fullWidth variant="outlined">
-                        <InputLabel sx={style.inputLabel}>Location</InputLabel>
-                        <Input
-                          name="location"
-                          value={form_data.location}
-                          onChange={handleChange}
-                        />
-                      </FormControl>
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                      <FormControl fullWidth variant="outlined">
-                        <InputLabel sx={style.inputLabel}>Cost Center</InputLabel>
-                        <Input
-                          name="cost_center"
-                          value={form_data.cost_center}
-                          onChange={handleChange}
-                        />
-                      </FormControl>
-                    </Grid>
-                  </>
-                )}
-                
-                {/* Currency and Amount - shown to all users including suppliers */}
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth variant="outlined">
-                    <InputLabel id="currency-label" sx={style.inputLabel}>Currency *</InputLabel>
-                    <Select
-                      labelId="currency-label"
-                      name="currency"
-                      value={form_data.currency}
-                      onChange={handleChange}
-                      label="Currency"
-                      required
-                    >
-                      {currencies.map((option) => (
-                        <MenuItem key={option.value} value={option.value}>
-                          {option.label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth variant="outlined">
-                    <InputLabel sx={style.inputLabel}>Amount *</InputLabel>
-                    <Input
-                      type="number"
-                      name="amount"
-                      value={form_data.amount}
-                      onChange={handleChange}
-                      sx={style.formInputNumber}
-                      required
-                    />
-                  </FormControl>
-                </Grid>
-              </Grid>
-            </Box>
-
-            <Divider sx={{ my: 2 }} />
-
-            {/* Payment Terms Section - only shown to non-suppliers */}
-            {!isSupplier && (
-              <>
-                <Box sx={style.section}>
-                  <Typography variant="h6" sx={style.sectionTitle}>
-                    Payment Terms and Due Date
-                  </Typography>
-                  <Grid container spacing={3}>
-                    {!customPaymentTerms ? (
+            <form onSubmit={handleSubmit(onSubmit)} ref={formRef}>
+              {/* Only show supplier section for non-supplier roles */}
+              {!isSupplier && (
+                <>
+                  <Box sx={style.section}>
+                    <Typography variant="h6" sx={style.sectionTitle}>
+                      Supplier Information
+                    </Typography>
+                    <Grid container spacing={3}>
                       <Grid item xs={12} md={6}>
-                        <FormControl fullWidth variant="outlined">
-                          <TextField
-                            select
-                            label="Payment Terms *"
-                            name="payment_terms"
-                            value={customPaymentTerms ? "custom" : form_data.payment_terms}
-                            onChange={handleChange}
-                            variant="outlined"
+                        <Controller
+                          name="supplier_number"
+                          control={control}
+                          render={({ field }) => (
+                            <FormControl fullWidth variant="outlined" error={!!errors.supplier_number}>
+                              <InputLabel sx={style.inputLabel}>Supplier Number *</InputLabel>
+                              <Input
+                                {...field}
+                                type="text"
+                                required
+                              />
+                              {errors.supplier_number && (
+                                <FormHelperText error>{errors.supplier_number.message}</FormHelperText>
+                              )}
+                            </FormControl>
+                          )}
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Controller
+                          name="supplier_name"
+                          control={control}
+                          render={({ field }) => (
+                            <FormControl fullWidth variant="outlined" error={!!errors.supplier_name}>
+                              <InputLabel sx={style.inputLabel}>Supplier Name</InputLabel>
+                              <Input
+                                {...field}
+                              />
+                              {errors.supplier_name && (
+                                <FormHelperText error>{errors.supplier_name.message}</FormHelperText>
+                              )}
+                            </FormControl>
+                          )}
+                        />
+                      </Grid>
+                    </Grid>
+                  </Box>
+
+                  <Divider sx={{ my: 2 }} />
+                </>
+              )}
+              
+              {/* Invoice Details section - shown to all users including suppliers */}
+              <Box sx={style.section}>
+                <Typography variant="h6" sx={style.sectionTitle}>
+                  Invoice Details
+                </Typography>
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={6}>
+                    <Controller
+                      name="invoice_number"
+                      control={control}
+                      render={({ field }) => (
+                        <FormControl fullWidth variant="outlined" error={!!errors.invoice_number}>
+                          <InputLabel sx={style.inputLabel}>Invoice Number *</InputLabel>
+                          <Input
+                            {...field}
+                            type="text"
                             required
-                            fullWidth
-                            InputLabelProps={{
-                              shrink: true,
-                              style: { backgroundColor: 'white', paddingLeft: 5, paddingRight: 5 }
+                          />
+                          {errors.invoice_number && (
+                            <FormHelperText error>{errors.invoice_number.message}</FormHelperText>
+                          )}
+                        </FormControl>
+                      )}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Controller
+                      name="service_period"
+                      control={control}
+                      render={({ field }) => (
+                        <FormControl fullWidth variant="outlined" error={!!errors.service_period}>
+                          <InputLabel sx={style.inputLabel}>Service Period *</InputLabel>
+                          <Input
+                            {...field}
+                            required
+                          />
+                          {errors.service_period && (
+                            <FormHelperText error>{errors.service_period.message}</FormHelperText>
+                          )}
+                        </FormControl>
+                      )}
+                    />
+                  </Grid>
+                  
+                  {/* Only show these fields to non-suppliers */}
+                  {!isSupplier && (
+                    <>
+                      <Grid item xs={12} md={6}>
+                        <Controller
+                          name="gl_code"
+                          control={control}
+                          render={({ field }) => (
+                            <FormControl fullWidth variant="outlined" error={!!errors.gl_code}>
+                              <InputLabel sx={style.inputLabel}>GL Code *</InputLabel>
+                              <Input
+                                {...field}
+                                type="text"
+                                required
+                              />
+                              {errors.gl_code && (
+                                <FormHelperText error>{errors.gl_code.message}</FormHelperText>
+                              )}
+                            </FormControl>
+                          )}
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Controller
+                          name="gl_description"
+                          control={control}
+                          render={({ field }) => (
+                            <FormControl fullWidth variant="outlined" error={!!errors.gl_description}>
+                              <InputLabel sx={style.inputLabel}>GL Description</InputLabel>
+                              <Input
+                                {...field}
+                              />
+                              {errors.gl_description && (
+                                <FormHelperText error>{errors.gl_description.message}</FormHelperText>
+                              )}
+                            </FormControl>
+                          )}
+                        />
+                      </Grid>
+                    </>
+                  )}
+                </Grid>
+              </Box>
+
+              <Divider sx={{ my: 2 }} />
+              
+              {/* Financial Information - shown to all users including suppliers */}
+              <Box sx={style.section}>
+                <Typography variant="h6" sx={style.sectionTitle}>
+                  Financial Information
+                </Typography>
+                <Grid container spacing={3}>
+                  {/* Only show these fields to non-suppliers */}
+                  {!isSupplier && (
+                    <>
+                      <Grid item xs={12} md={6}>
+                        <Controller
+                          name="location"
+                          control={control}
+                          render={({ field }) => (
+                            <FormControl fullWidth variant="outlined" error={!!errors.location}>
+                              <InputLabel sx={style.inputLabel}>Location</InputLabel>
+                              <Input
+                                {...field}
+                              />
+                              {errors.location && (
+                                <FormHelperText error>{errors.location.message}</FormHelperText>
+                              )}
+                            </FormControl>
+                          )}
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Controller
+                          name="cost_center"
+                          control={control}
+                          render={({ field }) => (
+                            <FormControl fullWidth variant="outlined" error={!!errors.cost_center}>
+                              <InputLabel sx={style.inputLabel}>Cost Center</InputLabel>
+                              <Input
+                                {...field}
+                              />
+                              {errors.cost_center && (
+                                <FormHelperText error>{errors.cost_center.message}</FormHelperText>
+                              )}
+                            </FormControl>
+                          )}
+                        />
+                      </Grid>
+                    </>
+                  )}
+                  
+                  {/* Currency and Amount - shown to all users including suppliers */}
+                  <Grid item xs={12} md={6}>
+                    <Controller
+                      name="currency"
+                      control={control}
+                      render={({ field }) => (
+                        <FormControl fullWidth variant="outlined" error={!!errors.currency}>
+                          <InputLabel id="currency-label" sx={style.inputLabel}>Currency *</InputLabel>
+                          <Select
+                            {...field}
+                            labelId="currency-label"
+                            label="Currency"
+                            required
+                            MenuProps={{
+                              PaperProps: {
+                                style: {
+                                  maxHeight: ITEM_HEIGHT * 6.5 + ITEM_PADDING_TOP,
+                                  width: 320,
+                                }
+                              }
                             }}
                           >
-                            <MenuItem value="">
-                              <em>Select payment terms</em>
-                            </MenuItem>
-                            {paymentTermsOptions.map((option) => (
+                            {currencies.map((option) => (
                               <MenuItem key={option.value} value={option.value}>
                                 {option.label}
                               </MenuItem>
                             ))}
-                          </TextField>
+                          </Select>
+                          {errors.currency && (
+                            <FormHelperText error>{errors.currency.message}</FormHelperText>
+                          )}
                         </FormControl>
-                      </Grid>
-                    ) : (
-                      <Grid item xs={12} md={6}>
-                        <TextField
-                          label="Custom Payment Terms *"
-                          value={customTermsInput}
-                          onChange={handleCustomTermsChange}
-                          variant="outlined"
-                          fullWidth
-                          required
-                          InputLabelProps={{
-                            shrink: true,
-                            style: { backgroundColor: 'white', paddingLeft: 5, paddingRight: 5 }
-                          }}
-                        />
-                      </Grid>
-                    )}
-                    
-                    <Grid item xs={12} md={6}>
-                      <TextField
-                        type="date"
-                        name="payment_due_date"
-                        value={form_data.payment_due_date}
-                        onChange={handleChange}
-                        label="Payment Due Date"
-                        variant="outlined"
-                        fullWidth
-                        InputLabelProps={{
-                          shrink: true,
-                          style: { backgroundColor: 'white', paddingLeft: 5, paddingRight: 5 }
-                        }}
-                      />
-                    </Grid>
-                  </Grid>
-                </Box>
-                <Divider sx={{ my: 2 }} />
-              </>
-            )}
-
-            {/* Only show for non-suppliers with specific roles */}
-            {!isSupplier && (isHeadDepartment.is_head_of_department || user.role === 'signer_admin') && (
-              <>
-                <Box sx={style.section}>
-                  <Typography variant="h6" sx={style.sectionTitle}>
-                    Approval Workflow
-                  </Typography>
-                  <FormControl fullWidth variant="outlined">
-                    <Autocomplete
-                      multiple
-                      options={users.results || []}
-                      getOptionLabel={(opt) => `${opt.firstname} ${opt.lastname}`}
-                      value={next_signers.map(id => users.results.find(u => u.id === id)).filter(Boolean)}
-                      onChange={(_, v) => setNextSigners(v.map(opt => opt.id))}
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          label="Next Signers"
-                          placeholder="Select signers"
-                          variant="outlined"
-                        />
                       )}
                     />
-                  </FormControl>
-                </Box>
-                <Divider sx={{ my: 2 }} />
-              </>
-            )}
-
-            {/* This section is shown to all users including suppliers */}
-            <Box sx={style.section}>
-              <Typography variant="h6" sx={style.sectionTitle}>
-                Attachments
-              </Typography>
-              
-              {documents.map((doc, idx) => (
-                <Box 
-                  key={idx} 
-                  sx={style.fileInputContainer}
-                  display="flex"
-                  alignItems="center"
-                  gap={2}
-                >
-                  <Box flexGrow={1}>
-                    <Input 
-                      type="file" 
-                      onChange={(e) => handleChangeDocument(e, idx)}
-                      disableUnderline
-                      sx={style.fileInput}
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Controller
+                      name="amount"
+                      control={control}
+                      render={({ field }) => (
+                        <FormControl fullWidth variant="outlined" error={!!errors.amount}>
+                          <InputLabel sx={style.inputLabel}>Amount *</InputLabel>
+                          <Input
+                            {...field}
+                            type="number"
+                            sx={style.formInputNumber}
+                            required
+                          />
+                          {errors.amount && (
+                            <FormHelperText error>{errors.amount.message}</FormHelperText>
+                          )}
+                        </FormControl>
+                      )}
                     />
-                  </Box>
-                  {(documents.length > 1 || (doc && doc.name)) && (
-                    <IconButton 
-                      color="error" 
-                      onClick={() => handleRemoveFile(idx)}
-                      size="small"
-                    >
-                      <CloseIcon fontSize="small" />
-                    </IconButton>
-                  )}
-                </Box>
-              ))}
-              
-              <Button 
-                startIcon={<AddIcon />} 
-                onClick={handleAddMore}
-                variant="outlined"
-                size="small"
-                sx={{ mt: 1 }}
-              >
-                Add More Files
-              </Button>
-            </Box>
+                  </Grid>
+                </Grid>
+              </Box>
 
-            <Box sx={style.actionButtons}>
-              <Button 
-                variant="outlined" 
-                onClick={handleClose}
-              >
-                Cancel
-              </Button>
-              {isLoading ? (
+              <Divider sx={{ my: 2 }} />
+
+              {/* Payment Terms Section - only shown to non-suppliers */}
+              {!isSupplier && (
+                <>
+                  <Box sx={style.section}>
+                    <Typography variant="h6" sx={style.sectionTitle}>
+                      Payment Terms and Due Date
+                    </Typography>
+                    <Grid container spacing={3}>
+                      {!customPaymentTerms ? (
+                        <Grid item xs={12} md={6}>
+                          <Controller
+                            name="payment_terms"
+                            control={control}
+                            render={({ field }) => (
+                              <FormControl fullWidth variant="outlined" error={!!errors.payment_terms}>
+                                <TextField
+                                  {...field}
+                                  select
+                                  label="Payment Terms *"
+                                  variant="outlined"
+                                  required
+                                  fullWidth
+                                  InputLabelProps={{
+                                    shrink: true,
+                                    style: { backgroundColor: 'white', paddingLeft: 5, paddingRight: 5 }
+                                  }}
+                                >
+                                  <MenuItem value="">
+                                    <em>Select payment terms</em>
+                                  </MenuItem>
+                                  {paymentTermsOptions.map((option) => (
+                                    <MenuItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </MenuItem>
+                                  ))}
+                                </TextField>
+                                {errors.payment_terms && (
+                                  <FormHelperText error>{errors.payment_terms.message}</FormHelperText>
+                                )}
+                              </FormControl>
+                            )}
+                          />
+                        </Grid>
+                      ) : (
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            label="Custom Payment Terms *"
+                            value={customTermsInput}
+                            onChange={handleCustomTermsChange}
+                            variant="outlined"
+                            fullWidth
+                            required
+                            error={!!errors.payment_terms}
+                            helperText={errors.payment_terms?.message}
+                            InputLabelProps={{
+                              shrink: true,
+                              style: { backgroundColor: 'white', paddingLeft: 5, paddingRight: 5 }
+                            }}
+                          />
+                        </Grid>
+                      )}
+                      
+                      <Grid item xs={12} md={6}>
+                        <Controller
+                          name="payment_due_date"
+                          control={control}
+                          render={({ field }) => (
+                            <TextField
+                              {...field}
+                              type="date"
+                              label="Payment Due Date"
+                              variant="outlined"
+                              fullWidth
+                              error={!!errors.payment_due_date}
+                              helperText={errors.payment_due_date?.message}
+                              InputLabelProps={{
+                                shrink: true,
+                                style: { backgroundColor: 'white', paddingLeft: 5, paddingRight: 5 }
+                              }}
+                            />
+                          )}
+                        />
+                      </Grid>
+                    </Grid>
+                  </Box>
+                  <Divider sx={{ my: 2 }} />
+                </>
+              )}
+
+              {/* Only show for non-suppliers with specific roles */}
+              {!isSupplier && (isHeadDepartment.is_head_of_department || user.role === 'signer_admin') && (
+                <>
+                  <Box sx={style.section}>
+                    <Typography variant="h6" sx={style.sectionTitle}>
+                      Approval Workflow
+                    </Typography>
+                    <FormControl fullWidth variant="outlined">
+                      <Autocomplete
+                        multiple
+                        options={users.results || []}
+                        getOptionLabel={(opt) => `${opt.firstname} ${opt.lastname}`}
+                        value={next_signers.map(id => 
+                          users.results?.find(u => u.id === id)
+                        ).filter(Boolean)}
+                        onChange={(_, newValues) => {
+                          const newSignerIds = newValues.map(opt => opt.id);
+                          setNextSigners(newSignerIds);
+                        }}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            label="Next Signers *"
+                            placeholder="Select signers"
+                            variant="outlined"
+                            // Remove required attribute to prevent HTML5 validation
+                            error={next_signers.length === 0}
+                            helperText={next_signers.length === 0 ? "At least one signer is required" : ""}
+                            // Add a hidden input field that React Hook Form can use for validation
+                            InputProps={{
+                              ...params.InputProps,
+                              endAdornment: (
+                                <>
+                                  {params.InputProps.endAdornment}
+                                  {/* This hidden input satisfies the form submission when signers are selected */}
+                                  {next_signers.length > 0 && (
+                                    <input 
+                                      type="hidden" 
+                                      name="next_signers_validator" 
+                                      value={next_signers.join(',')} 
+                                    />
+                                  )}
+                                </>
+                              ),
+                            }}
+                          />
+                        )}
+                      />
+                    </FormControl>
+                  </Box>
+                  <Divider sx={{ my: 2 }} />
+                </>
+              )}
+
+              {/* This section is shown to all users including suppliers */}
+              <Box sx={style.section}>
+                <Typography variant="h6" sx={style.sectionTitle}>
+                  Attachments
+                </Typography>
+                
+                {documents.map((doc, idx) => (
+                  <Box 
+                    key={idx} 
+                    sx={style.fileInputContainer}
+                    display="flex"
+                    alignItems="center"
+                    gap={2}
+                  >
+                    <Box flexGrow={1}>
+                      <Typography variant="caption" display="block" gutterBottom>
+                        Only PDF files, max 10MB
+                      </Typography>
+                      <Input 
+                        type="file" 
+                        onChange={(e) => handleChangeDocument(e, idx)}
+                        disableUnderline
+                        sx={style.fileInput}
+                        accept=".pdf"
+                      />
+                    </Box>
+                    {(documents.length > 1 || (doc && doc.name)) && (
+                      <IconButton 
+                        color="error" 
+                        onClick={() => handleRemoveFile(idx)}
+                        size="small"
+                      >
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                  </Box>
+                ))}
+                
                 <Button 
-                  variant="contained" 
-                  disabled
+                  startIcon={<AddIcon />} 
+                  onClick={handleAddMore}
+                  variant="outlined"
+                  size="small"
+                  sx={{ mt: 1 }}
                 >
-                  <CircularProgress size={24} color="inherit" />
+                  Add More Files
                 </Button>
-              ) : (
+              </Box>
+
+              <Box sx={style.actionButtons}>
                 <Button 
+                  variant="outlined" 
+                  onClick={handleClose}
+                >
+                  Cancel
+                </Button>
+                {isLoading ? (
+                  <Button 
+                    variant="contained" 
+                    disabled
+                  >
+                    <CircularProgress size={24} color="inherit" />
+                  </Button>
+                ) : (
+                  <Button 
+                  type="button" // Changed from submit to button
                   variant="contained" 
-                  sx={style.sendButton} 
-                  onClick={submit}
+                  sx={style.sendButton}
+                  onClick={() => {
+                    // If signers are required, update the form field first
+                    if (!isSupplier && (isHeadDepartment.is_head_of_department || user.role === 'signer_admin')) {
+                      setValue('next_signers_validator', next_signers.join(','));
+                    }
+                    // Manually trigger form submission
+                    handleSubmit(onSubmit)();
+                  }}
                 >
                   Submit Invoice
                 </Button>
-              )}
-            </Box>
+                )}
+              </Box>
+            </form>
           </Box>
         </Paper>
       </Modal>

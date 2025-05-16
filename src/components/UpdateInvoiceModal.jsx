@@ -38,20 +38,10 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 
-// List of common currencies
-const currencies = [
-  { value: 'RWF', label: 'Rwandan Franc (RWF)' },
-  { value: 'USD', label: 'US Dollar (USD)' },
-  { value: 'EUR', label: 'Euro (EUR)' },
-  { value: 'GBP', label: 'British Pound (GBP)' },
-  { value: 'KES', label: 'Kenyan Shilling (KES)' },
-  { value: 'UGX', label: 'Ugandan Shilling (UGX)' },
-  { value: 'TZS', label: 'Tanzanian Shilling (TZS)' },
-  { value: 'CAD', label: 'Canadian Dollar (CAD)' },
-  { value: 'AUD', label: 'Australian Dollar (AUD)' },
-  { value: 'JPY', label: 'Japanese Yen (JPY)' },
-  { value: 'CNY', label: 'Chinese Yuan (CNY)' },
-];
+// Import currencies from separate file
+import currencies from '../utils/currencies';
+
+
 
 // List of payment terms options
 const paymentTermsOptions = [
