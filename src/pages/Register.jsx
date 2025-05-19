@@ -21,14 +21,17 @@ import {
   Tabs,
   Tab,
   FormControlLabel,
-  Checkbox,
   Switch,
+  FormHelperText,
 } from '@mui/material';
 import Logo from '../assets/images/logo.jpg';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { register } from '../features/auth/authSlice';
 import { toast } from 'react-toastify';
+import { useForm } from 'react-hook-form';
+import { yupResolver } from '@hookform/resolvers/yup';
+import { supplierRegistrationValidation } from '../validations/auth';
 import EmailIcon from '@mui/icons-material/Email';
 import BusinessIcon from '@mui/icons-material/Business';
 import NumbersIcon from '@mui/icons-material/Numbers';
@@ -43,7 +46,6 @@ import PaymentsIcon from '@mui/icons-material/Payments';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
-import NotInterestedIcon from '@mui/icons-material/NotInterested';
 
 // List of common currencies
 const currencies = [
@@ -67,28 +69,43 @@ function SupplierRegister() {
   const [ibanNotApplicable, setIbanNotApplicable] = useState(false);
   const [swiftNotApplicable, setSwiftNotApplicable] = useState(false);
 
-  const [form, setForm] = useState({
-    email: '',
-    password: '',
-    firstname: '',
-    lastname: '',
-    profile: {
-      company_name: '',
-      supplier_number: '',
-      tax_id: '',
-      service_category: '',
-      contact_name: '',
-      phone_number: '',
-      street_address: '',
-      city: '',
-      country: '',
-      bank_name: '',
-      account_name: '',
-      account_number: '',
-      iban: '',
-      swift_code: '',
-      sort_code: '',
-      payment_currency: 'RWF',
+  // Initialize form with react-hook-form and validation
+  const {
+    register: registerField,
+    handleSubmit,
+    formState: { errors },
+    setValue,
+    clearErrors,
+    watch,
+    setError,
+    trigger,
+  } = useForm({
+    resolver: yupResolver(supplierRegistrationValidation),
+    mode: 'onBlur',
+    context: { ibanNotApplicable, swiftNotApplicable },
+    defaultValues: {
+      email: '',
+      password: '',
+      firstname: '',
+      lastname: '',
+      profile: {
+        company_name: '',
+        supplier_number: '',
+        tax_id: '',
+        service_category: '',
+        contact_name: '',
+        phone_number: '',
+        street_address: '',
+        city: '',
+        country: '',
+        bank_name: '',
+        account_name: '',
+        account_number: '',
+        iban: '',
+        swift_code: '',
+        sort_code: '',
+        payment_currency: 'RWF',
+      },
     },
   });
 
@@ -100,74 +117,34 @@ function SupplierRegister() {
     setTabValue(newValue);
   };
 
-  const handleChange = (e) => {
+  const handleInputChange = (e) => {
     const { name, value } = e.target;
-
-    // Check if the field is part of the profile object
-    if (name.includes('.')) {
-      const [parent, child] = name.split('.');
-      setForm((prev) => ({
-        ...prev,
-        [parent]: {
-          ...prev[parent],
-          [child]: value,
-        },
-      }));
-    } else {
-      setForm((prev) => ({
-        ...prev,
-        [name]: value,
-      }));
-    }
+    setValue(name, value, { shouldValidate: true });
   };
 
   const handleIbanNotApplicable = (e) => {
     setIbanNotApplicable(e.target.checked);
     if (e.target.checked) {
-      setForm((prev) => ({
-        ...prev,
-        profile: {
-          ...prev.profile,
-          iban: 'N/A',
-        },
-      }));
+      setValue('profile.iban', 'N/A');
+      clearErrors('profile.iban');
     } else {
-      setForm((prev) => ({
-        ...prev,
-        profile: {
-          ...prev.profile,
-          iban: '',
-        },
-      }));
+      setValue('profile.iban', '');
     }
   };
 
   const handleSwiftNotApplicable = (e) => {
     setSwiftNotApplicable(e.target.checked);
     if (e.target.checked) {
-      setForm((prev) => ({
-        ...prev,
-        profile: {
-          ...prev.profile,
-          swift_code: 'N/A',
-        },
-      }));
+      setValue('profile.swift_code', 'N/A');
+      clearErrors('profile.swift_code');
     } else {
-      setForm((prev) => ({
-        ...prev,
-        profile: {
-          ...prev.profile,
-          swift_code: '',
-        },
-      }));
+      setValue('profile.swift_code', '');
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
+  const onSubmit = async (data) => {
     try {
-      await dispatch(register(form)).unwrap();
+      await dispatch(register(data)).unwrap();
       toast.success(
         'Registration successful! Please check your email for verification.'
       );
@@ -181,8 +158,36 @@ function SupplierRegister() {
     navigate('/login');
   };
 
-  const goToNextTab = () => {
-    if (tabValue < 3) {
+  const goToNextTab = async () => {
+    // Validate the current tab fields before proceeding
+    let isValid = false;
+
+    switch (tabValue) {
+      case 0:
+        isValid = await trigger(['firstname', 'lastname', 'email', 'password']);
+        break;
+      case 1:
+        isValid = await trigger([
+          'profile.company_name',
+          'profile.supplier_number',
+          'profile.tax_id',
+          'profile.service_category',
+          'profile.contact_name',
+          'profile.phone_number',
+        ]);
+        break;
+      case 2:
+        isValid = await trigger([
+          'profile.street_address',
+          'profile.city',
+          'profile.country',
+        ]);
+        break;
+      default:
+        isValid = true;
+    }
+
+    if (isValid && tabValue < 3) {
       setTabValue(tabValue + 1);
     }
   };
@@ -190,6 +195,45 @@ function SupplierRegister() {
   const goToPrevTab = () => {
     if (tabValue > 0) {
       setTabValue(tabValue - 1);
+    }
+  };
+
+  // Check if current tab has validation errors
+  const hasTabErrors = (tabIndex) => {
+    switch (tabIndex) {
+      case 0: // Account Information
+        return !!(
+          errors.email ||
+          errors.password ||
+          errors.firstname ||
+          errors.lastname
+        );
+      case 1: // Company Information
+        return !!(
+          errors.profile?.company_name ||
+          errors.profile?.supplier_number ||
+          errors.profile?.tax_id ||
+          errors.profile?.service_category ||
+          errors.profile?.contact_name ||
+          errors.profile?.phone_number
+        );
+      case 2: // Address Information
+        return !!(
+          errors.profile?.street_address ||
+          errors.profile?.city ||
+          errors.profile?.country
+        );
+      case 3: // Payment Information
+        return !!(
+          errors.profile?.bank_name ||
+          errors.profile?.account_name ||
+          errors.profile?.account_number ||
+          (!ibanNotApplicable && errors.profile?.iban) ||
+          (!swiftNotApplicable && errors.profile?.swift_code) ||
+          errors.profile?.payment_currency
+        );
+      default:
+        return false;
     }
   };
 
@@ -303,103 +347,142 @@ function SupplierRegister() {
                 label="Account Information"
                 icon={<PersonIcon />}
                 iconPosition="start"
+                sx={{
+                  color: hasTabErrors(0) ? 'error.main' : 'inherit',
+                  '& .MuiSvgIcon-root': {
+                    color: hasTabErrors(0) ? 'error.main' : 'inherit',
+                  },
+                }}
               />
               <Tab
                 label="Company Information"
                 icon={<BusinessIcon />}
                 iconPosition="start"
+                sx={{
+                  color: hasTabErrors(1) ? 'error.main' : 'inherit',
+                  '& .MuiSvgIcon-root': {
+                    color: hasTabErrors(1) ? 'error.main' : 'inherit',
+                  },
+                }}
               />
               <Tab
                 label="Address Information"
                 icon={<LocationOnIcon />}
                 iconPosition="start"
+                sx={{
+                  color: hasTabErrors(2) ? 'error.main' : 'inherit',
+                  '& .MuiSvgIcon-root': {
+                    color: hasTabErrors(2) ? 'error.main' : 'inherit',
+                  },
+                }}
               />
               <Tab
                 label="Payment Information"
                 icon={<AccountBalanceIcon />}
                 iconPosition="start"
+                sx={{
+                  color: hasTabErrors(3) ? 'error.main' : 'inherit',
+                  '& .MuiSvgIcon-root': {
+                    color: hasTabErrors(3) ? 'error.main' : 'inherit',
+                  },
+                }}
               />
             </Tabs>
 
             {/* Form */}
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit(onSubmit)}>
               {/* Account Information Tab */}
               {tabValue === 0 && (
                 <>
                   <Grid container spacing={3}>
                     <Grid item xs={12} sm={6}>
                       <TextField
+                        {...registerField('firstname')}
                         name="firstname"
                         label="First Name"
-                        value={form.firstname}
-                        onChange={handleChange}
                         fullWidth
                         required
                         margin="normal"
                         variant="outlined"
+                        error={!!errors.firstname}
+                        helperText={errors.firstname?.message}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <PersonIcon color="action" />
+                              <PersonIcon
+                                color={errors.firstname ? 'error' : 'action'}
+                              />
                             </InputAdornment>
                           ),
                         }}
+                        onChange={handleInputChange}
                       />
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <TextField
+                        {...registerField('lastname')}
                         name="lastname"
                         label="Last Name"
-                        value={form.lastname}
-                        onChange={handleChange}
                         fullWidth
                         required
                         margin="normal"
                         variant="outlined"
+                        error={!!errors.lastname}
+                        helperText={errors.lastname?.message}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <PersonIcon color="action" />
+                              <PersonIcon
+                                color={errors.lastname ? 'error' : 'action'}
+                              />
                             </InputAdornment>
                           ),
                         }}
+                        onChange={handleInputChange}
                       />
                     </Grid>
                     <Grid item xs={12}>
                       <TextField
+                        {...registerField('email')}
                         name="email"
                         label="Email Address"
                         type="email"
-                        value={form.email}
-                        onChange={handleChange}
                         fullWidth
                         required
                         margin="normal"
                         variant="outlined"
+                        error={!!errors.email}
+                        helperText={errors.email?.message}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <EmailIcon color="action" />
+                              <EmailIcon
+                                color={errors.email ? 'error' : 'action'}
+                              />
                             </InputAdornment>
                           ),
                         }}
+                        onChange={handleInputChange}
                       />
                     </Grid>
                     <Grid item xs={12}>
                       <TextField
+                        {...registerField('password')}
                         name="password"
                         label="Password"
                         type={showPassword ? 'text' : 'password'}
-                        value={form.password}
-                        onChange={handleChange}
                         fullWidth
                         required
                         margin="normal"
                         variant="outlined"
+                        error={!!errors.password}
+                        helperText={errors.password?.message}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <LockOutlinedIcon color="action" />
+                              <LockOutlinedIcon
+                                color={errors.password ? 'error' : 'action'}
+                              />
                             </InputAdornment>
                           ),
                           endAdornment: (
@@ -418,6 +501,7 @@ function SupplierRegister() {
                             </InputAdornment>
                           ),
                         }}
+                        onChange={handleInputChange}
                       />
                     </Grid>
                   </Grid>
@@ -442,117 +526,163 @@ function SupplierRegister() {
                   <Grid container spacing={3}>
                     <Grid item xs={12} sm={6}>
                       <TextField
+                        {...registerField('profile.company_name')}
                         name="profile.company_name"
                         label="Company Name"
-                        value={form.profile.company_name}
-                        onChange={handleChange}
                         fullWidth
                         required
                         margin="normal"
                         variant="outlined"
+                        error={!!errors.profile?.company_name}
+                        helperText={errors.profile?.company_name?.message}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <BusinessIcon color="action" />
+                              <BusinessIcon
+                                color={
+                                  errors.profile?.company_name
+                                    ? 'error'
+                                    : 'action'
+                                }
+                              />
                             </InputAdornment>
                           ),
                         }}
+                        onChange={handleInputChange}
                       />
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <TextField
+                        {...registerField('profile.supplier_number')}
                         name="profile.supplier_number"
                         label="Supplier Number"
-                        value={form.profile.supplier_number}
-                        onChange={handleChange}
                         fullWidth
                         required
                         margin="normal"
                         variant="outlined"
+                        error={!!errors.profile?.supplier_number}
+                        helperText={errors.profile?.supplier_number?.message}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <NumbersIcon color="action" />
+                              <NumbersIcon
+                                color={
+                                  errors.profile?.supplier_number
+                                    ? 'error'
+                                    : 'action'
+                                }
+                              />
                             </InputAdornment>
                           ),
                         }}
+                        onChange={handleInputChange}
                       />
                     </Grid>
 
                     <Grid item xs={12} sm={6}>
                       <TextField
+                        {...registerField('profile.tax_id')}
                         name="profile.tax_id"
                         label="Tax ID / VAT Number"
-                        value={form.profile.tax_id}
-                        onChange={handleChange}
                         fullWidth
                         required
                         margin="normal"
                         variant="outlined"
+                        error={!!errors.profile?.tax_id}
+                        helperText={errors.profile?.tax_id?.message}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <NumbersIcon color="action" />
+                              <NumbersIcon
+                                color={
+                                  errors.profile?.tax_id ? 'error' : 'action'
+                                }
+                              />
                             </InputAdornment>
                           ),
                         }}
+                        onChange={handleInputChange}
                       />
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <TextField
+                        {...registerField('profile.service_category')}
                         name="profile.service_category"
                         label="Service Category"
-                        value={form.profile.service_category}
-                        onChange={handleChange}
                         fullWidth
                         required
                         margin="normal"
                         variant="outlined"
+                        error={!!errors.profile?.service_category}
+                        helperText={errors.profile?.service_category?.message}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <BusinessIcon color="action" />
+                              <BusinessIcon
+                                color={
+                                  errors.profile?.service_category
+                                    ? 'error'
+                                    : 'action'
+                                }
+                              />
                             </InputAdornment>
                           ),
                         }}
+                        onChange={handleInputChange}
                       />
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <TextField
+                        {...registerField('profile.contact_name')}
                         name="profile.contact_name"
                         label="Primary Contact Name"
-                        value={form.profile.contact_name}
-                        onChange={handleChange}
                         fullWidth
                         required
                         margin="normal"
                         variant="outlined"
+                        error={!!errors.profile?.contact_name}
+                        helperText={errors.profile?.contact_name?.message}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <PersonIcon color="action" />
+                              <PersonIcon
+                                color={
+                                  errors.profile?.contact_name
+                                    ? 'error'
+                                    : 'action'
+                                }
+                              />
                             </InputAdornment>
                           ),
                         }}
+                        onChange={handleInputChange}
                       />
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <TextField
+                        {...registerField('profile.phone_number')}
                         name="profile.phone_number"
                         label="Phone Number"
-                        value={form.profile.phone_number}
-                        onChange={handleChange}
                         fullWidth
                         required
                         margin="normal"
                         variant="outlined"
+                        error={!!errors.profile?.phone_number}
+                        helperText={errors.profile?.phone_number?.message}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <LocalPhoneIcon color="action" />
+                              <LocalPhoneIcon
+                                color={
+                                  errors.profile?.phone_number
+                                    ? 'error'
+                                    : 'action'
+                                }
+                              />
                             </InputAdornment>
                           ),
                         }}
+                        onChange={handleInputChange}
                       />
                     </Grid>
                   </Grid>
@@ -584,59 +714,79 @@ function SupplierRegister() {
                   <Grid container spacing={3}>
                     <Grid item xs={12}>
                       <TextField
+                        {...registerField('profile.street_address')}
                         name="profile.street_address"
                         label="Address"
-                        value={form.profile.street_address}
-                        onChange={handleChange}
                         fullWidth
                         required
                         margin="normal"
                         variant="outlined"
+                        error={!!errors.profile?.street_address}
+                        helperText={errors.profile?.street_address?.message}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <LocationOnIcon color="action" />
+                              <LocationOnIcon
+                                color={
+                                  errors.profile?.street_address
+                                    ? 'error'
+                                    : 'action'
+                                }
+                              />
                             </InputAdornment>
                           ),
                         }}
+                        onChange={handleInputChange}
                       />
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <TextField
+                        {...registerField('profile.city')}
                         name="profile.city"
                         label="City"
-                        value={form.profile.city}
-                        onChange={handleChange}
                         fullWidth
                         required
                         margin="normal"
                         variant="outlined"
+                        error={!!errors.profile?.city}
+                        helperText={errors.profile?.city?.message}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <LocationOnIcon color="action" />
+                              <LocationOnIcon
+                                color={
+                                  errors.profile?.city ? 'error' : 'action'
+                                }
+                              />
                             </InputAdornment>
                           ),
                         }}
+                        onChange={handleInputChange}
                       />
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <TextField
+                        {...registerField('profile.country')}
                         name="profile.country"
                         label="Country"
-                        value={form.profile.country}
-                        onChange={handleChange}
                         fullWidth
                         required
                         margin="normal"
                         variant="outlined"
+                        error={!!errors.profile?.country}
+                        helperText={errors.profile?.country?.message}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <LocationOnIcon color="action" />
+                              <LocationOnIcon
+                                color={
+                                  errors.profile?.country ? 'error' : 'action'
+                                }
+                              />
                             </InputAdornment>
                           ),
                         }}
+                        onChange={handleInputChange}
                       />
                     </Grid>
                   </Grid>
@@ -668,81 +818,112 @@ function SupplierRegister() {
                   <Grid container spacing={3}>
                     <Grid item xs={12} sm={6}>
                       <TextField
+                        {...registerField('profile.bank_name')}
                         name="profile.bank_name"
                         label="Bank Name"
-                        value={form.profile.bank_name}
-                        onChange={handleChange}
                         fullWidth
                         required
                         margin="normal"
                         variant="outlined"
+                        error={!!errors.profile?.bank_name}
+                        helperText={errors.profile?.bank_name?.message}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <AccountBalanceIcon color="action" />
+                              <AccountBalanceIcon
+                                color={
+                                  errors.profile?.bank_name ? 'error' : 'action'
+                                }
+                              />
                             </InputAdornment>
                           ),
                         }}
+                        onChange={handleInputChange}
                       />
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <TextField
+                        {...registerField('profile.account_name')}
                         name="profile.account_name"
                         label="Account Name"
-                        value={form.profile.account_name}
-                        onChange={handleChange}
                         fullWidth
                         required
                         margin="normal"
                         variant="outlined"
+                        error={!!errors.profile?.account_name}
+                        helperText={errors.profile?.account_name?.message}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <PersonIcon color="action" />
+                              <PersonIcon
+                                color={
+                                  errors.profile?.account_name
+                                    ? 'error'
+                                    : 'action'
+                                }
+                              />
                             </InputAdornment>
                           ),
                         }}
+                        onChange={handleInputChange}
                       />
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <TextField
+                        {...registerField('profile.account_number')}
                         name="profile.account_number"
                         label="Account Number"
-                        value={form.profile.account_number}
-                        onChange={handleChange}
                         fullWidth
                         required
                         margin="normal"
                         variant="outlined"
+                        error={!!errors.profile?.account_number}
+                        helperText={errors.profile?.account_number?.message}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <CreditCardIcon color="action" />
+                              <CreditCardIcon
+                                color={
+                                  errors.profile?.account_number
+                                    ? 'error'
+                                    : 'action'
+                                }
+                              />
                             </InputAdornment>
                           ),
                         }}
+                        onChange={handleInputChange}
                       />
                     </Grid>
-                    
+
                     {/* Payment Currency */}
                     <Grid item xs={12} sm={6}>
                       <TextField
                         select
+                        {...registerField('profile.payment_currency')}
                         name="profile.payment_currency"
                         label="Payment Currency"
-                        value={form.profile.payment_currency}
-                        onChange={handleChange}
                         fullWidth
                         required
                         margin="normal"
                         variant="outlined"
+                        error={!!errors.profile?.payment_currency}
+                        helperText={errors.profile?.payment_currency?.message}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <AttachMoneyIcon color="action" />
+                              <AttachMoneyIcon
+                                color={
+                                  errors.profile?.payment_currency
+                                    ? 'error'
+                                    : 'action'
+                                }
+                              />
                             </InputAdornment>
                           ),
                         }}
+                        onChange={handleInputChange}
+                        defaultValue="RWF"
                       >
                         {currencies.map((option) => (
                           <MenuItem key={option.value} value={option.value}>
@@ -755,32 +936,43 @@ function SupplierRegister() {
                     {/* IBAN Field with N/A Toggle */}
                     <Grid item xs={12} sm={6}>
                       <TextField
+                        {...registerField('profile.iban')}
                         name="profile.iban"
                         label="IBAN"
-                        value={form.profile.iban}
-                        onChange={handleChange}
                         fullWidth
-                        required
+                        required={!ibanNotApplicable}
                         margin="normal"
                         variant="outlined"
                         disabled={ibanNotApplicable}
+                        error={!ibanNotApplicable && !!errors.profile?.iban}
+                        helperText={
+                          !ibanNotApplicable
+                            ? errors.profile?.iban?.message
+                            : ''
+                        }
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <CreditCardIcon color="action" />
+                              <CreditCardIcon
+                                color={
+                                  !ibanNotApplicable && errors.profile?.iban
+                                    ? 'error'
+                                    : 'action'
+                                }
+                              />
                             </InputAdornment>
                           ),
                           endAdornment: ibanNotApplicable && (
                             <InputAdornment position="end">
-                              <Typography 
-                                variant="body2" 
-                                sx={{ 
-                                  bgcolor: '#f0f0f0', 
-                                  px: 1, 
-                                  py: 0.5, 
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  bgcolor: '#f0f0f0',
+                                  px: 1,
+                                  py: 0.5,
                                   borderRadius: 1,
                                   color: 'text.secondary',
-                                  fontWeight: 'medium'
+                                  fontWeight: 'medium',
                                 }}
                               >
                                 N/A
@@ -788,12 +980,13 @@ function SupplierRegister() {
                             </InputAdornment>
                           ),
                         }}
+                        onChange={handleInputChange}
                       />
-                      <Box 
-                        sx={{ 
-                          display: 'flex', 
+                      <Box
+                        sx={{
+                          display: 'flex',
                           alignItems: 'center',
-                          mt: 1
+                          mt: 1,
                         }}
                       >
                         <Switch
@@ -802,8 +995,8 @@ function SupplierRegister() {
                           color="primary"
                           size="small"
                         />
-                        <Typography 
-                          variant="body2" 
+                        <Typography
+                          variant="body2"
                           color="text.secondary"
                           sx={{ ml: 1 }}
                         >
@@ -815,32 +1008,46 @@ function SupplierRegister() {
                     {/* SWIFT Code Field with N/A Toggle */}
                     <Grid item xs={12} sm={6}>
                       <TextField
+                        {...registerField('profile.swift_code')}
                         name="profile.swift_code"
                         label="SWIFT Code"
-                        value={form.profile.swift_code}
-                        onChange={handleChange}
                         fullWidth
-                        required
+                        required={!swiftNotApplicable}
                         margin="normal"
                         variant="outlined"
                         disabled={swiftNotApplicable}
+                        error={
+                          !swiftNotApplicable && !!errors.profile?.swift_code
+                        }
+                        helperText={
+                          !swiftNotApplicable
+                            ? errors.profile?.swift_code?.message
+                            : ''
+                        }
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <PaymentsIcon color="action" />
+                              <PaymentsIcon
+                                color={
+                                  !swiftNotApplicable &&
+                                  errors.profile?.swift_code
+                                    ? 'error'
+                                    : 'action'
+                                }
+                              />
                             </InputAdornment>
                           ),
                           endAdornment: swiftNotApplicable && (
                             <InputAdornment position="end">
-                              <Typography 
-                                variant="body2" 
-                                sx={{ 
-                                  bgcolor: '#f0f0f0', 
-                                  px: 1, 
-                                  py: 0.5, 
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  bgcolor: '#f0f0f0',
+                                  px: 1,
+                                  py: 0.5,
                                   borderRadius: 1,
                                   color: 'text.secondary',
-                                  fontWeight: 'medium'
+                                  fontWeight: 'medium',
                                 }}
                               >
                                 N/A
@@ -848,12 +1055,13 @@ function SupplierRegister() {
                             </InputAdornment>
                           ),
                         }}
+                        onChange={handleInputChange}
                       />
-                      <Box 
-                        sx={{ 
-                          display: 'flex', 
+                      <Box
+                        sx={{
+                          display: 'flex',
                           alignItems: 'center',
-                          mt: 1
+                          mt: 1,
                         }}
                       >
                         <Switch
@@ -862,8 +1070,8 @@ function SupplierRegister() {
                           color="primary"
                           size="small"
                         />
-                        <Typography 
-                          variant="body2" 
+                        <Typography
+                          variant="body2"
                           color="text.secondary"
                           sx={{ ml: 1 }}
                         >
@@ -875,20 +1083,26 @@ function SupplierRegister() {
                     {/* Sort Code */}
                     <Grid item xs={12} sm={6}>
                       <TextField
+                        {...registerField('profile.sort_code')}
                         name="profile.sort_code"
                         label="Sort Code"
-                        value={form.profile.sort_code}
-                        onChange={handleChange}
                         fullWidth
                         margin="normal"
                         variant="outlined"
+                        error={!!errors.profile?.sort_code}
+                        helperText={errors.profile?.sort_code?.message}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <PaymentsIcon color="action" />
+                              <PaymentsIcon
+                                color={
+                                  errors.profile?.sort_code ? 'error' : 'action'
+                                }
+                              />
                             </InputAdornment>
                           ),
                         }}
+                        onChange={handleInputChange}
                       />
                     </Grid>
                   </Grid>
@@ -906,7 +1120,7 @@ function SupplierRegister() {
                     <Button
                       type="submit"
                       variant="contained"
-                      disabled={isLoading}
+                      disabled={isLoading || hasTabErrors(3)}
                       sx={{
                         bgcolor: '#00529B',
                         padding: '0.75rem 1.5rem',
