@@ -46,17 +46,8 @@ import PaymentsIcon from '@mui/icons-material/Payments';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
-
-// List of common currencies
-const currencies = [
-  { value: 'RWF', label: 'Rwandan Franc (RWF)' },
-  { value: 'USD', label: 'US Dollar (USD)' },
-  { value: 'EUR', label: 'Euro (EUR)' },
-  { value: 'GBP', label: 'British Pound (GBP)' },
-  { value: 'KES', label: 'Kenyan Shilling (KES)' },
-  { value: 'UGX', label: 'Ugandan Shilling (UGX)' },
-  { value: 'TZS', label: 'Tanzanian Shilling (TZS)' },
-];
+import countries from '../utils/countries';
+import currencies from '../utils/currencies';
 
 function SupplierRegister() {
   const theme = useTheme();
@@ -712,7 +703,46 @@ function SupplierRegister() {
               {tabValue === 2 && (
                 <>
                   <Grid container spacing={3}>
-                    <Grid item xs={12}>
+                    {/* Country field - now first in the form */}
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        select
+                        {...registerField('profile.country')}
+                        name="profile.country"
+                        label="Country"
+                        fullWidth
+                        required
+                        margin="normal"
+                        variant="outlined"
+                        error={!!errors.profile?.country}
+                        helperText={errors.profile?.country?.message}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <LocationOnIcon
+                                color={
+                                  errors.profile?.country ? 'error' : 'action'
+                                }
+                              />
+                            </InputAdornment>
+                          ),
+                        }}
+                        onChange={handleInputChange}
+                        defaultValue=""
+                      >
+                        <MenuItem value="" disabled>
+                          <em>Select a country</em>
+                        </MenuItem>
+                        {countries.map((option) => (
+                          <MenuItem key={option.value} value={option.value}>
+                            {option.label}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                    </Grid>
+
+                    {/* Street Address */}
+                    <Grid item xs={12} sm={6}>
                       <TextField
                         {...registerField('profile.street_address')}
                         name="profile.street_address"
@@ -739,6 +769,8 @@ function SupplierRegister() {
                         onChange={handleInputChange}
                       />
                     </Grid>
+
+                    {/* City */}
                     <Grid item xs={12} sm={6}>
                       <TextField
                         {...registerField('profile.city')}
@@ -756,31 +788,6 @@ function SupplierRegister() {
                               <LocationOnIcon
                                 color={
                                   errors.profile?.city ? 'error' : 'action'
-                                }
-                              />
-                            </InputAdornment>
-                          ),
-                        }}
-                        onChange={handleInputChange}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        {...registerField('profile.country')}
-                        name="profile.country"
-                        label="Country"
-                        fullWidth
-                        required
-                        margin="normal"
-                        variant="outlined"
-                        error={!!errors.profile?.country}
-                        helperText={errors.profile?.country?.message}
-                        InputProps={{
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <LocationOnIcon
-                                color={
-                                  errors.profile?.country ? 'error' : 'action'
                                 }
                               />
                             </InputAdornment>
