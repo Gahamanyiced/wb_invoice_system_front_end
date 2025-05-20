@@ -50,15 +50,18 @@ const MenuProps = {
 
 // List of payment terms options
 const paymentTermsOptions = [
-  { value: "net_30", label: "Net 30 - Payment due within 30 days" },
-  { value: "net_45", label: "Net 45 - Payment due within 45 days" },
-  { value: "net_60", label: "Net 60 - Payment due within 60 days" },
-  { value: "net_90", label: "Net 90 - Payment due within 90 days" },
-  { value: "due_on_receipt", label: "Due on Receipt" },
-  { value: "end_of_month", label: "End of Month" },
-  { value: "15_mfg", label: "15 MFG - 15th of month following goods receipt" },
-  { value: "15_mfi", label: "15 MFI - 15th of month following invoice receipt" },
-  { value: "custom", label: "Custom - Enter your own terms" },
+  { value: 'net_30', label: 'Net 30 - Payment due within 30 days' },
+  { value: 'net_45', label: 'Net 45 - Payment due within 45 days' },
+  { value: 'net_60', label: 'Net 60 - Payment due within 60 days' },
+  { value: 'net_90', label: 'Net 90 - Payment due within 90 days' },
+  { value: 'due_on_receipt', label: 'Due on Receipt' },
+  { value: 'end_of_month', label: 'End of Month' },
+  { value: '15_mfg', label: '15 MFG - 15th of month following goods receipt' },
+  {
+    value: '15_mfi',
+    label: '15 MFI - 15th of month following invoice receipt',
+  },
+  { value: 'custom', label: 'Custom - Enter your own terms' },
 ];
 
 const style = {
@@ -150,7 +153,7 @@ export default function InvoiceModal() {
   const { isHeadDepartment } = useSelector((state) => state.department);
   const { users } = useSelector((state) => state.user);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  
+
   // Check if user is a supplier
   const isSupplier = user?.role === 'supplier';
 
@@ -159,19 +162,19 @@ export default function InvoiceModal() {
   const [next_signers, setNextSigners] = useState([]);
   const [customPaymentTerms, setCustomPaymentTerms] = useState(false);
   const [customTermsInput, setCustomTermsInput] = useState('');
-  
+
   // Get the validation schema based on user role
   const validationSchema = getInvoiceValidationSchema(user?.role);
-  
+
   // Initialize the form with react-hook-form and yup resolver
-  const { 
-    control, 
-    handleSubmit, 
-    reset, 
-    setValue, 
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setValue,
     register,
     formState: { errors },
-    watch 
+    watch,
   } = useForm({
     resolver: yupResolver(validationSchema),
     mode: 'onSubmit', // Change validation mode to onSubmit to avoid premature validation
@@ -189,7 +192,7 @@ export default function InvoiceModal() {
       payment_terms: '',
       payment_due_date: '',
       next_signers_validator: '',
-    }
+    },
   });
 
   // Watch payment terms field to handle custom payment terms logic
@@ -219,7 +222,7 @@ export default function InvoiceModal() {
   }, [payment_terms]);
 
   const handleOpen = () => setOpen(true);
-  
+
   const handleClose = () => {
     setOpen(false);
     reset();
@@ -236,28 +239,28 @@ export default function InvoiceModal() {
     // Update the payment_terms field directly with custom input
     setValue('payment_terms', value, { shouldValidate: true });
   };
-  
+
   // Use this to programmatically submit the form
   const formRef = React.useRef();
 
   const handleChangeDocument = (e, idx) => {
     const files = [...documents];
     const file = e.target.files[0];
-    
+
     // Validate file type (must be PDF)
     if (file && !file.name.toLowerCase().endsWith('.pdf')) {
       toast.error('Only PDF files are allowed');
       e.target.value = null; // Clear the file input
       return;
     }
-    
+
     // Validate file size (max 10MB)
     if (file && file.size > 10 * 1024 * 1024) {
       toast.error('File size must not exceed 10MB');
       e.target.value = null; // Clear the file input
       return;
     }
-    
+
     files[idx] = file;
     setDocuments(files);
   };
@@ -272,27 +275,29 @@ export default function InvoiceModal() {
 
   const onSubmit = async (data) => {
     // Validate that at least one next signer is selected when required
-    const shouldValidateSigners = !isSupplier && (isHeadDepartment.is_head_of_department || user.role === 'signer_admin');
+    const shouldValidateSigners =
+      !isSupplier &&
+      (isHeadDepartment.is_head_of_department || user.role === 'signer_admin');
     if (shouldValidateSigners && next_signers.length === 0) {
       toast.error('Please select at least one next signer');
       return;
     }
-    
+
     // Check if at least one document is attached
-    if (documents.every(doc => !doc || !doc.name)) {
+    if (documents.every((doc) => !doc || !doc.name)) {
       toast.error('Please attach at least one document');
       return;
     }
-    
+
     // Validate attachments (file type and size)
-    const hasInvalidFiles = documents.some(doc => {
+    const hasInvalidFiles = documents.some((doc) => {
       if (doc && doc.name) {
         // Check file type (must be PDF)
         if (!doc.name.toLowerCase().endsWith('.pdf')) {
           toast.error('Only PDF files are allowed');
           return true;
         }
-        
+
         // Check file size (max 10MB)
         const maxSize = 10 * 1024 * 1024; // 10MB in bytes
         if (doc.size > maxSize) {
@@ -302,19 +307,23 @@ export default function InvoiceModal() {
       }
       return false;
     });
-    
+
     if (hasInvalidFiles) {
       return;
     }
-    
+
     // Format the payment_due_date to YYYY-MM-DD if it exists
     const formattedData = { ...data };
+
+    // Remove the next_signers_validator as it's only for client-side validation
+    delete formattedData.next_signers_validator;
+
     if (formattedData.payment_due_date) {
       // Convert the date to YYYY-MM-DD format
       const date = new Date(formattedData.payment_due_date);
       formattedData.payment_due_date = date.toISOString().split('T')[0]; // Format as YYYY-MM-DD
     }
-    
+
     // Prepare the form data
     const formData = new FormData();
     Object.entries(formattedData).forEach(([key, val]) => {
@@ -322,11 +331,11 @@ export default function InvoiceModal() {
         formData.append(key, val);
       }
     });
-    
+
     if (next_signers.length > 0) {
       formData.append('next_signers', JSON.stringify(next_signers));
     }
-    
+
     // Only append documents that have files
     documents.forEach((doc) => {
       if (doc && doc.name) {
@@ -359,18 +368,16 @@ export default function InvoiceModal() {
       <Modal open={open} onClose={handleClose}>
         <Paper sx={style.box}>
           <Box sx={style.header}>
-            <Typography variant="h6">
-              Create New Invoice
-            </Typography>
-            <IconButton 
-              size="small" 
+            <Typography variant="h6">Create New Invoice</Typography>
+            <IconButton
+              size="small"
               onClick={handleClose}
               sx={style.closeButton}
             >
               <CloseIcon />
             </IconButton>
           </Box>
-          
+
           <Box sx={style.content}>
             <form onSubmit={handleSubmit(onSubmit)} ref={formRef}>
               {/* Only show supplier section for non-supplier roles */}
@@ -386,15 +393,19 @@ export default function InvoiceModal() {
                           name="supplier_number"
                           control={control}
                           render={({ field }) => (
-                            <FormControl fullWidth variant="outlined" error={!!errors.supplier_number}>
-                              <InputLabel sx={style.inputLabel}>Supplier Number *</InputLabel>
-                              <Input
-                                {...field}
-                                type="text"
-                                required
-                              />
+                            <FormControl
+                              fullWidth
+                              variant="outlined"
+                              error={!!errors.supplier_number}
+                            >
+                              <InputLabel sx={style.inputLabel}>
+                                Supplier Number *
+                              </InputLabel>
+                              <Input {...field} type="text" required />
                               {errors.supplier_number && (
-                                <FormHelperText error>{errors.supplier_number.message}</FormHelperText>
+                                <FormHelperText error>
+                                  {errors.supplier_number.message}
+                                </FormHelperText>
                               )}
                             </FormControl>
                           )}
@@ -405,13 +416,19 @@ export default function InvoiceModal() {
                           name="supplier_name"
                           control={control}
                           render={({ field }) => (
-                            <FormControl fullWidth variant="outlined" error={!!errors.supplier_name}>
-                              <InputLabel sx={style.inputLabel}>Supplier Name</InputLabel>
-                              <Input
-                                {...field}
-                              />
+                            <FormControl
+                              fullWidth
+                              variant="outlined"
+                              error={!!errors.supplier_name}
+                            >
+                              <InputLabel sx={style.inputLabel}>
+                                Supplier Name
+                              </InputLabel>
+                              <Input {...field} />
                               {errors.supplier_name && (
-                                <FormHelperText error>{errors.supplier_name.message}</FormHelperText>
+                                <FormHelperText error>
+                                  {errors.supplier_name.message}
+                                </FormHelperText>
                               )}
                             </FormControl>
                           )}
@@ -423,7 +440,7 @@ export default function InvoiceModal() {
                   <Divider sx={{ my: 2 }} />
                 </>
               )}
-              
+
               {/* Invoice Details section - shown to all users including suppliers */}
               <Box sx={style.section}>
                 <Typography variant="h6" sx={style.sectionTitle}>
@@ -435,15 +452,19 @@ export default function InvoiceModal() {
                       name="invoice_number"
                       control={control}
                       render={({ field }) => (
-                        <FormControl fullWidth variant="outlined" error={!!errors.invoice_number}>
-                          <InputLabel sx={style.inputLabel}>Invoice Number *</InputLabel>
-                          <Input
-                            {...field}
-                            type="text"
-                            required
-                          />
+                        <FormControl
+                          fullWidth
+                          variant="outlined"
+                          error={!!errors.invoice_number}
+                        >
+                          <InputLabel sx={style.inputLabel}>
+                            Invoice Number *
+                          </InputLabel>
+                          <Input {...field} type="text" required />
                           {errors.invoice_number && (
-                            <FormHelperText error>{errors.invoice_number.message}</FormHelperText>
+                            <FormHelperText error>
+                              {errors.invoice_number.message}
+                            </FormHelperText>
                           )}
                         </FormControl>
                       )}
@@ -454,20 +475,25 @@ export default function InvoiceModal() {
                       name="service_period"
                       control={control}
                       render={({ field }) => (
-                        <FormControl fullWidth variant="outlined" error={!!errors.service_period}>
-                          <InputLabel sx={style.inputLabel}>Service Period *</InputLabel>
-                          <Input
-                            {...field}
-                            required
-                          />
+                        <FormControl
+                          fullWidth
+                          variant="outlined"
+                          error={!!errors.service_period}
+                        >
+                          <InputLabel sx={style.inputLabel}>
+                            Service Period *
+                          </InputLabel>
+                          <Input {...field} required />
                           {errors.service_period && (
-                            <FormHelperText error>{errors.service_period.message}</FormHelperText>
+                            <FormHelperText error>
+                              {errors.service_period.message}
+                            </FormHelperText>
                           )}
                         </FormControl>
                       )}
                     />
                   </Grid>
-                  
+
                   {/* Only show these fields to non-suppliers */}
                   {!isSupplier && (
                     <>
@@ -476,15 +502,19 @@ export default function InvoiceModal() {
                           name="gl_code"
                           control={control}
                           render={({ field }) => (
-                            <FormControl fullWidth variant="outlined" error={!!errors.gl_code}>
-                              <InputLabel sx={style.inputLabel}>GL Code *</InputLabel>
-                              <Input
-                                {...field}
-                                type="text"
-                                required
-                              />
+                            <FormControl
+                              fullWidth
+                              variant="outlined"
+                              error={!!errors.gl_code}
+                            >
+                              <InputLabel sx={style.inputLabel}>
+                                GL Code *
+                              </InputLabel>
+                              <Input {...field} type="text" required />
                               {errors.gl_code && (
-                                <FormHelperText error>{errors.gl_code.message}</FormHelperText>
+                                <FormHelperText error>
+                                  {errors.gl_code.message}
+                                </FormHelperText>
                               )}
                             </FormControl>
                           )}
@@ -495,13 +525,19 @@ export default function InvoiceModal() {
                           name="gl_description"
                           control={control}
                           render={({ field }) => (
-                            <FormControl fullWidth variant="outlined" error={!!errors.gl_description}>
-                              <InputLabel sx={style.inputLabel}>GL Description</InputLabel>
-                              <Input
-                                {...field}
-                              />
+                            <FormControl
+                              fullWidth
+                              variant="outlined"
+                              error={!!errors.gl_description}
+                            >
+                              <InputLabel sx={style.inputLabel}>
+                                GL Description
+                              </InputLabel>
+                              <Input {...field} />
                               {errors.gl_description && (
-                                <FormHelperText error>{errors.gl_description.message}</FormHelperText>
+                                <FormHelperText error>
+                                  {errors.gl_description.message}
+                                </FormHelperText>
                               )}
                             </FormControl>
                           )}
@@ -513,7 +549,7 @@ export default function InvoiceModal() {
               </Box>
 
               <Divider sx={{ my: 2 }} />
-              
+
               {/* Financial Information - shown to all users including suppliers */}
               <Box sx={style.section}>
                 <Typography variant="h6" sx={style.sectionTitle}>
@@ -528,13 +564,19 @@ export default function InvoiceModal() {
                           name="location"
                           control={control}
                           render={({ field }) => (
-                            <FormControl fullWidth variant="outlined" error={!!errors.location}>
-                              <InputLabel sx={style.inputLabel}>Location</InputLabel>
-                              <Input
-                                {...field}
-                              />
+                            <FormControl
+                              fullWidth
+                              variant="outlined"
+                              error={!!errors.location}
+                            >
+                              <InputLabel sx={style.inputLabel}>
+                                Location
+                              </InputLabel>
+                              <Input {...field} />
                               {errors.location && (
-                                <FormHelperText error>{errors.location.message}</FormHelperText>
+                                <FormHelperText error>
+                                  {errors.location.message}
+                                </FormHelperText>
                               )}
                             </FormControl>
                           )}
@@ -545,13 +587,19 @@ export default function InvoiceModal() {
                           name="cost_center"
                           control={control}
                           render={({ field }) => (
-                            <FormControl fullWidth variant="outlined" error={!!errors.cost_center}>
-                              <InputLabel sx={style.inputLabel}>Cost Center</InputLabel>
-                              <Input
-                                {...field}
-                              />
+                            <FormControl
+                              fullWidth
+                              variant="outlined"
+                              error={!!errors.cost_center}
+                            >
+                              <InputLabel sx={style.inputLabel}>
+                                Cost Center
+                              </InputLabel>
+                              <Input {...field} />
                               {errors.cost_center && (
-                                <FormHelperText error>{errors.cost_center.message}</FormHelperText>
+                                <FormHelperText error>
+                                  {errors.cost_center.message}
+                                </FormHelperText>
                               )}
                             </FormControl>
                           )}
@@ -559,15 +607,21 @@ export default function InvoiceModal() {
                       </Grid>
                     </>
                   )}
-                  
+
                   {/* Currency and Amount - shown to all users including suppliers */}
                   <Grid item xs={12} md={6}>
                     <Controller
                       name="currency"
                       control={control}
                       render={({ field }) => (
-                        <FormControl fullWidth variant="outlined" error={!!errors.currency}>
-                          <InputLabel id="currency-label" sx={style.inputLabel}>Currency *</InputLabel>
+                        <FormControl
+                          fullWidth
+                          variant="outlined"
+                          error={!!errors.currency}
+                        >
+                          <InputLabel id="currency-label" sx={style.inputLabel}>
+                            Currency *
+                          </InputLabel>
                           <Select
                             {...field}
                             labelId="currency-label"
@@ -576,10 +630,11 @@ export default function InvoiceModal() {
                             MenuProps={{
                               PaperProps: {
                                 style: {
-                                  maxHeight: ITEM_HEIGHT * 6.5 + ITEM_PADDING_TOP,
+                                  maxHeight:
+                                    ITEM_HEIGHT * 6.5 + ITEM_PADDING_TOP,
                                   width: 320,
-                                }
-                              }
+                                },
+                              },
                             }}
                           >
                             {currencies.map((option) => (
@@ -589,7 +644,9 @@ export default function InvoiceModal() {
                             ))}
                           </Select>
                           {errors.currency && (
-                            <FormHelperText error>{errors.currency.message}</FormHelperText>
+                            <FormHelperText error>
+                              {errors.currency.message}
+                            </FormHelperText>
                           )}
                         </FormControl>
                       )}
@@ -600,8 +657,14 @@ export default function InvoiceModal() {
                       name="amount"
                       control={control}
                       render={({ field }) => (
-                        <FormControl fullWidth variant="outlined" error={!!errors.amount}>
-                          <InputLabel sx={style.inputLabel}>Amount *</InputLabel>
+                        <FormControl
+                          fullWidth
+                          variant="outlined"
+                          error={!!errors.amount}
+                        >
+                          <InputLabel sx={style.inputLabel}>
+                            Amount *
+                          </InputLabel>
                           <Input
                             {...field}
                             type="number"
@@ -609,7 +672,9 @@ export default function InvoiceModal() {
                             required
                           />
                           {errors.amount && (
-                            <FormHelperText error>{errors.amount.message}</FormHelperText>
+                            <FormHelperText error>
+                              {errors.amount.message}
+                            </FormHelperText>
                           )}
                         </FormControl>
                       )}
@@ -634,7 +699,11 @@ export default function InvoiceModal() {
                             name="payment_terms"
                             control={control}
                             render={({ field }) => (
-                              <FormControl fullWidth variant="outlined" error={!!errors.payment_terms}>
+                              <FormControl
+                                fullWidth
+                                variant="outlined"
+                                error={!!errors.payment_terms}
+                              >
                                 <TextField
                                   {...field}
                                   select
@@ -644,20 +713,29 @@ export default function InvoiceModal() {
                                   fullWidth
                                   InputLabelProps={{
                                     shrink: true,
-                                    style: { backgroundColor: 'white', paddingLeft: 5, paddingRight: 5 }
+                                    style: {
+                                      backgroundColor: 'white',
+                                      paddingLeft: 5,
+                                      paddingRight: 5,
+                                    },
                                   }}
                                 >
                                   <MenuItem value="">
                                     <em>Select payment terms</em>
                                   </MenuItem>
                                   {paymentTermsOptions.map((option) => (
-                                    <MenuItem key={option.value} value={option.value}>
+                                    <MenuItem
+                                      key={option.value}
+                                      value={option.value}
+                                    >
                                       {option.label}
                                     </MenuItem>
                                   ))}
                                 </TextField>
                                 {errors.payment_terms && (
-                                  <FormHelperText error>{errors.payment_terms.message}</FormHelperText>
+                                  <FormHelperText error>
+                                    {errors.payment_terms.message}
+                                  </FormHelperText>
                                 )}
                               </FormControl>
                             )}
@@ -676,12 +754,16 @@ export default function InvoiceModal() {
                             helperText={errors.payment_terms?.message}
                             InputLabelProps={{
                               shrink: true,
-                              style: { backgroundColor: 'white', paddingLeft: 5, paddingRight: 5 }
+                              style: {
+                                backgroundColor: 'white',
+                                paddingLeft: 5,
+                                paddingRight: 5,
+                              },
                             }}
                           />
                         </Grid>
                       )}
-                      
+
                       <Grid item xs={12} md={6}>
                         <Controller
                           name="payment_due_date"
@@ -697,7 +779,11 @@ export default function InvoiceModal() {
                               helperText={errors.payment_due_date?.message}
                               InputLabelProps={{
                                 shrink: true,
-                                style: { backgroundColor: 'white', paddingLeft: 5, paddingRight: 5 }
+                                style: {
+                                  backgroundColor: 'white',
+                                  paddingLeft: 5,
+                                  paddingRight: 5,
+                                },
                               }}
                             />
                           )}
@@ -710,79 +796,93 @@ export default function InvoiceModal() {
               )}
 
               {/* Only show for non-suppliers with specific roles */}
-              {!isSupplier && (isHeadDepartment.is_head_of_department || user.role === 'signer_admin') && (
-                <>
-                  <Box sx={style.section}>
-                    <Typography variant="h6" sx={style.sectionTitle}>
-                      Approval Workflow
-                    </Typography>
-                    <FormControl fullWidth variant="outlined">
-                      <Autocomplete
-                        multiple
-                        options={users.results || []}
-                        getOptionLabel={(opt) => `${opt.firstname} ${opt.lastname}`}
-                        value={next_signers.map(id => 
-                          users.results?.find(u => u.id === id)
-                        ).filter(Boolean)}
-                        onChange={(_, newValues) => {
-                          const newSignerIds = newValues.map(opt => opt.id);
-                          setNextSigners(newSignerIds);
-                        }}
-                        renderInput={(params) => (
-                          <TextField
-                            {...params}
-                            label="Next Signers *"
-                            placeholder="Select signers"
-                            variant="outlined"
-                            // Remove required attribute to prevent HTML5 validation
-                            error={next_signers.length === 0}
-                            helperText={next_signers.length === 0 ? "At least one signer is required" : ""}
-                            // Add a hidden input field that React Hook Form can use for validation
-                            InputProps={{
-                              ...params.InputProps,
-                              endAdornment: (
-                                <>
-                                  {params.InputProps.endAdornment}
-                                  {/* This hidden input satisfies the form submission when signers are selected */}
-                                  {next_signers.length > 0 && (
-                                    <input 
-                                      type="hidden" 
-                                      name="next_signers_validator" 
-                                      value={next_signers.join(',')} 
-                                    />
-                                  )}
-                                </>
-                              ),
-                            }}
-                          />
-                        )}
-                      />
-                    </FormControl>
-                  </Box>
-                  <Divider sx={{ my: 2 }} />
-                </>
-              )}
+              {!isSupplier &&
+                (isHeadDepartment.is_head_of_department ||
+                  user.role === 'signer_admin') && (
+                  <>
+                    <Box sx={style.section}>
+                      <Typography variant="h6" sx={style.sectionTitle}>
+                        Approval Workflow
+                      </Typography>
+                      <FormControl fullWidth variant="outlined">
+                        <Autocomplete
+                          multiple
+                          options={users.results || []}
+                          getOptionLabel={(opt) =>
+                            `${opt.firstname} ${opt.lastname}`
+                          }
+                          value={next_signers
+                            .map((id) =>
+                              users.results?.find((u) => u.id === id)
+                            )
+                            .filter(Boolean)}
+                          onChange={(_, newValues) => {
+                            const newSignerIds = newValues.map((opt) => opt.id);
+                            setNextSigners(newSignerIds);
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              label="Next Signers *"
+                              placeholder="Select signers"
+                              variant="outlined"
+                              // Remove required attribute to prevent HTML5 validation
+                              error={next_signers.length === 0}
+                              helperText={
+                                next_signers.length === 0
+                                  ? 'At least one signer is required'
+                                  : ''
+                              }
+                              // Add a hidden input field that React Hook Form can use for validation
+                              InputProps={{
+                                ...params.InputProps,
+                                endAdornment: (
+                                  <>
+                                    {params.InputProps.endAdornment}
+                                    {/* This hidden input satisfies the form submission when signers are selected */}
+                                    {next_signers.length > 0 && (
+                                      <input
+                                        type="hidden"
+                                        name="next_signers_validator"
+                                        value={next_signers.join(',')}
+                                      />
+                                    )}
+                                  </>
+                                ),
+                              }}
+                            />
+                          )}
+                        />
+                      </FormControl>
+                    </Box>
+                    <Divider sx={{ my: 2 }} />
+                  </>
+                )}
 
               {/* This section is shown to all users including suppliers */}
               <Box sx={style.section}>
                 <Typography variant="h6" sx={style.sectionTitle}>
                   Attachments
                 </Typography>
-                
+
                 {documents.map((doc, idx) => (
-                  <Box 
-                    key={idx} 
+                  <Box
+                    key={idx}
                     sx={style.fileInputContainer}
                     display="flex"
                     alignItems="center"
                     gap={2}
                   >
                     <Box flexGrow={1}>
-                      <Typography variant="caption" display="block" gutterBottom>
+                      <Typography
+                        variant="caption"
+                        display="block"
+                        gutterBottom
+                      >
                         Only PDF files, max 10MB
                       </Typography>
-                      <Input 
-                        type="file" 
+                      <Input
+                        type="file"
                         onChange={(e) => handleChangeDocument(e, idx)}
                         disableUnderline
                         sx={style.fileInput}
@@ -790,8 +890,8 @@ export default function InvoiceModal() {
                       />
                     </Box>
                     {(documents.length > 1 || (doc && doc.name)) && (
-                      <IconButton 
-                        color="error" 
+                      <IconButton
+                        color="error"
                         onClick={() => handleRemoveFile(idx)}
                         size="small"
                       >
@@ -800,9 +900,9 @@ export default function InvoiceModal() {
                     )}
                   </Box>
                 ))}
-                
-                <Button 
-                  startIcon={<AddIcon />} 
+
+                <Button
+                  startIcon={<AddIcon />}
                   onClick={handleAddMore}
                   variant="outlined"
                   size="small"
@@ -813,35 +913,36 @@ export default function InvoiceModal() {
               </Box>
 
               <Box sx={style.actionButtons}>
-                <Button 
-                  variant="outlined" 
-                  onClick={handleClose}
-                >
+                <Button variant="outlined" onClick={handleClose}>
                   Cancel
                 </Button>
                 {isLoading ? (
-                  <Button 
-                    variant="contained" 
-                    disabled
-                  >
+                  <Button variant="contained" disabled>
                     <CircularProgress size={24} color="inherit" />
                   </Button>
                 ) : (
-                  <Button 
-                  type="button" // Changed from submit to button
-                  variant="contained" 
-                  sx={style.sendButton}
-                  onClick={() => {
-                    // If signers are required, update the form field first
-                    if (!isSupplier && (isHeadDepartment.is_head_of_department || user.role === 'signer_admin')) {
-                      setValue('next_signers_validator', next_signers.join(','));
-                    }
-                    // Manually trigger form submission
-                    handleSubmit(onSubmit)();
-                  }}
-                >
-                  Submit Invoice
-                </Button>
+                  <Button
+                    type="button" // Changed from submit to button
+                    variant="contained"
+                    sx={style.sendButton}
+                    onClick={() => {
+                      // If signers are required, update the form field first
+                      if (
+                        !isSupplier &&
+                        (isHeadDepartment.is_head_of_department ||
+                          user.role === 'signer_admin')
+                      ) {
+                        setValue(
+                          'next_signers_validator',
+                          next_signers.join(',')
+                        );
+                      }
+                      // Manually trigger form submission
+                      handleSubmit(onSubmit)();
+                    }}
+                  >
+                    Submit Invoice
+                  </Button>
                 )}
               </Box>
             </form>
