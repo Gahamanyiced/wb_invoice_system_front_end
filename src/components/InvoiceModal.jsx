@@ -333,7 +333,8 @@ export default function InvoiceModal() {
     });
 
     if (next_signers.length > 0) {
-      formData.append('next_signers', JSON.stringify(next_signers));
+      // Send as comma-separated string instead of JSON array
+      formData.append('next_signers', next_signers.join(','));
     }
 
     // Only append documents that have files
