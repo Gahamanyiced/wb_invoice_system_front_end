@@ -22,11 +22,9 @@ const externalLogin = async (userData) => {
     },
   });
 
-  
-    // localStorage.removeItem('username');
-    localStorage.setItem('user', JSON.stringify(response.data.user));
-    localStorage.setItem('token', response.data.tokens.access);
-  
+  // localStorage.removeItem('username');
+  localStorage.setItem('user', JSON.stringify(response.data.user));
+
   return response.data;
 };
 
@@ -58,7 +56,6 @@ const VerifyOtp = async (otp) => {
   if (response.data.status === '200') {
     // localStorage.removeItem('username');
     localStorage.setItem('user', JSON.stringify(response.data.user));
-    localStorage.setItem('token', response.data.tokens.access);
   }
   return response.data;
 };
@@ -66,7 +63,6 @@ const VerifyOtp = async (otp) => {
 // Logout user
 const logout = () => {
   localStorage.removeItem('user');
-  localStorage.removeItem('token');
 };
 
 const authService = {

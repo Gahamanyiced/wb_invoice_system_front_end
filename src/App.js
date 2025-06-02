@@ -17,17 +17,35 @@ import Profile from './pages/Profile';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 
+// Helper function to get cookie value by name
+const getCookie = (name) => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+  return null;
+};
+
 export const isAuthenticated = () => {
   try {
-    const decoded = jwtDecode(localStorage.token, { complete: true });
-    const currentDate = new Date();
-    if (decoded.exp * 1000 < currentDate.getTime()) {
-      return true;
+    // Get access token from cookies instead of localStorage
+    const token = getCookie('access_token');
+
+    if (!token) {
+      return false;
     }
 
-    return false;
+    const decoded = jwtDecode(token);
+    const currentDate = new Date();
+
+    // Check if token is expired
+    if (decoded.exp * 1000 < currentDate.getTime()) {
+      return false; // Token is expired
+    }
+
+    return true; // Token is valid
   } catch (error) {
-    return error;
+    console.error('Token validation error:', error);
+    return false;
   }
 };
 
@@ -42,8 +60,8 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route element={<ProtectedRoute isLoggedIn={isAuthenticated} />}>
-          <Route path="/" element={<Invoice />} />
-            <Route path="dashboard" element={<Dashboard />} />           
+            <Route path="/" element={<Invoice />} />
+            <Route path="dashboard" element={<Dashboard />} />
             <Route path="/user" element={<User />} />
             <Route path="/department" element={<Department />} />
             <Route path="/section" element={<Section />} />
