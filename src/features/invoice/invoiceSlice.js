@@ -12,6 +12,7 @@ const initialState = {
   verifyInvoice: '',
   filters: {
     title: '',
+    invoice_number: '',
     invoice_owner: '',
     created_date: '',
     status: '',
@@ -448,6 +449,7 @@ const invoiceSlice = createSlice({
     clearFilters: (state) => {
       state.filters = {
         title: '',
+         invoice_number: '', 
         invoice_owner: '',
         created_date: '',
         status: '',

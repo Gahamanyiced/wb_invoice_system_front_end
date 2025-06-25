@@ -83,6 +83,13 @@ const styles = {
     bgcolor: '#FF5733',
     color: 'white',
   },
+  expandedRow: {
+    backgroundColor: '#f5f5f5',
+  },
+  totalAmountCell: {
+    fontWeight: 'bold',
+    color: '#00529B',
+  },
 };
 
 export default function Invoice() {
@@ -91,6 +98,7 @@ export default function Invoice() {
   const { allUsers } = useSelector((state) => state.user);
 
   const { invoices, index, filters } = useSelector((state) => state.invoice);
+  console.log('invoices', invoices);
   const { cardIndex, year } = useSelector((state) => state.invoiceDashboard);
 
   const dispatch = useDispatch();
@@ -112,41 +120,52 @@ export default function Invoice() {
   const [hoverEdit, setHoverEdit] = useState(false);
   const [hoverDelete, setHoverDelete] = useState(false);
   const [hoverTrack, setHoverTrack] = useState(false);
+  const [expandedRows, setExpandedRows] = useState(new Set());
+
+  // Helper function to safely get nested values - handles both response formats
+  const getInvoiceValue = (invoice, directPath, nestedPath = null) => {
+    const path = nestedPath || directPath;
+    return invoice?.[directPath] || invoice?.invoice?.[path] || '';
+  };
+
+  // Helper function to get invoice owner information
+  const getInvoiceOwner = (invoice) => {
+    return invoice?.invoice_owner || invoice?.invoice?.invoice_owner || {};
+  };
+
+  // Helper function to get GL lines from both formats
+  const getGLLines = (invoice) => {
+    return invoice?.gl_lines || invoice?.invoice?.gl_lines || [];
+  };
+
+  // Helper function to get documents from both formats
+  const getDocuments = (invoice) => {
+    return invoice?.documents || invoice?.invoice?.documents || [];
+  };
 
   const filterData = (query, result) => {
     if (!query) {
       return result?.results;
     } else {
       const data = result?.results?.filter((item) => {
+        const owner = getInvoiceOwner(item);
         return (
           item?.created_at?.includes(query) ||
           item?.invoice?.created_at?.includes(query) ||
-          item?.title?.toLowerCase()?.includes(query?.toLowerCase()) ||
-          item?.invoice?.title?.toLowerCase()?.includes(query?.toLowerCase()) ||
-          item?.station?.toLowerCase()?.includes(query?.toLowerCase()) ||
-          item?.invoice?.station
+          getInvoiceValue(item, 'supplier_name')
             ?.toLowerCase()
             ?.includes(query?.toLowerCase()) ||
-          item?.description?.toLowerCase()?.includes(query?.toLowerCase()) ||
-          item?.invoice?.description
+          getInvoiceValue(item, 'supplier_number')
             ?.toLowerCase()
             ?.includes(query?.toLowerCase()) ||
-          item?.status?.toLowerCase()?.includes(query?.toLowerCase()) ||
-          item?.invoice?.status
+          getInvoiceValue(item, 'status')
             ?.toLowerCase()
             ?.includes(query?.toLowerCase()) ||
-          item?.invoice_owner?.firstname
-            ?.toLowerCase()
-            .includes(query?.toLowerCase()) ||
-          item?.invoice?.invoice_owner?.firstname
+          getInvoiceValue(item, 'invoice_number')
             ?.toLowerCase()
             ?.includes(query?.toLowerCase()) ||
-          item?.invoice_owner?.lastname
-            ?.toLowerCase()
-            ?.includes(query?.toLowerCase()) ||
-          item?.invoice?.invoice_owner?.lastname
-            ?.toLowerCase()
-            ?.includes(query?.toLowerCase())
+          owner?.firstname?.toLowerCase()?.includes(query?.toLowerCase()) ||
+          owner?.lastname?.toLowerCase()?.includes(query?.toLowerCase())
         );
       });
       return data;
@@ -310,10 +329,8 @@ export default function Invoice() {
   };
 
   const handleDelete = (data) => {
-    if (
-      indexInvoice === 2 &&
-      (data?.status === 'pending' || data?.invoice?.status === 'pending')
-    ) {
+    const status = getInvoiceValue(data, 'status');
+    if (indexInvoice === 2 && status === 'pending') {
       setSelectedDelete(data);
       setOpenDelete(true);
     } else {
@@ -341,11 +358,76 @@ export default function Invoice() {
     dispatch(setFilters({ [field]: value }));
   };
 
-  const isInvoiceEditable = (invoice) =>
-    invoice?.status === 'pending' ||
-    invoice?.status === 'rollback' ||
-    invoice?.invoice?.status === 'pending' ||
-    invoice?.invoice?.status === 'rollback';
+  const isInvoiceEditable = (invoice) => {
+    const status = getInvoiceValue(invoice, 'status');
+    return status === 'pending' || status === 'rollback';
+  };
+
+  const toggleRowExpansion = (invoiceId) => {
+    const newExpandedRows = new Set(expandedRows);
+    if (newExpandedRows.has(invoiceId)) {
+      newExpandedRows.delete(invoiceId);
+    } else {
+      newExpandedRows.add(invoiceId);
+    }
+    setExpandedRows(newExpandedRows);
+  };
+
+  // Helper function to get GL lines display - updated for both formats
+  const getGLLinesDisplay = (invoice, isExpanded = false) => {
+    const glLines = getGLLines(invoice);
+    if (glLines.length === 0)
+      return { code: '-', description: '-', costCenter: '-', amount: '-' };
+
+    if (glLines.length === 1 || !isExpanded) {
+      const firstLine = glLines[0];
+      return {
+        code: firstLine?.gl_code || '-',
+        description: firstLine?.gl_description || '-',
+        costCenter: firstLine?.cost_center || '-',
+        amount: firstLine?.gl_amount || '-',
+      };
+    }
+
+    // For multiple lines, show summary
+    const totalAmount = glLines.reduce(
+      (sum, line) => sum + parseFloat(line?.gl_amount || 0),
+      0
+    );
+    return {
+      code: `${glLines.length} lines`,
+      description: `Multiple GL accounts`,
+      costCenter: `Multiple centers`,
+      amount: totalAmount.toFixed(2),
+    };
+  };
+
+  // Helper function to calculate and format total amount - updated for both formats
+  const getTotalAmount = (invoice) => {
+    // First try to get from amount field
+    const amount = getInvoiceValue(invoice, 'amount');
+    if (amount) {
+      return parseFloat(amount).toFixed(2);
+    }
+
+    // If no direct amount, calculate from GL lines
+    const glLines = getGLLines(invoice);
+    if (glLines.length > 0) {
+      const total = glLines.reduce(
+        (sum, line) => sum + parseFloat(line?.gl_amount || 0),
+        0
+      );
+      return total.toFixed(2);
+    }
+
+    return '-';
+  };
+
+  // Helper function to format currency with amount
+  const formatCurrencyAmount = (amount, currency) => {
+    if (amount === '-' || !amount) return '-';
+    return `${currency || ''} ${amount}`;
+  };
 
   // Generate dynamic options from allUsers
   const userOptions =
@@ -357,7 +439,18 @@ export default function Invoice() {
   const filterConfig = {
     title: 'Invoice Filters',
     fields: [
-      { name: 'title', label: 'Title', type: 'text', showSearchIcon: true },
+      {
+        name: 'supplier_name',
+        label: 'Supplier Name',
+        type: 'text',
+        showSearchIcon: true,
+      },
+      {
+        name: 'invoice_number',
+        label: 'Invoice Number',
+        type: 'text',
+        showSearchIcon: true,
+      },
       {
         name: 'invoice_owner',
         label: 'Invoice Owner',
@@ -386,7 +479,7 @@ export default function Invoice() {
   // Determine the report title based on user role and current view
   const getReportTitle = () => {
     let title = 'Invoices Report';
-    
+
     if (user?.role === 'admin' && indexInvoice === 1) {
       title = 'All Invoices Report';
       if (cardIndex === 2) title = 'Pending Invoices Report';
@@ -395,7 +488,10 @@ export default function Invoice() {
       if (cardIndex === 5) title = 'Rollbacked Invoices Report';
       if (cardIndex === 6) title = 'Processing Invoices Report';
       if (cardIndex === 9) title = 'Forwarded Invoices Report';
-    } else if ((user?.role === 'signer' || user?.role === 'signer_admin') && indexInvoice === 3) {
+    } else if (
+      (user?.role === 'signer' || user?.role === 'signer_admin') &&
+      indexInvoice === 3
+    ) {
       title = 'Invoices To Sign Report';
       if (cardIndex === 2) title = 'Pending Invoices To Sign Report';
       if (cardIndex === 4) title = 'Denied Invoices To Sign Report';
@@ -410,8 +506,24 @@ export default function Invoice() {
       if (cardIndex === 6) title = 'My Processing Invoices Report';
       if (cardIndex === 9) title = 'My Forwarded Invoices Report';
     }
-    
+
     return title;
+  };
+
+  // Function to render expanded GL lines
+  const renderExpandedGLLines = (glLines) => {
+    return glLines.map((line, index) => (
+      <TableRow key={`gl-${index}`} sx={styles.expandedRow}>
+        <TableCell colSpan={4} />
+        <TableCell align="left">{line?.gl_code || '-'}</TableCell>
+        <TableCell align="left">{line?.gl_description || '-'}</TableCell>
+        <TableCell colSpan={1} />
+        <TableCell align="left">{line?.cost_center || '-'}</TableCell>
+        <TableCell colSpan={1} />
+        <TableCell align="left">{line?.gl_amount || '-'}</TableCell>
+        <TableCell colSpan={3} />
+      </TableRow>
+    ));
   };
 
   return (
@@ -428,9 +540,8 @@ export default function Invoice() {
         alignItems="stretch"
         sx={{ marginBottom: 2 }}
       >
-        {/* Use the new React-PDF based component */}
-        <DownloadInvoiceComponent 
-          invoices={invoices} 
+        <DownloadInvoiceComponent
+          invoices={invoices}
           title={getReportTitle()}
         />
       </Box>
@@ -441,7 +552,7 @@ export default function Invoice() {
           overflow: 'scroll',
         }}
       >
-        <Table sx={styles.table} aria-label="user table">
+        <Table sx={styles.table} aria-label="invoice table">
           <TableHead>
             <TableRow>
               <TableCell align="left" sx={styles.header}>
@@ -472,7 +583,10 @@ export default function Invoice() {
                 CURRENCY
               </TableCell>
               <TableCell align="left" sx={styles.header}>
-                AMOUNT
+                GL AMOUNT
+              </TableCell>
+              <TableCell align="left" sx={styles.header}>
+                TOTAL AMOUNT
               </TableCell>
               <TableCell align="left" sx={styles.header}>
                 STATUS
@@ -483,125 +597,178 @@ export default function Invoice() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {invoices?.results?.map((invoice, index) => (
-              <TableRow key={index}>
-                <TableCell align="left">
-                  {invoice?.supplier_number ||
-                    invoice?.invoice?.supplier_number ||
-                    '-'}
-                </TableCell>
-                <TableCell align="left">
-                  {invoice?.supplier_name ||
-                    invoice?.invoice?.supplier_name ||
-                    '-'}
-                </TableCell>
-                <TableCell align="left">
-                  {invoice?.invoice_number ||
-                    invoice?.invoice?.invoice_number ||
-                    '-'}
-                </TableCell>
-                <TableCell align="left">
-                  {invoice?.service_period ||
-                    invoice?.invoice?.service_period ||
-                    '-'}
-                </TableCell>
-                <TableCell align="left">
-                  {invoice?.gl_code || invoice?.invoice?.gl_code || '-'}
-                </TableCell>
-                <TableCell align="left">
-                  {invoice?.gl_description ||
-                    invoice?.invoice?.gl_description ||
-                    '-'}
-                </TableCell>
-                <TableCell align="left">
-                  {invoice?.location || invoice?.invoice?.location || '-'}
-                </TableCell>
-                <TableCell align="left">
-                  {invoice?.cost_center || invoice?.invoice?.cost_center || '-'}
-                </TableCell>
-                <TableCell align="left">
-                  {invoice?.currency || invoice?.invoice?.currency || '-'}
-                </TableCell>
-                <TableCell align="left">
-                  {invoice?.amount || invoice?.invoice?.amount || '-'}
-                </TableCell>
-                <TableCell align="left">
-                  {invoice?.status || invoice?.invoice?.status || '-'}
-                </TableCell>
-                <TableCell
-                  align="left"
-                  sx={{
-                    display: 'flex',
-                    gap: '8px',
-                    flexWrap: 'wrap',
-                    minWidth: '200px',
-                  }}
-                >
-                  <Tooltip title={hoverView ? 'View' : ''}>
-                    <Chip
-                      onClick={() => handleView(invoice)}
-                      icon={<VisibilityOutlinedIcon />}
-                      onMouseEnter={() => setHoverView(true)}
-                      onMouseLeave={() => setHoverView(false)}
-                      label="View"
-                      sx={styles.rowChip}
-                      size="small"
-                      color="primary"
-                    />
-                  </Tooltip>
+            {invoices?.results?.map((invoice, index) => {
+              const glDisplay = getGLLinesDisplay(invoice, false);
+              const glLines = getGLLines(invoice);
+              const hasMultipleGLLines = glLines.length > 1;
+              const isExpanded = expandedRows.has(invoice.id);
+              const totalAmount = getTotalAmount(invoice);
+              const status = getInvoiceValue(invoice, 'status');
+              const currency = getInvoiceValue(invoice, 'currency');
 
-                  {user?.role === 'staff' ||
-                  user?.role === 'supplier' ||
-                  user?.role === 'signer_admin' ||
-                  (user?.role === 'admin' && indexInvoice === 2) ||
-                  (user?.role === 'signer' && indexInvoice === 2) ? (
-                    <Tooltip title={hoverEdit ? 'Edit' : ''}>
+              return (
+                <>
+                  <TableRow
+                    key={invoice.id}
+                    sx={{
+                      cursor: hasMultipleGLLines ? 'pointer' : 'default',
+                      '&:hover': hasMultipleGLLines
+                        ? { backgroundColor: '#f5f5f5' }
+                        : {},
+                    }}
+                    onClick={() =>
+                      hasMultipleGLLines && toggleRowExpansion(invoice.id)
+                    }
+                  >
+                    <TableCell align="left">
+                      {getInvoiceValue(invoice, 'supplier_number') || '-'}
+                    </TableCell>
+                    <TableCell align="left">
+                      {getInvoiceValue(invoice, 'supplier_name') || '-'}
+                    </TableCell>
+                    <TableCell align="left">
+                      {getInvoiceValue(invoice, 'invoice_number') || '-'}
+                    </TableCell>
+                    <TableCell align="left">
+                      {getInvoiceValue(invoice, 'service_period') || '-'}
+                    </TableCell>
+                    <TableCell align="left">
+                      {glDisplay.code}
+                      {hasMultipleGLLines && (
+                        <span
+                          style={{
+                            marginLeft: '8px',
+                            fontSize: '12px',
+                            color: '#666',
+                          }}
+                        >
+                          {isExpanded ? '▼' : '▶'}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell align="left">{glDisplay.description}</TableCell>
+                    <TableCell align="left">
+                      {getInvoiceValue(invoice, 'location') || '-'}
+                    </TableCell>
+                    <TableCell align="left">{glDisplay.costCenter}</TableCell>
+                    <TableCell align="left">{currency || '-'}</TableCell>
+                    <TableCell align="left">{glDisplay.amount}</TableCell>
+                    <TableCell align="left" sx={styles.totalAmountCell}>
+                      {formatCurrencyAmount(totalAmount, currency)}
+                    </TableCell>
+                    <TableCell align="left">
                       <Chip
-                        onClick={() => handleUpdate(invoice)}
-                        icon={<EditOutlinedIcon />}
-                        onMouseEnter={() => setHoverEdit(true)}
-                        onMouseLeave={() => setHoverEdit(false)}
-                        sx={styles.rowChip}
-                        label="Edit"
+                        label={status || '-'}
                         size="small"
-                        color="primary"
+                        color={
+                          status === 'pending'
+                            ? 'warning'
+                            : status === 'approved'
+                            ? 'success'
+                            : status === 'denied'
+                            ? 'error'
+                            : status === 'to sign'
+                            ? 'info'
+                            : status === 'signed'
+                            ? 'success'
+                            : 'default'
+                        }
                       />
-                    </Tooltip>
-                  ) : null}
+                    </TableCell>
+                    <TableCell
+                      align="left"
+                      sx={{
+                        display: 'flex',
+                        gap: '8px',
+                        flexWrap: 'wrap',
+                        minWidth: '200px',
+                      }}
+                    >
+                      <Tooltip title={hoverView ? 'View' : ''}>
+                        <Chip
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleView(invoice);
+                          }}
+                          icon={<VisibilityOutlinedIcon />}
+                          onMouseEnter={() => setHoverView(true)}
+                          onMouseLeave={() => setHoverView(false)}
+                          label="View"
+                          sx={styles.rowChip}
+                          size="small"
+                          color="primary"
+                        />
+                      </Tooltip>
 
-                  {indexInvoice === 2 ? (
-                    <Tooltip title={hoverDelete ? 'Delete' : ''}>
-                      <Chip
-                        onClick={() => handleDelete(invoice)}
-                        icon={<DeleteOutlineIcon />}
-                        onMouseEnter={() => setHoverDelete(true)}
-                        onMouseLeave={() => setHoverDelete(false)}
-                        sx={styles.rowChipDelete}
-                        label="Delete"
-                        size="small"
-                        color="primary"
-                      />
-                    </Tooltip>
-                  ) : null}
+                      {user?.role === 'staff' ||
+                      user?.role === 'supplier' ||
+                      user?.role === 'signer_admin' ||
+                      (user?.role === 'admin' && indexInvoice === 2) ||
+                      (user?.role === 'signer' && indexInvoice === 2) ? (
+                        <Tooltip title={hoverEdit ? 'Edit' : ''}>
+                          <Chip
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUpdate(invoice);
+                            }}
+                            icon={<EditOutlinedIcon />}
+                            onMouseEnter={() => setHoverEdit(true)}
+                            onMouseLeave={() => setHoverEdit(false)}
+                            sx={styles.rowChip}
+                            label="Edit"
+                            size="small"
+                            color="primary"
+                          />
+                        </Tooltip>
+                      ) : null}
 
-                  <Tooltip title={hoverTrack ? 'Track&Sign' : ''}>
-                    <Chip
-                      onClick={() => handleInvoiceTracking(invoice)}
-                      icon={<TrackChangesIcon />}
-                      onMouseEnter={() => setHoverTrack(true)}
-                      onMouseLeave={() => setHoverTrack(false)}
-                      sx={styles.rowChip}
-                      label="Track&Sign"
-                      size="small"
-                      color="primary"
-                    />
-                  </Tooltip>
-                </TableCell>
-              </TableRow>
-            ))}
+                      {indexInvoice === 2 ? (
+                        <Tooltip title={hoverDelete ? 'Delete' : ''}>
+                          <Chip
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(invoice);
+                            }}
+                            icon={<DeleteOutlineIcon />}
+                            onMouseEnter={() => setHoverDelete(true)}
+                            onMouseLeave={() => setHoverDelete(false)}
+                            sx={styles.rowChipDelete}
+                            label="Delete"
+                            size="small"
+                            color="primary"
+                          />
+                        </Tooltip>
+                      ) : null}
+
+                      <Tooltip title={hoverTrack ? 'Track&Sign' : ''}>
+                        <Chip
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleInvoiceTracking(invoice);
+                          }}
+                          icon={<TrackChangesIcon />}
+                          onMouseEnter={() => setHoverTrack(true)}
+                          onMouseLeave={() => setHoverTrack(false)}
+                          sx={styles.rowChip}
+                          label="Track&Sign"
+                          size="small"
+                          color="primary"
+                        />
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+
+                  {/* Render expanded GL lines if invoice is expanded and has multiple GL lines */}
+                  {isExpanded &&
+                    hasMultipleGLLines &&
+                    renderExpandedGLLines(glLines)}
+                </>
+              );
+            })}
           </TableBody>
         </Table>
       </TableContainer>
+
       {selectedView && (
         <ViewInvoiceModal
           defaultValues={selectedView}

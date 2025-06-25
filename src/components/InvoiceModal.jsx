@@ -1,5 +1,4 @@
-import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 import Grid from '@mui/material/Grid';
@@ -16,6 +15,8 @@ import {
   Paper,
   Divider,
   FormHelperText,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -62,6 +63,26 @@ const paymentTermsOptions = [
     label: '15 MFI - 15th of month following invoice receipt',
   },
   { value: 'custom', label: 'Custom - Enter your own terms' },
+];
+
+// Quantity options
+const quantityOptions = [
+  { value: '1', label: '1' },
+  { value: '2', label: '2' },
+  { value: '3', label: '3' },
+  { value: '4', label: '4' },
+  { value: '5', label: '5' },
+  { value: '6', label: '6' },
+  { value: '7', label: '7' },
+  { value: '8', label: '8' },
+  { value: '9', label: '9' },
+  { value: '10', label: '10' },
+  { value: '15', label: '15' },
+  { value: '20', label: '20' },
+  { value: '25', label: '25' },
+  { value: '30', label: '30' },
+  { value: '50', label: '50' },
+  { value: '100', label: '100' },
 ];
 
 const style = {
@@ -162,6 +183,126 @@ export default function InvoiceModal() {
   const [next_signers, setNextSigners] = useState([]);
   const [customPaymentTerms, setCustomPaymentTerms] = useState(false);
   const [customTermsInput, setCustomTermsInput] = useState('');
+  const [useMultipleGL, setUseMultipleGL] = useState(false);
+  const [glEntries, setGLEntries] = useState([
+    { gl_code: '', gl_description: '', gl_amount: '', cost_center: '' },
+  ]);
+
+  // State for Excel data
+  const [excelData, setExcelData] = useState({
+    suppliers: [],
+    costCenters: [],
+    glCodes: [],
+    locations: [],
+    aircraftTypes: [],
+    routes: [],
+  });
+  const [dataLoading, setDataLoading] = useState(false);
+
+  // Function to load Excel data
+  // Function to load Excel data
+  const loadExcelData = async () => {
+    try {
+      // Import XLSX library dynamically
+      const XLSX = await import('xlsx');
+
+      // Read the Excel file from public folder using fetch
+      const response = await fetch('/6. COA.xlsx');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch Excel file: ${response.statusText}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, {
+        cellStyles: true,
+        cellFormulas: true,
+        cellDates: true,
+        cellNF: true,
+        sheetStubs: true,
+      });
+
+      // Helper function to process sheet data
+      const processSheet = (
+        sheetName,
+        valueColumn,
+        labelColumn,
+        combinedLabel = false
+      ) => {
+        try {
+          const worksheet = workbook.Sheets[sheetName];
+          if (!worksheet) {
+            console.warn(`Sheet "${sheetName}" not found`);
+            return [];
+          }
+
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+          // Skip header row and process data
+          return jsonData
+            .slice(1)
+            .filter(
+              (row) =>
+                row[valueColumn] !== undefined &&
+                row[valueColumn] !== null &&
+                row[valueColumn] !== ''
+            )
+            .map((row) => {
+              const value = String(row[valueColumn]).trim();
+              const label = row[labelColumn]
+                ? String(row[labelColumn]).trim()
+                : value;
+
+              return {
+                value: value,
+                label: combinedLabel ? `${value} - ${label}` : label,
+              };
+            })
+            .filter((item) => item.value && item.label); // Remove empty entries
+        } catch (error) {
+          console.error(`Error processing sheet ${sheetName}:`, error);
+          return [];
+        }
+      };
+
+      // Process each sheet according to your Excel structure
+      const suppliers = processSheet('Supplier Details', 0, 1, true); // Vendor ID + Vendor Name
+      const costCenters = processSheet('Cost Center', 0, 1, true); // CC Code + CC Description
+      const glCodes = processSheet('GL Code', 0, 1, true); // GL Code + GL Description
+      const locations = processSheet('Location Code', 0, 1, true); // Loc Code + LOC Name
+      const aircraftTypes = processSheet('Aircraft Type', 0, 1, true); // Code + Description
+      const routes = processSheet('Route', 0, 1, true); // Code + Description
+
+      console.log('Loaded data counts:', {
+        suppliers: suppliers.length,
+        costCenters: costCenters.length,
+        glCodes: glCodes.length,
+        locations: locations.length,
+        aircraftTypes: aircraftTypes.length,
+        routes: routes.length,
+      });
+
+      return {
+        suppliers,
+        costCenters,
+        glCodes,
+        locations,
+        aircraftTypes: aircraftTypes.length > 0 ? aircraftTypes : [],
+        routes: routes.length > 0 ? routes : [],
+      };
+    } catch (error) {
+      console.error('Error loading Excel data:', error);
+
+      // Return fallback data in case of error
+      return {
+        suppliers: [{ value: '00001', label: '00001 - Sample Supplier' }],
+        costCenters: [{ value: '1000', label: '1000 - Sample Cost Center' }],
+        glCodes: [{ value: '1011', label: '1011 - Sample GL Code' }],
+        locations: [{ value: '0000', label: '0000 - Default Location' }],
+        aircraftTypes: [],
+        routes: [],
+      };
+    }
+  };
 
   // Get the validation schema based on user role
   const validationSchema = getInvoiceValidationSchema(user?.role);
@@ -175,28 +316,51 @@ export default function InvoiceModal() {
     register,
     formState: { errors },
     watch,
+    clearErrors, // Add this to clear validation errors
   } = useForm({
     resolver: yupResolver(validationSchema),
-    mode: 'onSubmit', // Change validation mode to onSubmit to avoid premature validation
+    mode: 'onSubmit',
     defaultValues: {
       supplier_number: '',
       supplier_name: '',
       invoice_number: '',
       service_period: '',
-      gl_code: '',
-      gl_description: '',
+      gl_code: [''],
+      gl_description: [''],
+      gl_amount: [''],
       location: '',
-      cost_center: '',
+      cost_center: [''],
       currency: 'RWF',
       amount: '',
       payment_terms: '',
       payment_due_date: '',
       next_signers_validator: '',
+      quantity: '',
+      aircraft_type: '',
+      route: '',
     },
   });
 
   // Watch payment terms field to handle custom payment terms logic
   const payment_terms = watch('payment_terms');
+
+  // Load Excel data when component mounts
+  useEffect(() => {
+    const loadData = async () => {
+      setDataLoading(true);
+      try {
+        const data = await loadExcelData();
+        setExcelData(data);
+      } catch (error) {
+        console.error('Failed to load Excel data:', error);
+        toast.error('Failed to load reference data');
+      } finally {
+        setDataLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
 
   // Register a custom field for next signers in the form
   useEffect(() => {
@@ -225,11 +389,15 @@ export default function InvoiceModal() {
 
   const handleClose = () => {
     setOpen(false);
-    reset();
-    setDocuments([{}]);
-    setNextSigners([]);
-    setCustomPaymentTerms(false);
-    setCustomTermsInput('');
+    reset(); // Reset react-hook-form
+    setDocuments([{}]); // Reset documents
+    setNextSigners([]); // Reset signers
+    setCustomPaymentTerms(false); // Reset custom payment terms
+    setCustomTermsInput(''); // Reset custom terms input
+    setUseMultipleGL(false); // Reset multiple GL toggle
+    setGLEntries([
+      { gl_code: '', gl_description: '', gl_amount: '', cost_center: '' },
+    ]); // Reset GL entries to default
   };
 
   // Handle custom terms input
@@ -241,7 +409,7 @@ export default function InvoiceModal() {
   };
 
   // Use this to programmatically submit the form
-  const formRef = React.useRef();
+  const formRef = useRef();
 
   const handleChangeDocument = (e, idx) => {
     const files = [...documents];
@@ -273,7 +441,87 @@ export default function InvoiceModal() {
     setDocuments(updatedDocs.length ? updatedDocs : [{}]);
   };
 
+  // Handler for supplier selection
+  const handleSupplierChange = (selectedValue) => {
+    if (selectedValue) {
+      const selectedSupplier = excelData.suppliers.find(
+        (s) => s.value === selectedValue
+      );
+      if (selectedSupplier) {
+        // Extract number and name from the combined label
+        const [number, name] = selectedSupplier.label.split(' - ');
+        setValue('supplier_number', selectedValue);
+        setValue('supplier_name', name || '');
+      }
+    } else {
+      setValue('supplier_number', '');
+      setValue('supplier_name', '');
+    }
+  };
+
+  // Handler for GL Code selection
+  const handleGLCodeChange = (selectedValue) => {
+    if (selectedValue) {
+      const selectedGL = excelData.glCodes.find(
+        (gl) => gl.value === selectedValue
+      );
+      if (selectedGL) {
+        // Extract description from the combined label
+        const description = selectedGL.label.split(' - ').slice(1).join(' - ');
+        setValue('gl_code', selectedValue);
+        setValue('gl_description', description || '');
+      }
+    } else {
+      setValue('gl_code', '');
+      setValue('gl_description', '');
+    }
+  };
+
+  // Custom validation function for multiple GL mode
+  const validateMultipleGLEntries = () => {
+    if (!isSupplier && useMultipleGL) {
+      const hasValidEntries = glEntries.every(
+        (entry) => entry.gl_code && entry.gl_amount && entry.cost_center
+      );
+
+      if (!hasValidEntries) {
+        return false;
+      }
+
+      const totalGLAmount = calculateTotalAmount(glEntries);
+      if (totalGLAmount <= 0) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   const onSubmit = async (data) => {
+    console.log('on start');
+
+    // Custom validation for multiple GL mode
+    if (!validateMultipleGLEntries()) {
+      if (!isSupplier && useMultipleGL) {
+        const hasValidGLEntries = glEntries.every(
+          (entry) => entry.gl_code && entry.gl_amount && entry.cost_center
+        );
+
+        if (!hasValidGLEntries) {
+          toast.error(
+            'Please fill in all GL Code entries with GL Code, Amount, and Cost Center'
+          );
+          return;
+        }
+
+        // Calculate total amount from GL entries
+        const totalGLAmount = calculateTotalAmount(glEntries);
+        if (totalGLAmount <= 0) {
+          toast.error('Total GL amount must be greater than 0');
+          return;
+        }
+      }
+    }
+
     // Validate that at least one next signer is selected when required
     const shouldValidateSigners =
       !isSupplier &&
@@ -312,6 +560,43 @@ export default function InvoiceModal() {
       return;
     }
 
+    // Validate GL entries when using multiple GL codes
+    if (!isSupplier && useMultipleGL) {
+      const hasValidGLEntries = glEntries.every(
+        (entry) => entry.gl_code && entry.gl_amount && entry.cost_center
+      );
+
+      if (!hasValidGLEntries) {
+        toast.error(
+          'Please fill in all GL Code entries with GL Code, Amount, and Cost Center'
+        );
+        return;
+      }
+
+      // Calculate total amount from GL entries
+      const totalGLAmount = calculateTotalAmount(glEntries);
+      if (totalGLAmount <= 0) {
+        toast.error('Total GL amount must be greater than 0');
+        return;
+      }
+
+      // Ensure the form amount matches the calculated total
+      setValue('amount', totalGLAmount.toString());
+      data.amount = totalGLAmount.toString();
+    }
+
+    // Validate single GL mode for non-suppliers
+    if (!isSupplier && !useMultipleGL) {
+      // Check if gl_code is an array or string
+      const glCode = Array.isArray(data.gl_code)
+        ? data.gl_code[0]
+        : data.gl_code;
+      if (!glCode) {
+        toast.error('Please select a GL Code');
+        return;
+      }
+    }
+
     // Format the payment_due_date to YYYY-MM-DD if it exists
     const formattedData = { ...data };
 
@@ -324,16 +609,112 @@ export default function InvoiceModal() {
       formattedData.payment_due_date = date.toISOString().split('T')[0]; // Format as YYYY-MM-DD
     }
 
+    // Handle GL data based on mode
+    if (!isSupplier && useMultipleGL) {
+      // For multiple GL mode, use the glEntries state instead of form data
+      const validEntries = glEntries.filter(
+        (entry) => entry.gl_code && entry.gl_amount && entry.cost_center
+      );
+
+      formattedData.gl_code = validEntries.map((entry) => entry.gl_code);
+      formattedData.gl_description = validEntries.map(
+        (entry) => entry.gl_description
+      );
+      formattedData.gl_amount = validEntries.map((entry) => entry.gl_amount);
+      formattedData.cost_center = validEntries.map(
+        (entry) => entry.cost_center
+      );
+
+      // Add a flag to indicate multiple GL mode
+      formattedData.is_multiple_gl = true;
+    } else if (!isSupplier) {
+      // For single GL mode, convert arrays back to single values if they exist
+      formattedData.gl_code = Array.isArray(data.gl_code)
+        ? data.gl_code[0]
+        : data.gl_code;
+      formattedData.gl_description = Array.isArray(data.gl_description)
+        ? data.gl_description[0]
+        : data.gl_description;
+      formattedData.cost_center = Array.isArray(data.cost_center)
+        ? data.cost_center[0]
+        : data.cost_center;
+
+      // Remove gl_amount array for single mode (use the main amount field)
+      delete formattedData.gl_amount;
+
+      // Add a flag to indicate single GL mode
+      formattedData.is_multiple_gl = false;
+    } else {
+      // For suppliers, remove GL-related fields
+      delete formattedData.gl_code;
+      delete formattedData.gl_description;
+      delete formattedData.gl_amount;
+      delete formattedData.cost_center;
+      formattedData.is_multiple_gl = false;
+    }
+
+    console.log('Formatted Data before FormData:', formattedData); // Debug log
+
     // Prepare the form data
     const formData = new FormData();
-    Object.entries(formattedData).forEach(([key, val]) => {
-      if (val !== undefined && val !== null) {
-        formData.append(key, val);
+
+    // Add basic fields (excluding GL-related fields for now)
+    const basicFields = [
+      'supplier_number',
+      'supplier_name',
+      'invoice_number',
+      'service_period',
+      'location',
+      'currency',
+      'amount',
+      'payment_terms',
+      'payment_due_date',
+      'quantity',
+      'aircraft_type',
+      'route',
+    ];
+
+    basicFields.forEach((key) => {
+      if (
+        formattedData[key] !== undefined &&
+        formattedData[key] !== null &&
+        formattedData[key] !== ''
+      ) {
+        formData.append(key, formattedData[key]);
       }
     });
 
+    // Handle GL Lines - Create the gl_lines JSON structure
+    if (!isSupplier && formattedData.is_multiple_gl) {
+      // Multiple GL mode - create gl_lines array of objects
+      const validEntries = glEntries.filter(
+        (entry) => entry.gl_code && entry.gl_amount && entry.cost_center
+      );
+
+      const glLines = validEntries.map((entry) => ({
+        gl_code: entry.gl_code,
+        gl_description: entry.gl_description || '',
+        cost_center: entry.cost_center,
+        gl_amount: parseFloat(entry.gl_amount).toFixed(2),
+      }));
+
+      formData.append('gl_lines', JSON.stringify(glLines));
+    } else if (!isSupplier && !formattedData.is_multiple_gl) {
+      // Single GL mode - create gl_lines array with single object
+      const glLines = [
+        {
+          gl_code: formattedData.gl_code,
+          gl_description: formattedData.gl_description || '',
+          cost_center: formattedData.cost_center,
+          gl_amount: parseFloat(formattedData.amount).toFixed(2),
+        },
+      ];
+
+      formData.append('gl_lines', JSON.stringify(glLines));
+    }
+
+    // Add next signers if any
     if (next_signers.length > 0) {
-      // Send as comma-separated string instead of JSON array
       formData.append('next_signers', next_signers.join(','));
     }
 
@@ -344,14 +725,129 @@ export default function InvoiceModal() {
       }
     });
 
+    // Debug: Log FormData contents
+    console.log('FormData contents:');
+    for (let pair of formData.entries()) {
+      console.log(pair[0] + ': ' + pair[1]);
+    }
+
     try {
+      console.log('dispatch part');
       await dispatch(addInvoice(formData)).unwrap();
       toast.success('Invoice Added Successfully');
       handleClose();
       dispatch(getInvoiceByUser({ page: 1 }));
     } catch (err) {
+      console.error('Submit error:', err);
       toast.error(err.toString());
-      navigate('/');
+    }
+  };
+
+  // Calculate total amount from GL entries
+  const calculateTotalAmount = (entries) => {
+    return entries.reduce(
+      (sum, entry) => sum + (parseFloat(entry.gl_amount) || 0),
+      0
+    );
+  };
+
+  // Add this handler function for GL entry management
+  const handleAddGLEntry = () => {
+    const newEntries = [
+      ...glEntries,
+      { gl_code: '', gl_description: '', gl_amount: '', cost_center: '' },
+    ];
+    setGLEntries(newEntries);
+
+    // Update form arrays
+    const glCodes = newEntries.map((entry) => entry.gl_code || '');
+    const glDescriptions = newEntries.map(
+      (entry) => entry.gl_description || ''
+    );
+    const glAmounts = newEntries.map((entry) => entry.gl_amount || '');
+    const costCenters = newEntries.map((entry) => entry.cost_center || '');
+
+    setValue('gl_code', useMultipleGL ? glCodes : glCodes[0] || '');
+    setValue(
+      'gl_description',
+      useMultipleGL ? glDescriptions : glDescriptions[0] || ''
+    );
+    setValue('gl_amount', glAmounts);
+    setValue('cost_center', useMultipleGL ? costCenters : costCenters[0] || '');
+  };
+
+  const handleRemoveGLEntry = (index) => {
+    if (glEntries.length > 1) {
+      const updatedEntries = glEntries.filter((_, idx) => idx !== index);
+      setGLEntries(updatedEntries);
+
+      // Update form arrays
+      const glCodes = updatedEntries.map((entry) => entry.gl_code || '');
+      const glDescriptions = updatedEntries.map(
+        (entry) => entry.gl_description || ''
+      );
+      const glAmounts = updatedEntries.map((entry) => entry.gl_amount || '');
+      const costCenters = updatedEntries.map(
+        (entry) => entry.cost_center || ''
+      );
+
+      setValue('gl_code', useMultipleGL ? glCodes : glCodes[0] || '');
+      setValue(
+        'gl_description',
+        useMultipleGL ? glDescriptions : glDescriptions[0] || ''
+      );
+      setValue('gl_amount', glAmounts);
+      setValue(
+        'cost_center',
+        useMultipleGL ? costCenters : costCenters[0] || ''
+      );
+
+      // Update the total amount in the form
+      const totalAmount = calculateTotalAmount(updatedEntries);
+      setValue('amount', totalAmount.toString());
+    }
+  };
+
+  const handleGLEntryChange = (index, field, value) => {
+    const updatedEntries = [...glEntries];
+    updatedEntries[index][field] = value;
+
+    // If it's gl_code selection, auto-populate gl_description
+    if (field === 'gl_code' && value) {
+      const selectedGL = excelData.glCodes.find((gl) => gl.value === value);
+      if (selectedGL) {
+        const description = selectedGL.label.split(' - ').slice(1).join(' - ');
+        updatedEntries[index]['gl_description'] = description;
+      }
+    }
+
+    setGLEntries(updatedEntries);
+
+    // Update form arrays for validation
+    const glCodes = updatedEntries.map((entry) => entry.gl_code || '');
+    const glDescriptions = updatedEntries.map(
+      (entry) => entry.gl_description || ''
+    );
+    const glAmounts = updatedEntries.map((entry) => entry.gl_amount || '');
+    const costCenters = updatedEntries.map((entry) => entry.cost_center || '');
+
+    setValue('gl_code', useMultipleGL ? glCodes : glCodes[0] || '');
+    setValue(
+      'gl_description',
+      useMultipleGL ? glDescriptions : glDescriptions[0] || ''
+    );
+    setValue('gl_amount', glAmounts);
+    setValue('cost_center', useMultipleGL ? costCenters : costCenters[0] || '');
+
+    // Clear validation errors for GL fields when in multiple GL mode
+    if (useMultipleGL) {
+      clearErrors(['gl_code', 'gl_description', 'cost_center']);
+    }
+
+    // If amount field was changed, update the total amount in the form
+    if (field === 'gl_amount') {
+      const totalAmount = calculateTotalAmount(updatedEntries);
+      setValue('amount', totalAmount.toString());
     }
   };
 
@@ -394,43 +890,39 @@ export default function InvoiceModal() {
                           name="supplier_number"
                           control={control}
                           render={({ field }) => (
-                            <FormControl
-                              fullWidth
-                              variant="outlined"
-                              error={!!errors.supplier_number}
-                            >
-                              <InputLabel sx={style.inputLabel}>
-                                Supplier Number *
-                              </InputLabel>
-                              <Input {...field} type="text" required />
-                              {errors.supplier_number && (
-                                <FormHelperText error>
-                                  {errors.supplier_number.message}
-                                </FormHelperText>
-                              )}
-                            </FormControl>
-                          )}
-                        />
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <Controller
-                          name="supplier_name"
-                          control={control}
-                          render={({ field }) => (
-                            <FormControl
-                              fullWidth
-                              variant="outlined"
-                              error={!!errors.supplier_name}
-                            >
-                              <InputLabel sx={style.inputLabel}>
-                                Supplier Name
-                              </InputLabel>
-                              <Input {...field} />
-                              {errors.supplier_name && (
-                                <FormHelperText error>
-                                  {errors.supplier_name.message}
-                                </FormHelperText>
-                              )}
+                            <FormControl fullWidth variant="outlined">
+                              <TextField
+                                {...field}
+                                select
+                                label="Supplier *"
+                                variant="outlined"
+                                fullWidth
+                                disabled={dataLoading}
+                                onChange={(e) => {
+                                  field.onChange(e.target.value);
+                                  handleSupplierChange(e.target.value);
+                                }}
+                                InputLabelProps={{
+                                  shrink: true,
+                                  style: {
+                                    backgroundColor: 'white',
+                                    paddingLeft: 5,
+                                    paddingRight: 5,
+                                  },
+                                }}
+                              >
+                                <MenuItem value="">
+                                  <em>Select supplier</em>
+                                </MenuItem>
+                                {excelData.suppliers.map((option) => (
+                                  <MenuItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </MenuItem>
+                                ))}
+                              </TextField>
                             </FormControl>
                           )}
                         />
@@ -439,6 +931,356 @@ export default function InvoiceModal() {
                   </Box>
 
                   <Divider sx={{ my: 2 }} />
+
+                  {/* GL Code Configuration - Only show to non-suppliers */}
+                  {!isSupplier && (
+                    <>
+                      <Box sx={style.section}>
+                        <Typography variant="h6" sx={style.sectionTitle}>
+                          GL Code Configuration
+                        </Typography>
+
+                        {/* Toggle for multiple GL codes */}
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              checked={useMultipleGL}
+                              onChange={(e) => {
+                                setUseMultipleGL(e.target.checked);
+
+                                if (e.target.checked) {
+                                  // Switching to multiple GL mode - reset everything and clear errors
+                                  setGLEntries([
+                                    {
+                                      gl_code: '',
+                                      gl_description: '',
+                                      gl_amount: '',
+                                      cost_center: '',
+                                    },
+                                  ]);
+                                  setValue('gl_code', ['']);
+                                  setValue('gl_description', ['']);
+                                  setValue('gl_amount', ['']);
+                                  setValue('cost_center', ['']);
+                                  setValue('amount', '0');
+                                  // Clear validation errors for GL fields
+                                  clearErrors([
+                                    'gl_code',
+                                    'gl_description',
+                                    'cost_center',
+                                  ]);
+                                } else {
+                                  // Switching to single GL mode - reset everything and clear errors
+                                  setGLEntries([
+                                    {
+                                      gl_code: '',
+                                      gl_description: '',
+                                      gl_amount: '',
+                                      cost_center: '',
+                                    },
+                                  ]);
+                                  setValue('gl_code', '');
+                                  setValue('gl_description', '');
+                                  setValue('gl_amount', ['']);
+                                  setValue('cost_center', '');
+                                  setValue('amount', '');
+                                  // Clear validation errors for GL fields
+                                  clearErrors([
+                                    'gl_code',
+                                    'gl_description',
+                                    'cost_center',
+                                  ]);
+                                }
+                              }}
+                            />
+                          }
+                          label="Use Multiple GL Codes"
+                          sx={{ mb: 3 }}
+                        />
+
+                        {!useMultipleGL ? (
+                          // Single GL Code Mode
+                          <Grid container spacing={3}>
+                            <Grid item xs={12} md={6}>
+                              <Controller
+                                name="gl_code"
+                                control={control}
+                                render={({ field }) => (
+                                  <FormControl fullWidth variant="outlined">
+                                    <TextField
+                                      {...field}
+                                      select
+                                      label="GL Code *"
+                                      variant="outlined"
+                                      fullWidth
+                                      disabled={dataLoading}
+                                      onChange={(e) => {
+                                        field.onChange(e.target.value);
+                                        handleGLCodeChange(e.target.value);
+                                      }}
+                                      InputLabelProps={{
+                                        shrink: true,
+                                        style: {
+                                          backgroundColor: 'white',
+                                          paddingLeft: 5,
+                                          paddingRight: 5,
+                                        },
+                                      }}
+                                    >
+                                      <MenuItem value="">
+                                        <em>Select GL code</em>
+                                      </MenuItem>
+                                      {excelData.glCodes.map((option) => (
+                                        <MenuItem
+                                          key={option.value}
+                                          value={option.value}
+                                        >
+                                          {option.label}
+                                        </MenuItem>
+                                      ))}
+                                    </TextField>
+                                  </FormControl>
+                                )}
+                              />
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                              <Controller
+                                name="gl_description"
+                                control={control}
+                                render={({ field }) => (
+                                  <TextField
+                                    {...field}
+                                    label="GL Description"
+                                    variant="outlined"
+                                    fullWidth
+                                    disabled
+                                    InputLabelProps={{
+                                      shrink: true,
+                                      style: {
+                                        backgroundColor: 'white',
+                                        paddingLeft: 5,
+                                        paddingRight: 5,
+                                      },
+                                    }}
+                                  />
+                                )}
+                              />
+                            </Grid>
+                          </Grid>
+                        ) : (
+                          // Multiple GL Codes Mode
+                          <Box>
+                            <Typography
+                              variant="subtitle1"
+                              sx={{ mb: 2, fontWeight: 500 }}
+                            >
+                              GL Code Entries
+                            </Typography>
+
+                            {glEntries.map((entry, index) => (
+                              <Paper
+                                key={index}
+                                elevation={1}
+                                sx={{
+                                  p: 2,
+                                  mb: 2,
+                                  border: '1px solid #e0e0e0',
+                                  borderRadius: 1,
+                                }}
+                              >
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    mb: 2,
+                                  }}
+                                >
+                                  <Typography
+                                    variant="subtitle2"
+                                    color="primary"
+                                  >
+                                    GL Entry #{index + 1}
+                                  </Typography>
+                                  {glEntries.length > 1 && (
+                                    <IconButton
+                                      size="small"
+                                      color="error"
+                                      onClick={() => handleRemoveGLEntry(index)}
+                                    >
+                                      <CloseIcon fontSize="small" />
+                                    </IconButton>
+                                  )}
+                                </Box>
+
+                                <Grid container spacing={2}>
+                                  <Grid item xs={12} md={3}>
+                                    <TextField
+                                      select
+                                      label="GL Code *"
+                                      value={entry.gl_code}
+                                      onChange={(e) =>
+                                        handleGLEntryChange(
+                                          index,
+                                          'gl_code',
+                                          e.target.value
+                                        )
+                                      }
+                                      variant="outlined"
+                                      fullWidth
+                                      required
+                                      disabled={dataLoading}
+                                      InputLabelProps={{
+                                        shrink: true,
+                                        style: {
+                                          backgroundColor: 'white',
+                                          paddingLeft: 5,
+                                          paddingRight: 5,
+                                        },
+                                      }}
+                                    >
+                                      <MenuItem value="">
+                                        <em>Select GL code</em>
+                                      </MenuItem>
+                                      {excelData.glCodes.map((option) => (
+                                        <MenuItem
+                                          key={option.value}
+                                          value={option.value}
+                                        >
+                                          {option.label}
+                                        </MenuItem>
+                                      ))}
+                                    </TextField>
+                                  </Grid>
+
+                                  <Grid item xs={12} md={3}>
+                                    <TextField
+                                      label="GL Description"
+                                      value={entry.gl_description}
+                                      variant="outlined"
+                                      fullWidth
+                                      disabled
+                                      InputLabelProps={{
+                                        shrink: true,
+                                        style: {
+                                          backgroundColor: 'white',
+                                          paddingLeft: 5,
+                                          paddingRight: 5,
+                                        },
+                                      }}
+                                    />
+                                  </Grid>
+
+                                  <Grid item xs={12} md={3}>
+                                    <TextField
+                                      label="Amount *"
+                                      type="number"
+                                      value={entry.gl_amount}
+                                      onChange={(e) =>
+                                        handleGLEntryChange(
+                                          index,
+                                          'gl_amount',
+                                          e.target.value
+                                        )
+                                      }
+                                      variant="outlined"
+                                      fullWidth
+                                      required
+                                      sx={style.formInputNumber}
+                                      InputLabelProps={{
+                                        shrink: true,
+                                        style: {
+                                          backgroundColor: 'white',
+                                          paddingLeft: 5,
+                                          paddingRight: 5,
+                                        },
+                                      }}
+                                    />
+                                  </Grid>
+
+                                  <Grid item xs={12} md={3}>
+                                    <TextField
+                                      select
+                                      label="Cost Center *"
+                                      value={entry.cost_center}
+                                      onChange={(e) =>
+                                        handleGLEntryChange(
+                                          index,
+                                          'cost_center',
+                                          e.target.value
+                                        )
+                                      }
+                                      variant="outlined"
+                                      fullWidth
+                                      required
+                                      disabled={dataLoading}
+                                      InputLabelProps={{
+                                        shrink: true,
+                                        style: {
+                                          backgroundColor: 'white',
+                                          paddingLeft: 5,
+                                          paddingRight: 5,
+                                        },
+                                      }}
+                                    >
+                                      <MenuItem value="">
+                                        <em>Select cost center</em>
+                                      </MenuItem>
+                                      {excelData.costCenters.map((option) => (
+                                        <MenuItem
+                                          key={option.value}
+                                          value={option.value}
+                                        >
+                                          {option.label}
+                                        </MenuItem>
+                                      ))}
+                                    </TextField>
+                                  </Grid>
+                                </Grid>
+                              </Paper>
+                            ))}
+
+                            <Button
+                              startIcon={<AddIcon />}
+                              onClick={handleAddGLEntry}
+                              variant="outlined"
+                              size="small"
+                              sx={{ mt: 1 }}
+                            >
+                              Add Another GL Entry
+                            </Button>
+
+                            {/* Display total amount */}
+                            <Box
+                              sx={{
+                                mt: 2,
+                                p: 2,
+                                bgcolor: 'grey.50',
+                                borderRadius: 1,
+                              }}
+                            >
+                              <Typography
+                                variant="subtitle1"
+                                sx={{ fontWeight: 500 }}
+                              >
+                                Total Amount:{' '}
+                                {calculateTotalAmount(
+                                  glEntries
+                                ).toLocaleString()}
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                This total will be used as the invoice amount
+                              </Typography>
+                            </Box>
+                          </Box>
+                        )}
+                      </Box>
+                      <Divider sx={{ my: 2 }} />
+                    </>
+                  )}
                 </>
               )}
 
@@ -448,6 +1290,7 @@ export default function InvoiceModal() {
                   Invoice Details
                 </Typography>
                 <Grid container spacing={3}>
+                  {/* First Row - Invoice Number and Service Period */}
                   <Grid item xs={12} md={6}>
                     <Controller
                       name="invoice_number"
@@ -495,57 +1338,102 @@ export default function InvoiceModal() {
                     />
                   </Grid>
 
-                  {/* Only show these fields to non-suppliers */}
-                  {!isSupplier && (
-                    <>
-                      <Grid item xs={12} md={6}>
-                        <Controller
-                          name="gl_code"
-                          control={control}
-                          render={({ field }) => (
-                            <FormControl
-                              fullWidth
-                              variant="outlined"
-                              error={!!errors.gl_code}
-                            >
-                              <InputLabel sx={style.inputLabel}>
-                                GL Code *
-                              </InputLabel>
-                              <Input {...field} type="text" required />
-                              {errors.gl_code && (
-                                <FormHelperText error>
-                                  {errors.gl_code.message}
-                                </FormHelperText>
-                              )}
-                            </FormControl>
+                  {/* Second Row - Quantity and Aircraft Type */}
+                  <Grid item xs={12} md={6}>
+                    <Controller
+                      name="quantity"
+                      control={control}
+                      render={({ field }) => (
+                        <FormControl
+                          fullWidth
+                          variant="outlined"
+                          error={!!errors.quantity}
+                        >
+                          <InputLabel sx={style.inputLabel}>
+                            Quantity
+                          </InputLabel>
+                          <Input {...field} type="text" placeholder="e.g., 5" />
+                          {errors.quantity && (
+                            <FormHelperText error>
+                              {errors.quantity.message}
+                            </FormHelperText>
                           )}
-                        />
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <Controller
-                          name="gl_description"
-                          control={control}
-                          render={({ field }) => (
-                            <FormControl
-                              fullWidth
-                              variant="outlined"
-                              error={!!errors.gl_description}
-                            >
-                              <InputLabel sx={style.inputLabel}>
-                                GL Description
-                              </InputLabel>
-                              <Input {...field} />
-                              {errors.gl_description && (
-                                <FormHelperText error>
-                                  {errors.gl_description.message}
-                                </FormHelperText>
-                              )}
-                            </FormControl>
-                          )}
-                        />
-                      </Grid>
-                    </>
-                  )}
+                        </FormControl>
+                      )}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Controller
+                      name="aircraft_type"
+                      control={control}
+                      render={({ field }) => (
+                        <FormControl fullWidth variant="outlined">
+                          <TextField
+                            {...field}
+                            select
+                            label="Aircraft Type"
+                            variant="outlined"
+                            fullWidth
+                            disabled={dataLoading}
+                            InputLabelProps={{
+                              shrink: true,
+                              style: {
+                                backgroundColor: 'white',
+                                paddingLeft: 5,
+                                paddingRight: 5,
+                              },
+                            }}
+                          >
+                            <MenuItem value="">
+                              <em>Select aircraft type</em>
+                            </MenuItem>
+                            {excelData.aircraftTypes.map((option) => (
+                              <MenuItem key={option.value} value={option.value}>
+                                {option.label}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        </FormControl>
+                      )}
+                    />
+                  </Grid>
+
+                  {/* Third Row - Route */}
+                  <Grid item xs={12} md={6}>
+                    <Controller
+                      name="route"
+                      control={control}
+                      render={({ field }) => (
+                        <FormControl fullWidth variant="outlined">
+                          <TextField
+                            {...field}
+                            select
+                            label="Route"
+                            variant="outlined"
+                            fullWidth
+                            disabled={dataLoading}
+                            InputLabelProps={{
+                              shrink: true,
+                              style: {
+                                backgroundColor: 'white',
+                                paddingLeft: 5,
+                                paddingRight: 5,
+                              },
+                            }}
+                          >
+                            <MenuItem value="">
+                              <em>Select route</em>
+                            </MenuItem>
+                            {excelData.routes.map((option) => (
+                              <MenuItem key={option.value} value={option.value}>
+                                {option.label}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        </FormControl>
+                      )}
+                    />
+                  </Grid>
                 </Grid>
               </Box>
 
@@ -557,28 +1445,43 @@ export default function InvoiceModal() {
                   Financial Information
                 </Typography>
                 <Grid container spacing={3}>
-                  {/* Only show these fields to non-suppliers */}
-                  {!isSupplier && (
+                  {/* Only show these fields to non-suppliers when NOT using multiple GL codes */}
+                  {!isSupplier && !useMultipleGL && (
                     <>
                       <Grid item xs={12} md={6}>
                         <Controller
                           name="location"
                           control={control}
                           render={({ field }) => (
-                            <FormControl
-                              fullWidth
-                              variant="outlined"
-                              error={!!errors.location}
-                            >
-                              <InputLabel sx={style.inputLabel}>
-                                Location
-                              </InputLabel>
-                              <Input {...field} />
-                              {errors.location && (
-                                <FormHelperText error>
-                                  {errors.location.message}
-                                </FormHelperText>
-                              )}
+                            <FormControl fullWidth variant="outlined">
+                              <TextField
+                                {...field}
+                                select
+                                label="Location"
+                                variant="outlined"
+                                fullWidth
+                                disabled={dataLoading}
+                                InputLabelProps={{
+                                  shrink: true,
+                                  style: {
+                                    backgroundColor: 'white',
+                                    paddingLeft: 5,
+                                    paddingRight: 5,
+                                  },
+                                }}
+                              >
+                                <MenuItem value="">
+                                  <em>Select location</em>
+                                </MenuItem>
+                                {excelData.locations.map((option) => (
+                                  <MenuItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </MenuItem>
+                                ))}
+                              </TextField>
                             </FormControl>
                           )}
                         />
@@ -588,25 +1491,82 @@ export default function InvoiceModal() {
                           name="cost_center"
                           control={control}
                           render={({ field }) => (
-                            <FormControl
-                              fullWidth
-                              variant="outlined"
-                              error={!!errors.cost_center}
-                            >
-                              <InputLabel sx={style.inputLabel}>
-                                Cost Center
-                              </InputLabel>
-                              <Input {...field} />
-                              {errors.cost_center && (
-                                <FormHelperText error>
-                                  {errors.cost_center.message}
-                                </FormHelperText>
-                              )}
+                            <FormControl fullWidth variant="outlined">
+                              <TextField
+                                {...field}
+                                select
+                                label="Cost Center"
+                                variant="outlined"
+                                fullWidth
+                                disabled={dataLoading}
+                                InputLabelProps={{
+                                  shrink: true,
+                                  style: {
+                                    backgroundColor: 'white',
+                                    paddingLeft: 5,
+                                    paddingRight: 5,
+                                  },
+                                }}
+                              >
+                                <MenuItem value="">
+                                  <em>Select cost center</em>
+                                </MenuItem>
+                                {excelData.costCenters.map((option) => (
+                                  <MenuItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </MenuItem>
+                                ))}
+                              </TextField>
                             </FormControl>
                           )}
                         />
                       </Grid>
                     </>
+                  )}
+
+                  {/* Location field for multiple GL mode */}
+                  {!isSupplier && useMultipleGL && (
+                    <Grid item xs={12} md={6}>
+                      <Controller
+                        name="location"
+                        control={control}
+                        render={({ field }) => (
+                          <FormControl fullWidth variant="outlined">
+                            <TextField
+                              {...field}
+                              select
+                              label="Location"
+                              variant="outlined"
+                              fullWidth
+                              disabled={dataLoading}
+                              InputLabelProps={{
+                                shrink: true,
+                                style: {
+                                  backgroundColor: 'white',
+                                  paddingLeft: 5,
+                                  paddingRight: 5,
+                                },
+                              }}
+                            >
+                              <MenuItem value="">
+                                <em>Select location</em>
+                              </MenuItem>
+                              {excelData.locations.map((option) => (
+                                <MenuItem
+                                  key={option.value}
+                                  value={option.value}
+                                >
+                                  {option.label}
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                          </FormControl>
+                        )}
+                      />
+                    </Grid>
                   )}
 
                   {/* Currency and Amount - shown to all users including suppliers */}
@@ -615,11 +1575,7 @@ export default function InvoiceModal() {
                       name="currency"
                       control={control}
                       render={({ field }) => (
-                        <FormControl
-                          fullWidth
-                          variant="outlined"
-                          error={!!errors.currency}
-                        >
+                        <FormControl fullWidth variant="outlined">
                           <InputLabel id="currency-label" sx={style.inputLabel}>
                             Currency *
                           </InputLabel>
@@ -627,7 +1583,6 @@ export default function InvoiceModal() {
                             {...field}
                             labelId="currency-label"
                             label="Currency"
-                            required
                             MenuProps={{
                               PaperProps: {
                                 style: {
@@ -644,15 +1599,12 @@ export default function InvoiceModal() {
                               </MenuItem>
                             ))}
                           </Select>
-                          {errors.currency && (
-                            <FormHelperText error>
-                              {errors.currency.message}
-                            </FormHelperText>
-                          )}
                         </FormControl>
                       )}
                     />
                   </Grid>
+
+                  {/* Amount field - show in all cases but make read-only when using multiple GL codes */}
                   <Grid item xs={12} md={6}>
                     <Controller
                       name="amount"
@@ -671,10 +1623,21 @@ export default function InvoiceModal() {
                             type="number"
                             sx={style.formInputNumber}
                             required
+                            disabled={!isSupplier && useMultipleGL} // Disable when using multiple GL codes
+                            placeholder={
+                              !isSupplier && useMultipleGL
+                                ? 'Auto-calculated from GL entries'
+                                : 'Enter amount'
+                            }
                           />
                           {errors.amount && (
                             <FormHelperText error>
                               {errors.amount.message}
+                            </FormHelperText>
+                          )}
+                          {!isSupplier && useMultipleGL && (
+                            <FormHelperText>
+                              Amount is automatically calculated from GL entries
                             </FormHelperText>
                           )}
                         </FormControl>
@@ -700,17 +1663,12 @@ export default function InvoiceModal() {
                             name="payment_terms"
                             control={control}
                             render={({ field }) => (
-                              <FormControl
-                                fullWidth
-                                variant="outlined"
-                                error={!!errors.payment_terms}
-                              >
+                              <FormControl fullWidth variant="outlined">
                                 <TextField
                                   {...field}
                                   select
                                   label="Payment Terms *"
                                   variant="outlined"
-                                  required
                                   fullWidth
                                   InputLabelProps={{
                                     shrink: true,
@@ -733,11 +1691,6 @@ export default function InvoiceModal() {
                                     </MenuItem>
                                   ))}
                                 </TextField>
-                                {errors.payment_terms && (
-                                  <FormHelperText error>
-                                    {errors.payment_terms.message}
-                                  </FormHelperText>
-                                )}
                               </FormControl>
                             )}
                           />
@@ -750,9 +1703,6 @@ export default function InvoiceModal() {
                             onChange={handleCustomTermsChange}
                             variant="outlined"
                             fullWidth
-                            required
-                            error={!!errors.payment_terms}
-                            helperText={errors.payment_terms?.message}
                             InputLabelProps={{
                               shrink: true,
                               style: {
@@ -776,8 +1726,6 @@ export default function InvoiceModal() {
                               label="Payment Due Date"
                               variant="outlined"
                               fullWidth
-                              error={!!errors.payment_due_date}
-                              helperText={errors.payment_due_date?.message}
                               InputLabelProps={{
                                 shrink: true,
                                 style: {
