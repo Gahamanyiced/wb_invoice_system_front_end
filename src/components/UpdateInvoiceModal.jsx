@@ -184,6 +184,8 @@ function UpdateInvoiceModal({
     supplier_number: defaultValues?.supplier_number || '',
     supplier_name: defaultValues?.supplier_name || '',
     invoice_number: defaultValues?.invoice_number || '',
+    reference: defaultValues?.reference || '',
+    invoice_date: defaultValues?.invoice_date || '',
     service_period: defaultValues?.service_period || '',
     location: defaultValues?.location || '',
     currency: defaultValues?.currency || '',
@@ -540,6 +542,8 @@ function UpdateInvoiceModal({
       supplier_number: defaultValues?.supplier_number || '',
       supplier_name: defaultValues?.supplier_name || '',
       invoice_number: defaultValues?.invoice_number || '',
+      reference: defaultValues?.reference || '',
+      invoice_date: defaultValues?.invoice_date || '',
       service_period: defaultValues?.service_period || '',
       location: defaultValues?.location || '',
       currency: defaultValues?.currency || '',
@@ -803,6 +807,41 @@ function UpdateInvoiceModal({
                   variant="outlined"
                   size="small"
                   sx={{ mb: 2 }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="Reference"
+                  name="reference"
+                  value={formData.reference}
+                  onChange={handleChangeFormData}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  sx={{ mb: 2 }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  type="date"
+                  label="Invoice Date"
+                  name="invoice_date"
+                  value={formData.invoice_date}
+                  onChange={handleChangeFormData}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  sx={{ mb: 2 }}
+                  InputLabelProps={{
+                    shrink: true,
+                    style: {
+                      backgroundColor: 'white',
+                      paddingLeft: 5,
+                      paddingRight: 5,
+                    },
+                  }}
                 />
               </Grid>
 

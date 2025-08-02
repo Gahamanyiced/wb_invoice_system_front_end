@@ -338,6 +338,8 @@ export default function InvoiceModal() {
       quantity: '',
       aircraft_type: '',
       route: '',
+      reference: '',
+      invoice_date: '',
     },
   });
 
@@ -609,6 +611,12 @@ export default function InvoiceModal() {
       formattedData.payment_due_date = date.toISOString().split('T')[0]; // Format as YYYY-MM-DD
     }
 
+    // Format the invoice_date to YYYY-MM-DD if it exists
+    if (formattedData.invoice_date) {
+      const date = new Date(formattedData.invoice_date);
+      formattedData.invoice_date = date.toISOString().split('T')[0];
+    }
+
     // Handle GL data based on mode
     if (!isSupplier && useMultipleGL) {
       // For multiple GL mode, use the glEntries state instead of form data
@@ -663,6 +671,8 @@ export default function InvoiceModal() {
       'supplier_number',
       'supplier_name',
       'invoice_number',
+      'reference',
+      'invoice_date',
       'service_period',
       'location',
       'currency',
@@ -1311,6 +1321,54 @@ export default function InvoiceModal() {
                             </FormHelperText>
                           )}
                         </FormControl>
+                      )}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Controller
+                      name="reference"
+                      control={control}
+                      render={({ field }) => (
+                        <FormControl
+                          fullWidth
+                          variant="outlined"
+                          error={!!errors.reference}
+                        >
+                          <InputLabel sx={style.inputLabel}>
+                            Reference
+                          </InputLabel>
+                          <Input {...field} type="text" />
+                          {errors.reference && (
+                            <FormHelperText error>
+                              {errors.reference.message}
+                            </FormHelperText>
+                          )}
+                        </FormControl>
+                      )}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Controller
+                      name="invoice_date"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          type="date"
+                          label="Invoice Date"
+                          variant="outlined"
+                          fullWidth
+                          error={!!errors.invoice_date}
+                          helperText={errors.invoice_date?.message}
+                          InputLabelProps={{
+                            shrink: true,
+                            style: {
+                              backgroundColor: 'white',
+                              paddingLeft: 5,
+                              paddingRight: 5,
+                            },
+                          }}
+                        />
                       )}
                     />
                   </Grid>

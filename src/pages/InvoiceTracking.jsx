@@ -563,6 +563,30 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                 <Grid container spacing={3}>
                   <Grid item xs={12} md={6}>
                     <Box sx={style.fieldContainer}>
+                      <Typography sx={style.fieldLabel}>Reference</Typography>
+                      <Typography sx={style.fieldValue}>
+                        {getValue('reference')}
+                      </Typography>
+                    </Box>
+                  </Grid>
+
+                  <Grid item xs={12} md={6}>
+                    <Box sx={style.fieldContainer}>
+                      <Typography sx={style.fieldLabel}>
+                        Invoice Date
+                      </Typography>
+                      <Typography sx={style.fieldValue}>
+                        {getValue('invoice_date') !== 'N/A'
+                          ? new Date(
+                              getValue('invoice_date')
+                            ).toLocaleDateString()
+                          : 'N/A'}
+                      </Typography>
+                    </Box>
+                  </Grid>
+
+                  <Grid item xs={12} md={6}>
+                    <Box sx={style.fieldContainer}>
                       <Typography sx={style.fieldLabel}>
                         Service Period
                       </Typography>

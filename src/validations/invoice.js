@@ -7,6 +7,14 @@ const baseInvoiceValidation = {
   invoice_number: Yup.string()
     .required('Invoice number is required')
     .max(50, 'Invoice number must be at most 50 characters long'),
+  reference: Yup.string() 
+    .max(100, 'Reference must be at most 100 characters long')
+    .nullable()
+    .optional(),
+  invoice_date: Yup.date() 
+    .typeError('Please enter a valid invoice date')
+    .nullable()
+    .optional(),
   service_period: Yup.string()
     .required('Service period is required')
     .max(100, 'Service period must be at most 100 characters long'),
