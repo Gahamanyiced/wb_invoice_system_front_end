@@ -466,6 +466,28 @@ const MyDocument = ({ invoice, user, excelData }) => {
               </Text>
             </View>
             <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Reference:</Text>
+              <Text style={styles.detailValue}>
+                {invoiceData?.reference || '-'}
+              </Text>
+            </View>
+
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Invoice Date:</Text>
+              <Text style={styles.detailValue}>
+                {(() => {
+                  try {
+                    return invoiceData?.invoice_date
+                      ? new Date(invoiceData.invoice_date).toLocaleDateString()
+                      : '-';
+                  } catch (error) {
+                    return invoiceData?.invoice_date || '-';
+                  }
+                })()}
+              </Text>
+            </View>
+
+            <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Service Period:</Text>
               <Text style={styles.detailValue}>
                 {invoiceData?.service_period || '-'}
