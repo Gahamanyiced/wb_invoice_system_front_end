@@ -1,15 +1,15 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
-import { 
-  Box, 
-  List, 
-  Typography, 
+import {
+  Box,
+  List,
+  Typography,
   Collapse,
   Divider,
   Avatar,
   Tooltip,
-  IconButton
+  IconButton,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import Logo from '../assets/images/logo.jpg';
@@ -26,23 +26,30 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import AssignmentTurnedInOutlinedIcon from '@mui/icons-material/AssignmentTurnedInOutlined';
+import AssessmentIcon from '@mui/icons-material/Assessment';
 
 // Redux actions
 import { setIndex } from '../features/invoice/invoiceSlice';
-import { setDashboardIndex, setCardIndex } from '../features/dashboard/dashboardSlice';
+import {
+  setDashboardIndex,
+  setCardIndex,
+} from '../features/dashboard/dashboardSlice';
+
+// Components
+import ReportingSidebar from '../components/ReportingSidebar';
 
 // Color constants
 const COLORS = {
-  primary: '#00529B',        // RwandAir blue (primary brand color)
-  sidebar: '#192a45',        // Dark blue sidebar background
-  textPrimary: '#FFFFFF',    // White text
+  primary: '#00529B', // RwandAir blue (primary brand color)
+  sidebar: '#192a45', // Dark blue sidebar background
+  textPrimary: '#FFFFFF', // White text
   textSecondary: 'rgba(255, 255, 255, 0.7)', // Dimmed white text
   textMuted: 'rgba(255, 255, 255, 0.5)', // More dimmed white text
   divider: 'rgba(255, 255, 255, 0.1)', // Very subtle white
   hoverBg: 'rgba(255, 255, 255, 0.1)', // Subtle white hover background
-  activeBg: '#00529B',       // Active item background (primary)
+  activeBg: '#00529B', // Active item background (primary)
   activeSubBg: 'rgba(0, 82, 155, 0.2)', // Translucent primary for sub-items
-  shadow: 'rgba(0, 82, 155, 0.3)' // Shadow color
+  shadow: 'rgba(0, 82, 155, 0.3)', // Shadow color
 };
 
 // Styled components
@@ -77,17 +84,17 @@ const StyledNavLink = styled(NavLink)(({ theme }) => ({
   margin: '4px 12px',
   transition: 'all 0.2s',
   position: 'relative',
-  
+
   '&:hover': {
     backgroundColor: COLORS.hoverBg,
     color: COLORS.textPrimary,
   },
-  
+
   '&.active': {
     backgroundColor: COLORS.activeBg,
     color: COLORS.textPrimary,
     boxShadow: `0 4px 10px ${COLORS.shadow}`,
-    
+
     '&:before': {
       content: '""',
       position: 'absolute',
@@ -98,7 +105,7 @@ const StyledNavLink = styled(NavLink)(({ theme }) => ({
       height: '60%',
       backgroundColor: COLORS.textPrimary,
       borderRadius: '0 4px 4px 0',
-    }
+    },
   },
 }));
 
@@ -113,7 +120,7 @@ const MenuLink = styled(Box)({
   transition: 'all 0.2s',
   position: 'relative',
   cursor: 'pointer',
-  
+
   '&:hover': {
     backgroundColor: COLORS.hoverBg,
     color: COLORS.textPrimary,
@@ -147,12 +154,12 @@ const SubMenuItem = styled(Box)(({ theme }) => ({
   transition: 'all 0.2s',
   fontSize: '14px',
   position: 'relative',
-  
+
   '&:hover': {
     backgroundColor: COLORS.hoverBg,
     color: COLORS.textPrimary,
   },
-  
+
   '&.active': {
     backgroundColor: COLORS.activeSubBg,
     color: COLORS.textPrimary,
@@ -177,30 +184,34 @@ export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  
+
+  // State variables
   const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false);
   const [invoiceMenuOpen, setInvoiceMenuOpen] = useState(false);
-  
+  const [reportingSidebarOpen, setReportingSidebarOpen] = useState(false);
+
   // Local state for active menu tracking
   const [activeInvoiceOption, setActiveInvoiceOption] = useState(null);
   const [activeDashboardOption, setActiveDashboardOption] = useState(null);
-  
+
+  // User data
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const username = JSON.parse(localStorage.getItem('username') || '""');
   const firstName = username.split('.')[0] || '';
   const lastName = username.split('.')[1] || '';
-  
+
   // Set initial active menu based on URL path
   useEffect(() => {
     const path = location.pathname;
-    
+
     if (path === '/dashboard') {
       setDashboardMenuOpen(true);
     } else if (path === '/') {
       setInvoiceMenuOpen(true);
     }
   }, [location.pathname]);
-  
+
+  // Menu toggle handlers
   const toggleDashboardMenu = (e) => {
     if (e) e.preventDefault();
     setDashboardMenuOpen(!dashboardMenuOpen);
@@ -209,7 +220,7 @@ export default function Sidebar() {
       setInvoiceMenuOpen(false);
     }
   };
-  
+
   const toggleInvoiceMenu = (e) => {
     if (e) e.preventDefault();
     setInvoiceMenuOpen(!invoiceMenuOpen);
@@ -218,14 +229,15 @@ export default function Sidebar() {
       setDashboardMenuOpen(false);
     }
   };
-  
+
+  // Navigation handlers
   const handleInvoiceOption = (index) => {
     dispatch(setIndex(index));
     dispatch(setCardIndex(null)); // Reset card index when changing main menu
     setActiveInvoiceOption(index);
     navigate('/');
   };
-  
+
   const handleDashboardOption = (index) => {
     dispatch(setDashboardIndex(index));
     dispatch(setIndex(index)); // This was missing - we need to set both indices
@@ -233,83 +245,94 @@ export default function Sidebar() {
     setActiveDashboardOption(index);
     navigate('/dashboard');
   };
-  
+
+  // Reporting sidebar handlers
+  const handleOpenReporting = () => {
+    setReportingSidebarOpen(true);
+  };
+
+  const handleCloseReporting = () => {
+    setReportingSidebarOpen(false);
+  };
+
+  // Logout handler
   const handleLogout = () => {
     // Clear all authentication data
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('username');
     localStorage.removeItem('index');
-    
+
     // Force navigation to login page
     navigate('/login', { replace: true });
   };
-  
+
   // Get initials for avatar
   const getInitials = () => {
     return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
   };
-  
+
   // Helper function to capitalize the first letter of a string safely
   const capitalizeFirstLetter = (string) => {
     if (!string || typeof string !== 'string') return 'User';
     return string.charAt(0).toUpperCase() + string.slice(1);
   };
-  
+
   return (
-    <SidebarContainer>
-      <Box>
-        <LogoContainer>
-          <Box
-            component="img"
-            src={Logo}
-            alt="RwandAir Logo"
-            sx={{ height: 50, maxWidth: 180 }}
-          />
-        </LogoContainer>
-        
-        <Divider sx={{ backgroundColor: COLORS.divider, my: 1 }} />
-        
-        <MenuHeading>Main</MenuHeading>
-        
-        <List sx={{ p: 0 }}>
-          {/* Dashboard Menu - Only shown for non-supplier roles */}
-          
+    <>
+      <SidebarContainer>
+        <Box>
+          {/* Logo Section */}
+          <LogoContainer>
+            <Box
+              component="img"
+              src={Logo}
+              alt="RwandAir Logo"
+              sx={{ height: 50, maxWidth: 180 }}
+            />
+          </LogoContainer>
+
+          <Divider sx={{ backgroundColor: COLORS.divider, my: 1 }} />
+
+          <MenuHeading>Main</MenuHeading>
+
+          <List sx={{ p: 0 }}>
+            {/* Dashboard Menu */}
             <Box>
-              <StyledNavLink 
-                to="/dashboard" 
-                onClick={toggleDashboardMenu}
-              >
+              <StyledNavLink to="/dashboard" onClick={toggleDashboardMenu}>
                 <MenuIcon>
                   <DashboardOutlinedIcon fontSize="small" />
                 </MenuIcon>
-                <Typography sx={{ flexGrow: 1, fontSize: '15px' }}>Dashboard</Typography>
+                <Typography sx={{ flexGrow: 1, fontSize: '15px' }}>
+                  Dashboard
+                </Typography>
                 {dashboardMenuOpen ? (
                   <KeyboardArrowUpIcon fontSize="small" />
                 ) : (
                   <KeyboardArrowDownIcon fontSize="small" />
                 )}
               </StyledNavLink>
-              
+
               <Collapse in={dashboardMenuOpen} timeout="auto" unmountOnExit>
                 {user?.role === 'admin' && (
-                  <SubMenuItem 
+                  <SubMenuItem
                     className={activeDashboardOption === 1 ? 'active' : ''}
                     onClick={() => handleDashboardOption(1)}
                   >
                     All Invoices
                   </SubMenuItem>
                 )}
-                {(user?.role === 'supplier' || user?.role === 'signer_admin') && (
-                  <SubMenuItem 
-                    className={activeDashboardOption === 2 ? 'active' : ''} 
+                {(user?.role === 'supplier' ||
+                  user?.role === 'signer_admin') && (
+                  <SubMenuItem
+                    className={activeDashboardOption === 2 ? 'active' : ''}
                     onClick={() => handleDashboardOption(2)}
                   >
                     Invoices Upload
                   </SubMenuItem>
                 )}
                 {(user?.role === 'signer' || user?.role === 'signer_admin') && (
-                  <SubMenuItem 
+                  <SubMenuItem
                     className={activeDashboardOption === 3 ? 'active' : ''}
                     onClick={() => handleDashboardOption(3)}
                   >
@@ -318,147 +341,160 @@ export default function Sidebar() {
                 )}
               </Collapse>
             </Box>
-          
-          
-          {/* Invoice Menu */}
-          <Box>
-            <StyledNavLink 
-              to="/"
-              onClick={toggleInvoiceMenu}
-            >
-              <MenuIcon>
-                <ReceiptOutlinedIcon fontSize="small" />
-              </MenuIcon>
-              <Typography sx={{ flexGrow: 1, fontSize: '15px' }}>Invoice</Typography>
-              {invoiceMenuOpen ? (
-                <KeyboardArrowUpIcon fontSize="small" />
-              ) : (
-                <KeyboardArrowDownIcon fontSize="small" />
-              )}
-            </StyledNavLink>
-            
-            <Collapse in={invoiceMenuOpen} timeout="auto" unmountOnExit>
-              {user?.role === 'admin' && (
-                <SubMenuItem 
-                  className={activeInvoiceOption === 1 ? 'active' : ''}
-                  onClick={() => handleInvoiceOption(1)}
-                >
-                  All Invoices
-                </SubMenuItem>
-              )}
-              {(user?.role === 'supplier' || user?.role === 'signer_admin') && (
-                <SubMenuItem 
-                  className={activeInvoiceOption === 2 ? 'active' : ''}
-                  onClick={() => handleInvoiceOption(2)}
-                >
-                  Invoices Upload
-                </SubMenuItem>
-              )}
-              {(user?.role === 'signer' || user?.role === 'signer_admin') && (
-                <SubMenuItem 
-                  className={activeInvoiceOption === 3 ? 'active' : ''}
-                  onClick={() => handleInvoiceOption(3)}
-                >
-                  Invoice Approval
-                </SubMenuItem>
-              )}
-            </Collapse>
-          </Box>
-          
-          {/* Supplier Profile */}
-          {user?.role === 'supplier' && (
-            <StyledNavLink to="/profile">
-              <MenuIcon>
-                <PersonOutlineOutlinedIcon fontSize="small" />
-              </MenuIcon>
-              <Typography sx={{ fontSize: '15px' }}>Profile</Typography>
-            </StyledNavLink>
-          )}
-          
-          {/* Admin Section */}
-          {(user?.role === 'admin' || user?.role === 'signer_admin') && (
-            <>
-              <MenuHeading>Administration</MenuHeading>
-              
-              {user?.role === 'admin' && (
-                <>
-                  <StyledNavLink to="/user">
-                    <MenuIcon>
-                      <PersonOutlineOutlinedIcon fontSize="small" />
-                    </MenuIcon>
-                    <Typography sx={{ fontSize: '15px' }}>Users</Typography>
-                  </StyledNavLink>
 
-                  <StyledNavLink to="/department">
-                    <MenuIcon>
-                      <CorporateFareOutlinedIcon fontSize="small" />
-                    </MenuIcon>
-                    <Typography sx={{ fontSize: '15px' }}>Departments</Typography>
-                  </StyledNavLink>
-
-                  <StyledNavLink to="/section">
-                    <MenuIcon>
-                      <MenuBookOutlinedIcon fontSize="small" />
-                    </MenuIcon>
-                    <Typography sx={{ fontSize: '15px' }}>Sections</Typography>
-                  </StyledNavLink>
-                </>
-              )}
-              
-              <StyledNavLink to="/signing-flow">
+            {/* Invoice Menu */}
+            <Box>
+              <StyledNavLink to="/" onClick={toggleInvoiceMenu}>
                 <MenuIcon>
-                  <AssignmentTurnedInOutlinedIcon fontSize="small" />
+                  <ReceiptOutlinedIcon fontSize="small" />
                 </MenuIcon>
-                <Typography sx={{ fontSize: '15px' }}>Signing Flow</Typography>
+                <Typography sx={{ flexGrow: 1, fontSize: '15px' }}>
+                  Invoice
+                </Typography>
+                {invoiceMenuOpen ? (
+                  <KeyboardArrowUpIcon fontSize="small" />
+                ) : (
+                  <KeyboardArrowDownIcon fontSize="small" />
+                )}
               </StyledNavLink>
-            </>
-          )}
-          
-          {/* Verification (if user is approved) */}
-          {/* {user?.is_approved === true && (
-            <StyledNavLink to="/verify-invoice">
+
+              <Collapse in={invoiceMenuOpen} timeout="auto" unmountOnExit>
+                {user?.role === 'admin' && (
+                  <SubMenuItem
+                    className={activeInvoiceOption === 1 ? 'active' : ''}
+                    onClick={() => handleInvoiceOption(1)}
+                  >
+                    All Invoices
+                  </SubMenuItem>
+                )}
+                {(user?.role === 'supplier' ||
+                  user?.role === 'signer_admin') && (
+                  <SubMenuItem
+                    className={activeInvoiceOption === 2 ? 'active' : ''}
+                    onClick={() => handleInvoiceOption(2)}
+                  >
+                    Invoices Upload
+                  </SubMenuItem>
+                )}
+                {(user?.role === 'signer' || user?.role === 'signer_admin') && (
+                  <SubMenuItem
+                    className={activeInvoiceOption === 3 ? 'active' : ''}
+                    onClick={() => handleInvoiceOption(3)}
+                  >
+                    Invoice Approval
+                  </SubMenuItem>
+                )}
+              </Collapse>
+            </Box>
+
+            {/* Reports Menu Item - NEW ADDITION */}
+            <MenuLink onClick={handleOpenReporting}>
               <MenuIcon>
-                <FactCheckOutlinedIcon fontSize="small" />
+                <AssessmentIcon fontSize="small" />
               </MenuIcon>
-              <Typography sx={{ fontSize: '15px' }}>Verify Invoice</Typography>
-            </StyledNavLink>
-          )} */}
-        </List>
-      </Box>
-      
-      {/* User Profile and Logout Section */}
-      <Box>
-        <Box sx={{ px: 3, pb: 2 }}>
-          <MenuLink onClick={handleLogout}>
-            <MenuIcon>
-              <LogoutOutlinedIcon fontSize="small" />
-            </MenuIcon>
-            <Typography sx={{ fontSize: '15px' }}>Logout</Typography>
-          </MenuLink>
+              <Typography sx={{ fontSize: '15px' }}>Reports</Typography>
+            </MenuLink>
+
+            {/* Supplier Profile */}
+            {user?.role === 'supplier' && (
+              <StyledNavLink to="/profile">
+                <MenuIcon>
+                  <PersonOutlineOutlinedIcon fontSize="small" />
+                </MenuIcon>
+                <Typography sx={{ fontSize: '15px' }}>Profile</Typography>
+              </StyledNavLink>
+            )}
+
+            {/* Admin Section */}
+            {(user?.role === 'admin' || user?.role === 'signer_admin') && (
+              <>
+                <MenuHeading>Administration</MenuHeading>
+
+                {user?.role === 'admin' && (
+                  <>
+                    <StyledNavLink to="/user">
+                      <MenuIcon>
+                        <PersonOutlineOutlinedIcon fontSize="small" />
+                      </MenuIcon>
+                      <Typography sx={{ fontSize: '15px' }}>Users</Typography>
+                    </StyledNavLink>
+
+                    <StyledNavLink to="/department">
+                      <MenuIcon>
+                        <CorporateFareOutlinedIcon fontSize="small" />
+                      </MenuIcon>
+                      <Typography sx={{ fontSize: '15px' }}>
+                        Departments
+                      </Typography>
+                    </StyledNavLink>
+
+                    <StyledNavLink to="/section">
+                      <MenuIcon>
+                        <MenuBookOutlinedIcon fontSize="small" />
+                      </MenuIcon>
+                      <Typography sx={{ fontSize: '15px' }}>
+                        Sections
+                      </Typography>
+                    </StyledNavLink>
+                  </>
+                )}
+
+                <StyledNavLink to="/signing-flow">
+                  <MenuIcon>
+                    <AssignmentTurnedInOutlinedIcon fontSize="small" />
+                  </MenuIcon>
+                  <Typography sx={{ fontSize: '15px' }}>
+                    Signing Flow
+                  </Typography>
+                </StyledNavLink>
+              </>
+            )}
+          </List>
         </Box>
-        
-        <UserProfileSection>
-          <Avatar 
-            sx={{ 
-              bgcolor: COLORS.primary,
-              width: 38,
-              height: 38
-            }}
-          >
-            {getInitials()}
-          </Avatar>
-          <UserInfo>
-            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-              {firstName.charAt(0).toUpperCase() + firstName.slice(1)}
-            </Typography>
-            <Typography variant="caption" sx={{ color: COLORS.textSecondary }}>
-              {user && user.role && typeof user.role === 'string' 
-                ? capitalizeFirstLetter(user.role) 
-                : 'User'}
-            </Typography>
-          </UserInfo>
-        </UserProfileSection>
-      </Box>
-    </SidebarContainer>
+
+        {/* User Profile and Logout Section */}
+        <Box>
+          <Box sx={{ px: 3, pb: 2 }}>
+            <MenuLink onClick={handleLogout}>
+              <MenuIcon>
+                <LogoutOutlinedIcon fontSize="small" />
+              </MenuIcon>
+              <Typography sx={{ fontSize: '15px' }}>Logout</Typography>
+            </MenuLink>
+          </Box>
+
+          <UserProfileSection>
+            <Avatar
+              sx={{
+                bgcolor: COLORS.primary,
+                width: 38,
+                height: 38,
+              }}
+            >
+              {getInitials()}
+            </Avatar>
+            <UserInfo>
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                {firstName.charAt(0).toUpperCase() + firstName.slice(1)}
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{ color: COLORS.textSecondary }}
+              >
+                {user && user.role && typeof user.role === 'string'
+                  ? capitalizeFirstLetter(user.role)
+                  : 'User'}
+              </Typography>
+            </UserInfo>
+          </UserProfileSection>
+        </Box>
+      </SidebarContainer>
+
+      {/* Reporting Sidebar - NEW ADDITION */}
+      <ReportingSidebar
+        open={reportingSidebarOpen}
+        onClose={handleCloseReporting}
+      />
+    </>
   );
 }
