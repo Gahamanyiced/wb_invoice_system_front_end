@@ -1,13 +1,13 @@
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet } from 'react-router-dom';
 
-const ProtectedRoute = ({ isLoggedIn, redirectPath = "/login", children }) => {
- const user = JSON?.parse(localStorage?.getItem('user'));
-  const expired = isLoggedIn();
-  if (!user || expired) {
-   
+const ProtectedRoute = ({ isLoggedIn, redirectPath = '/login', children }) => {
+  const isAuthenticated = isLoggedIn();
+
+  // If not authenticated (expired/invalid token), redirect to login
+  if (!isAuthenticated) {
     return <Navigate to={redirectPath} replace />;
   }
- 
+
   return children ? children : <Outlet />;
 };
 
