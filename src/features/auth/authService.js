@@ -22,8 +22,10 @@ const externalLogin = async (userData) => {
     },
   });
 
-  // localStorage.removeItem('username');
-  localStorage.setItem('user', JSON.stringify(response.data.user));
+  // Store user data in localStorage if login successful
+  if (response.data.user) {
+    localStorage.setItem('user', JSON.stringify(response.data.user));
+  }
 
   return response.data;
 };
@@ -35,6 +37,11 @@ const register = async (userData) => {
     },
   });
 
+  // Store user data in localStorage if registration successful and user data is returned
+  // if (response.data.user) {
+  //   localStorage.setItem('user', JSON.stringify(response.data.user));
+  // }
+
   return response.data;
 };
 
@@ -44,8 +51,6 @@ const VerifyOtp = async (otp) => {
     username: username,
     otp: otp,
   };
-  const data = JSON.stringify(userData);
-  // userData.username = username;
 
   const response = await http.post('/auth/verify-otp/', userData, {
     headers: {
@@ -54,15 +59,23 @@ const VerifyOtp = async (otp) => {
   });
 
   if (response.data.status === '200') {
-    // localStorage.removeItem('username');
+    localStorage.removeItem('username');
     localStorage.setItem('user', JSON.stringify(response.data.user));
   }
+
   return response.data;
 };
 
-// Logout user
+// Logout user - clear both localStorage and cookies
 const logout = () => {
   localStorage.removeItem('user');
+  localStorage.removeItem('username');
+
+  // Clear cookies
+  document.cookie =
+    'access_token=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;';
+  document.cookie =
+    'refresh_token=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;';
 };
 
 const authService = {

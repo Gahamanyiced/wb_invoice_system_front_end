@@ -1,5 +1,4 @@
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
-import { jwtDecode } from 'jwt-decode';
 import Login from './pages/Login';
 import VerifyOtp from './pages/VerifyOtp';
 import Dashboard from './pages/Dashboard';
@@ -17,34 +16,19 @@ import Profile from './pages/Profile';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 
-// Helper function to get cookie value by name
-const getCookie = (name) => {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop().split(';').shift();
-  return null;
-};
-
 export const isAuthenticated = () => {
   try {
-    // Get access token from cookies instead of localStorage
-    const token = getCookie('access_token');
+    // Only check if user data exists in localStorage
+    const user = JSON.parse(localStorage.getItem('user'));
 
-    if (!token) {
+    if (!user) {
       return false;
     }
 
-    const decoded = jwtDecode(token);
-    const currentDate = new Date();
-
-    // Check if token is expired
-    if (decoded.exp * 1000 < currentDate.getTime()) {
-      return false; // Token is expired
-    }
-
-    return true; // Token is valid
+    return true;
   } catch (error) {
-    console.error('Token validation error:', error);
+    console.error('Authentication check error:', error);
+    localStorage.removeItem('user');
     return false;
   }
 };

@@ -59,6 +59,7 @@ function SupplierRegister() {
   const [tabValue, setTabValue] = useState(0);
   const [ibanNotApplicable, setIbanNotApplicable] = useState(false);
   const [swiftNotApplicable, setSwiftNotApplicable] = useState(false);
+  const [sortCodeNotApplicable, setSortCodeNotApplicable] = useState(false);
 
   // Initialize form with react-hook-form and validation
   const {
@@ -73,7 +74,7 @@ function SupplierRegister() {
   } = useForm({
     resolver: yupResolver(supplierRegistrationValidation),
     mode: 'onBlur',
-    context: { ibanNotApplicable, swiftNotApplicable },
+    context: { ibanNotApplicable, swiftNotApplicable, sortCodeNotApplicable },
     defaultValues: {
       email: '',
       password: '',
@@ -130,6 +131,16 @@ function SupplierRegister() {
       clearErrors('profile.swift_code');
     } else {
       setValue('profile.swift_code', '');
+    }
+  };
+
+  const handleSortCodeNotApplicable = (e) => {
+    setSortCodeNotApplicable(e.target.checked);
+    if (e.target.checked) {
+      setValue('profile.sort_code', 'N/A');
+      clearErrors('profile.sort_code');
+    } else {
+      setValue('profile.sort_code', '');
     }
   };
 
@@ -1088,6 +1099,7 @@ function SupplierRegister() {
                     </Grid>
 
                     {/* Sort Code */}
+                    {/* Sort Code with N/A Toggle */}
                     <Grid item xs={12} sm={6}>
                       <TextField
                         {...registerField('profile.sort_code')}
@@ -1096,21 +1108,69 @@ function SupplierRegister() {
                         fullWidth
                         margin="normal"
                         variant="outlined"
-                        error={!!errors.profile?.sort_code}
-                        helperText={errors.profile?.sort_code?.message}
+                        disabled={sortCodeNotApplicable}
+                        error={
+                          !sortCodeNotApplicable && !!errors.profile?.sort_code
+                        }
+                        helperText={
+                          !sortCodeNotApplicable
+                            ? errors.profile?.sort_code?.message
+                            : ''
+                        }
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
                               <PaymentsIcon
                                 color={
-                                  errors.profile?.sort_code ? 'error' : 'action'
+                                  !sortCodeNotApplicable &&
+                                  errors.profile?.sort_code
+                                    ? 'error'
+                                    : 'action'
                                 }
                               />
+                            </InputAdornment>
+                          ),
+                          endAdornment: sortCodeNotApplicable && (
+                            <InputAdornment position="end">
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  bgcolor: '#f0f0f0',
+                                  px: 1,
+                                  py: 0.5,
+                                  borderRadius: 1,
+                                  color: 'text.secondary',
+                                  fontWeight: 'medium',
+                                }}
+                              >
+                                N/A
+                              </Typography>
                             </InputAdornment>
                           ),
                         }}
                         onChange={handleInputChange}
                       />
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          mt: 1,
+                        }}
+                      >
+                        <Switch
+                          checked={sortCodeNotApplicable}
+                          onChange={handleSortCodeNotApplicable}
+                          color="primary"
+                          size="small"
+                        />
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          sx={{ ml: 1 }}
+                        >
+                          Sort Code not applicable
+                        </Typography>
+                      </Box>
                     </Grid>
                   </Grid>
 

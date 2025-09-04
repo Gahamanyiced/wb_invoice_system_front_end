@@ -49,12 +49,27 @@ function VerifyOtp() {
 
   const onSubmit = async (data) => {
     try {
-      await dispatch(verifyOtp(data.otp)).unwrap();
-      toast.success(`OTP verification successful`);
-      navigate('/');
+      const response = await dispatch(verifyOtp(data.otp)).unwrap();
+
+      console.log('OTP verification response:', response);
+
+      // Check if verification was successful (status '200' and user data exists)
+      if (response.status === '200' && response.user) {
+        toast.success(response.message || 'OTP verification successful');
+
+        // Small delay to ensure localStorage and cookies are properly set
+        setTimeout(() => {
+          console.log('Navigating to dashboard...');
+          navigate('/', { replace: true });
+        }, 100);
+      } else {
+        toast.error('Verification failed - no user data received');
+        navigate('/login', { replace: true });
+      }
     } catch (error) {
-      toast.error(error);
-      navigate('/login');
+      console.error('OTP verification error:', error);
+      toast.error(error.toString());
+      navigate('/login', { replace: true });
     }
   };
 
@@ -191,23 +206,6 @@ function VerifyOtp() {
                   error={!!errors.otp}
                   helperText={errors.otp?.message}
                 />
-
-                {/* Resend OTP Link */}
-                {/* <Box sx={{ textAlign: 'center', mb: 1 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Didn't receive the code?{' '}
-                    <Link
-                      href="#"
-                      underline="hover"
-                      sx={{ 
-                        fontWeight: 500,
-                        color: '#00529B'
-                      }}
-                    >
-                      Resend OTP
-                    </Link>
-                  </Typography>
-                </Box> */}
 
                 {/* Submit Button */}
                 <Button

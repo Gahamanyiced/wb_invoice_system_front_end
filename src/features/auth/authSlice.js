@@ -123,10 +123,11 @@ export const authSlice = createSlice({
       .addCase(verifyOtp.pending, (state) => {
         state.isLoading = true;
         state.error = null;
-        state.user = null;
+        // Don't clear user state while pending
       })
       .addCase(verifyOtp.fulfilled, (state, action) => {
-        state.user = action.payload;
+        // Store the entire response payload, which includes the user data
+        state.user = action.payload.user || action.payload; // Handle both formats
         state.isLoading = false;
         state.error = null;
       })

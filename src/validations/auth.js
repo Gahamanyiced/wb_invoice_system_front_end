@@ -49,7 +49,7 @@ export const supplierRegistrationValidation = Yup.object({
   lastname: Yup.string()
     .required('Last name is required')
     .max(30, 'Last name must be at most 30 characters long'),
-  
+
   // Company Information, Address Information and Payment Information
   profile: Yup.object({
     company_name: Yup.string()
@@ -69,8 +69,11 @@ export const supplierRegistrationValidation = Yup.object({
       .max(50, 'Contact name must be at most 50 characters long'),
     phone_number: Yup.string()
       .required('Phone number is required')
-      .matches(/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,4}[-\s.]?[0-9]{1,9}$/, 'Invalid phone number format'),
-    
+      .matches(
+        /^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,4}[-\s.]?[0-9]{1,9}$/,
+        'Invalid phone number format'
+      ),
+
     // Address fields
     street_address: Yup.string()
       .required('Street address is required')
@@ -81,7 +84,7 @@ export const supplierRegistrationValidation = Yup.object({
     country: Yup.string()
       .required('Country is required')
       .max(50, 'Country must be at most 50 characters long'),
-    
+
     // Payment fields
     bank_name: Yup.string()
       .required('Bank name is required')
@@ -92,25 +95,42 @@ export const supplierRegistrationValidation = Yup.object({
     account_number: Yup.string()
       .required('Account number is required')
       .max(30, 'Account number must be at most 30 characters long'),
-    iban: Yup.string()
-      .when('$ibanNotApplicable', {
-        is: true,
-        then: () => Yup.string().notRequired(),
-        otherwise: () => Yup.string()
+    iban: Yup.string().when('$ibanNotApplicable', {
+      is: true,
+      then: () => Yup.string().notRequired(),
+      otherwise: () =>
+        Yup.string()
           .required('IBAN is required')
-          .max(50, 'IBAN must be at most 50 characters long')
-      }),
-    swift_code: Yup.string()
-      .when('$swiftNotApplicable', {
-        is: true,
-        then: () => Yup.string().notRequired(),
-        otherwise: () => Yup.string()
+          .test(
+            'iban-or-na',
+            'IBAN is required or enter N/A',
+            function (value) {
+              return value === 'N/A' || (value && value.length <= 50);
+            }
+          ),
+    }),
+    swift_code: Yup.string().when('$swiftNotApplicable', {
+      is: true,
+      then: () => Yup.string().notRequired(),
+      otherwise: () =>
+        Yup.string()
           .required('SWIFT code is required')
-          .max(20, 'SWIFT code must be at most 20 characters long')
-      }),
-    sort_code: Yup.string()
-      .max(20, 'Sort code must be at most 20 characters long'),
-    payment_currency: Yup.string()
-      .required('Payment currency is required'),
+          .test(
+            'swift-or-na',
+            'SWIFT code is required or enter N/A',
+            function (value) {
+              return value === 'N/A' || (value && value.length <= 20);
+            }
+          ),
+    }),
+    sort_code: Yup.string().test(
+      'sort-code-validation',
+      'Sort code must be at most 20 characters long',
+      function (value) {
+        if (!value) return true; // Optional field
+        return value === 'N/A' || value.length <= 20;
+      }
+    ),
+    payment_currency: Yup.string().required('Payment currency is required'),
   }),
 });
