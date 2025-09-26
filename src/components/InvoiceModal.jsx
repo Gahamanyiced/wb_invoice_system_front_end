@@ -185,7 +185,15 @@ export default function InvoiceModal() {
   const [customTermsInput, setCustomTermsInput] = useState('');
   const [useMultipleGL, setUseMultipleGL] = useState(false);
   const [glEntries, setGLEntries] = useState([
-    { gl_code: '', gl_description: '', gl_amount: '', cost_center: '' },
+    {
+      gl_code: '',
+      gl_description: '',
+      gl_amount: '',
+      cost_center: '',
+      location: '',
+      aircraft_type: '',
+      route: '',
+    },
   ]);
 
   // State for Excel data
@@ -199,7 +207,6 @@ export default function InvoiceModal() {
   });
   const [dataLoading, setDataLoading] = useState(false);
 
-  // Function to load Excel data
   // Function to load Excel data
   const loadExcelData = async () => {
     try {
@@ -316,7 +323,7 @@ export default function InvoiceModal() {
     register,
     formState: { errors },
     watch,
-    clearErrors, // Add this to clear validation errors
+    clearErrors,
   } = useForm({
     resolver: yupResolver(validationSchema),
     mode: 'onSubmit',
@@ -398,7 +405,15 @@ export default function InvoiceModal() {
     setCustomTermsInput(''); // Reset custom terms input
     setUseMultipleGL(false); // Reset multiple GL toggle
     setGLEntries([
-      { gl_code: '', gl_description: '', gl_amount: '', cost_center: '' },
+      {
+        gl_code: '',
+        gl_description: '',
+        gl_amount: '',
+        cost_center: '',
+        location: '',
+        aircraft_type: '',
+        route: '',
+      },
     ]); // Reset GL entries to default
   };
 
@@ -674,14 +689,11 @@ export default function InvoiceModal() {
       'reference',
       'invoice_date',
       'service_period',
-      'location',
       'currency',
       'amount',
       'payment_terms',
       'payment_due_date',
       'quantity',
-      'aircraft_type',
-      'route',
     ];
 
     basicFields.forEach((key) => {
@@ -706,6 +718,9 @@ export default function InvoiceModal() {
         gl_description: entry.gl_description || '',
         cost_center: entry.cost_center,
         gl_amount: parseFloat(entry.gl_amount).toFixed(2),
+        location: entry.location || '',
+        aircraft_type: entry.aircraft_type || '',
+        route: entry.route || '',
       }));
 
       formData.append('gl_lines', JSON.stringify(glLines));
@@ -717,6 +732,9 @@ export default function InvoiceModal() {
           gl_description: formattedData.gl_description || '',
           cost_center: formattedData.cost_center,
           gl_amount: parseFloat(formattedData.amount).toFixed(2),
+          location: formattedData.location || '',
+          aircraft_type: formattedData.aircraft_type || '',
+          route: formattedData.route || '',
         },
       ];
 
@@ -765,7 +783,15 @@ export default function InvoiceModal() {
   const handleAddGLEntry = () => {
     const newEntries = [
       ...glEntries,
-      { gl_code: '', gl_description: '', gl_amount: '', cost_center: '' },
+      {
+        gl_code: '',
+        gl_description: '',
+        gl_amount: '',
+        cost_center: '',
+        location: '',
+        aircraft_type: '',
+        route: '',
+      },
     ];
     setGLEntries(newEntries);
 
@@ -966,18 +992,27 @@ export default function InvoiceModal() {
                                       gl_description: '',
                                       gl_amount: '',
                                       cost_center: '',
+                                      location: '',
+                                      aircraft_type: '',
+                                      route: '',
                                     },
                                   ]);
                                   setValue('gl_code', ['']);
                                   setValue('gl_description', ['']);
                                   setValue('gl_amount', ['']);
                                   setValue('cost_center', ['']);
+                                  setValue('location', '');
+                                  setValue('aircraft_type', '');
+                                  setValue('route', '');
                                   setValue('amount', '0');
                                   // Clear validation errors for GL fields
                                   clearErrors([
                                     'gl_code',
                                     'gl_description',
                                     'cost_center',
+                                    'location',
+                                    'aircraft_type',
+                                    'route',
                                   ]);
                                 } else {
                                   // Switching to single GL mode - reset everything and clear errors
@@ -987,18 +1022,27 @@ export default function InvoiceModal() {
                                       gl_description: '',
                                       gl_amount: '',
                                       cost_center: '',
+                                      location: '',
+                                      aircraft_type: '',
+                                      route: '',
                                     },
                                   ]);
                                   setValue('gl_code', '');
                                   setValue('gl_description', '');
                                   setValue('gl_amount', ['']);
                                   setValue('cost_center', '');
+                                  setValue('location', '');
+                                  setValue('aircraft_type', '');
+                                  setValue('route', '');
                                   setValue('amount', '');
                                   // Clear validation errors for GL fields
                                   clearErrors([
                                     'gl_code',
                                     'gl_description',
                                     'cost_center',
+                                    'location',
+                                    'aircraft_type',
+                                    'route',
                                   ]);
                                 }
                               }}
@@ -1010,24 +1054,61 @@ export default function InvoiceModal() {
 
                         {!useMultipleGL ? (
                           // Single GL Code Mode
-                          <Grid container spacing={3}>
-                            <Grid item xs={12} md={6}>
-                              <Controller
-                                name="gl_code"
-                                control={control}
-                                render={({ field }) => (
-                                  <FormControl fullWidth variant="outlined">
+                          <>
+                            <Grid container spacing={3}>
+                              <Grid item xs={12} md={6}>
+                                <Controller
+                                  name="gl_code"
+                                  control={control}
+                                  render={({ field }) => (
+                                    <FormControl fullWidth variant="outlined">
+                                      <TextField
+                                        {...field}
+                                        select
+                                        label="GL Code *"
+                                        variant="outlined"
+                                        fullWidth
+                                        disabled={dataLoading}
+                                        onChange={(e) => {
+                                          field.onChange(e.target.value);
+                                          handleGLCodeChange(e.target.value);
+                                        }}
+                                        InputLabelProps={{
+                                          shrink: true,
+                                          style: {
+                                            backgroundColor: 'white',
+                                            paddingLeft: 5,
+                                            paddingRight: 5,
+                                          },
+                                        }}
+                                      >
+                                        <MenuItem value="">
+                                          <em>Select GL code</em>
+                                        </MenuItem>
+                                        {excelData.glCodes.map((option) => (
+                                          <MenuItem
+                                            key={option.value}
+                                            value={option.value}
+                                          >
+                                            {option.label}
+                                          </MenuItem>
+                                        ))}
+                                      </TextField>
+                                    </FormControl>
+                                  )}
+                                />
+                              </Grid>
+                              <Grid item xs={12} md={6}>
+                                <Controller
+                                  name="gl_description"
+                                  control={control}
+                                  render={({ field }) => (
                                     <TextField
                                       {...field}
-                                      select
-                                      label="GL Code *"
+                                      label="GL Description"
                                       variant="outlined"
                                       fullWidth
-                                      disabled={dataLoading}
-                                      onChange={(e) => {
-                                        field.onChange(e.target.value);
-                                        handleGLCodeChange(e.target.value);
-                                      }}
+                                      disabled
                                       InputLabelProps={{
                                         shrink: true,
                                         style: {
@@ -1036,47 +1117,166 @@ export default function InvoiceModal() {
                                           paddingRight: 5,
                                         },
                                       }}
-                                    >
-                                      <MenuItem value="">
-                                        <em>Select GL code</em>
-                                      </MenuItem>
-                                      {excelData.glCodes.map((option) => (
-                                        <MenuItem
-                                          key={option.value}
-                                          value={option.value}
-                                        >
-                                          {option.label}
+                                    />
+                                  )}
+                                />
+                              </Grid>
+                              <Grid item xs={12} md={6}>
+                                <Controller
+                                  name="cost_center"
+                                  control={control}
+                                  render={({ field }) => (
+                                    <FormControl fullWidth variant="outlined">
+                                      <TextField
+                                        {...field}
+                                        select
+                                        label="Cost Center *"
+                                        variant="outlined"
+                                        fullWidth
+                                        disabled={dataLoading}
+                                        InputLabelProps={{
+                                          shrink: true,
+                                          style: {
+                                            backgroundColor: 'white',
+                                            paddingLeft: 5,
+                                            paddingRight: 5,
+                                          },
+                                        }}
+                                      >
+                                        <MenuItem value="">
+                                          <em>Select cost center</em>
                                         </MenuItem>
-                                      ))}
-                                    </TextField>
-                                  </FormControl>
-                                )}
-                              />
+                                        {excelData.costCenters.map((option) => (
+                                          <MenuItem
+                                            key={option.value}
+                                            value={option.value}
+                                          >
+                                            {option.label}
+                                          </MenuItem>
+                                        ))}
+                                      </TextField>
+                                    </FormControl>
+                                  )}
+                                />
+                              </Grid>
+                              <Grid item xs={12} md={6}>
+                                <Controller
+                                  name="location"
+                                  control={control}
+                                  render={({ field }) => (
+                                    <FormControl fullWidth variant="outlined">
+                                      <TextField
+                                        {...field}
+                                        select
+                                        label="Location *"
+                                        variant="outlined"
+                                        fullWidth
+                                        disabled={dataLoading}
+                                        InputLabelProps={{
+                                          shrink: true,
+                                          style: {
+                                            backgroundColor: 'white',
+                                            paddingLeft: 5,
+                                            paddingRight: 5,
+                                          },
+                                        }}
+                                      >
+                                        <MenuItem value="">
+                                          <em>Select location</em>
+                                        </MenuItem>
+                                        {excelData.locations.map((option) => (
+                                          <MenuItem
+                                            key={option.value}
+                                            value={option.value}
+                                          >
+                                            {option.label}
+                                          </MenuItem>
+                                        ))}
+                                      </TextField>
+                                    </FormControl>
+                                  )}
+                                />
+                              </Grid>
+                              <Grid item xs={12} md={6}>
+                                <Controller
+                                  name="aircraft_type"
+                                  control={control}
+                                  render={({ field }) => (
+                                    <FormControl fullWidth variant="outlined">
+                                      <TextField
+                                        {...field}
+                                        select
+                                        label="Aircraft Type"
+                                        variant="outlined"
+                                        fullWidth
+                                        disabled={dataLoading}
+                                        InputLabelProps={{
+                                          shrink: true,
+                                          style: {
+                                            backgroundColor: 'white',
+                                            paddingLeft: 5,
+                                            paddingRight: 5,
+                                          },
+                                        }}
+                                      >
+                                        <MenuItem value="">
+                                          <em>Select aircraft type</em>
+                                        </MenuItem>
+                                        {excelData.aircraftTypes.map(
+                                          (option) => (
+                                            <MenuItem
+                                              key={option.value}
+                                              value={option.value}
+                                            >
+                                              {option.label}
+                                            </MenuItem>
+                                          )
+                                        )}
+                                      </TextField>
+                                    </FormControl>
+                                  )}
+                                />
+                              </Grid>
+                              <Grid item xs={12} md={6}>
+                                <Controller
+                                  name="route"
+                                  control={control}
+                                  render={({ field }) => (
+                                    <FormControl fullWidth variant="outlined">
+                                      <TextField
+                                        {...field}
+                                        select
+                                        label="Route"
+                                        variant="outlined"
+                                        fullWidth
+                                        disabled={dataLoading}
+                                        InputLabelProps={{
+                                          shrink: true,
+                                          style: {
+                                            backgroundColor: 'white',
+                                            paddingLeft: 5,
+                                            paddingRight: 5,
+                                          },
+                                        }}
+                                      >
+                                        <MenuItem value="">
+                                          <em>Select route</em>
+                                        </MenuItem>
+                                        {excelData.routes.map((option) => (
+                                          <MenuItem
+                                            key={option.value}
+                                            value={option.value}
+                                          >
+                                            {option.label}
+                                          </MenuItem>
+                                        ))}
+                                      </TextField>
+                                    </FormControl>
+                                  )}
+                                />
+                              </Grid>
                             </Grid>
-                            <Grid item xs={12} md={6}>
-                              <Controller
-                                name="gl_description"
-                                control={control}
-                                render={({ field }) => (
-                                  <TextField
-                                    {...field}
-                                    label="GL Description"
-                                    variant="outlined"
-                                    fullWidth
-                                    disabled
-                                    InputLabelProps={{
-                                      shrink: true,
-                                      style: {
-                                        backgroundColor: 'white',
-                                        paddingLeft: 5,
-                                        paddingRight: 5,
-                                      },
-                                    }}
-                                  />
-                                )}
-                              />
-                            </Grid>
-                          </Grid>
+                          </>
                         ) : (
                           // Multiple GL Codes Mode
                           <Box>
@@ -1124,7 +1324,7 @@ export default function InvoiceModal() {
                                 </Box>
 
                                 <Grid container spacing={2}>
-                                  <Grid item xs={12} md={3}>
+                                  <Grid item xs={12} md={4}>
                                     <TextField
                                       select
                                       label="GL Code *"
@@ -1163,7 +1363,7 @@ export default function InvoiceModal() {
                                     </TextField>
                                   </Grid>
 
-                                  <Grid item xs={12} md={3}>
+                                  <Grid item xs={12} md={4}>
                                     <TextField
                                       label="GL Description"
                                       value={entry.gl_description}
@@ -1181,7 +1381,7 @@ export default function InvoiceModal() {
                                     />
                                   </Grid>
 
-                                  <Grid item xs={12} md={3}>
+                                  <Grid item xs={12} md={4}>
                                     <TextField
                                       label="Amount *"
                                       type="number"
@@ -1246,6 +1446,121 @@ export default function InvoiceModal() {
                                       ))}
                                     </TextField>
                                   </Grid>
+
+                                  <Grid item xs={12} md={3}>
+                                    <TextField
+                                      select
+                                      label="Location *"
+                                      value={entry.location}
+                                      onChange={(e) =>
+                                        handleGLEntryChange(
+                                          index,
+                                          'location',
+                                          e.target.value
+                                        )
+                                      }
+                                      variant="outlined"
+                                      fullWidth
+                                      required
+                                      disabled={dataLoading}
+                                      InputLabelProps={{
+                                        shrink: true,
+                                        style: {
+                                          backgroundColor: 'white',
+                                          paddingLeft: 5,
+                                          paddingRight: 5,
+                                        },
+                                      }}
+                                    >
+                                      <MenuItem value="">
+                                        <em>Select location</em>
+                                      </MenuItem>
+                                      {excelData.locations.map((option) => (
+                                        <MenuItem
+                                          key={option.value}
+                                          value={option.value}
+                                        >
+                                          {option.label}
+                                        </MenuItem>
+                                      ))}
+                                    </TextField>
+                                  </Grid>
+
+                                  <Grid item xs={12} md={3}>
+                                    <TextField
+                                      select
+                                      label="Aircraft Type"
+                                      value={entry.aircraft_type}
+                                      onChange={(e) =>
+                                        handleGLEntryChange(
+                                          index,
+                                          'aircraft_type',
+                                          e.target.value
+                                        )
+                                      }
+                                      variant="outlined"
+                                      fullWidth
+                                      disabled={dataLoading}
+                                      InputLabelProps={{
+                                        shrink: true,
+                                        style: {
+                                          backgroundColor: 'white',
+                                          paddingLeft: 5,
+                                          paddingRight: 5,
+                                        },
+                                      }}
+                                    >
+                                      <MenuItem value="">
+                                        <em>Select aircraft type</em>
+                                      </MenuItem>
+                                      {excelData.aircraftTypes.map((option) => (
+                                        <MenuItem
+                                          key={option.value}
+                                          value={option.value}
+                                        >
+                                          {option.label}
+                                        </MenuItem>
+                                      ))}
+                                    </TextField>
+                                  </Grid>
+
+                                  <Grid item xs={12} md={3}>
+                                    <TextField
+                                      select
+                                      label="Route"
+                                      value={entry.route}
+                                      onChange={(e) =>
+                                        handleGLEntryChange(
+                                          index,
+                                          'route',
+                                          e.target.value
+                                        )
+                                      }
+                                      variant="outlined"
+                                      fullWidth
+                                      disabled={dataLoading}
+                                      InputLabelProps={{
+                                        shrink: true,
+                                        style: {
+                                          backgroundColor: 'white',
+                                          paddingLeft: 5,
+                                          paddingRight: 5,
+                                        },
+                                      }}
+                                    >
+                                      <MenuItem value="">
+                                        <em>Select route</em>
+                                      </MenuItem>
+                                      {excelData.routes.map((option) => (
+                                        <MenuItem
+                                          key={option.value}
+                                          value={option.value}
+                                        >
+                                          {option.label}
+                                        </MenuItem>
+                                      ))}
+                                    </TextField>
+                                  </Grid>
                                 </Grid>
                               </Paper>
                             ))}
@@ -1300,7 +1615,7 @@ export default function InvoiceModal() {
                   Invoice Details
                 </Typography>
                 <Grid container spacing={3}>
-                  {/* First Row - Invoice Number and Service Period */}
+                  {/* First Row - Invoice Number and Reference */}
                   <Grid item xs={12} md={6}>
                     <Controller
                       name="invoice_number"
@@ -1347,6 +1662,8 @@ export default function InvoiceModal() {
                       )}
                     />
                   </Grid>
+
+                  {/* Second Row - Invoice Date and Service Period */}
                   <Grid item xs={12} md={6}>
                     <Controller
                       name="invoice_date"
@@ -1396,7 +1713,7 @@ export default function InvoiceModal() {
                     />
                   </Grid>
 
-                  {/* Second Row - Quantity and Aircraft Type */}
+                  {/* Third Row - Quantity (for suppliers and single GL mode only) */}
                   <Grid item xs={12} md={6}>
                     <Controller
                       name="quantity"
@@ -1420,78 +1737,6 @@ export default function InvoiceModal() {
                       )}
                     />
                   </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Controller
-                      name="aircraft_type"
-                      control={control}
-                      render={({ field }) => (
-                        <FormControl fullWidth variant="outlined">
-                          <TextField
-                            {...field}
-                            select
-                            label="Aircraft Type"
-                            variant="outlined"
-                            fullWidth
-                            disabled={dataLoading}
-                            InputLabelProps={{
-                              shrink: true,
-                              style: {
-                                backgroundColor: 'white',
-                                paddingLeft: 5,
-                                paddingRight: 5,
-                              },
-                            }}
-                          >
-                            <MenuItem value="">
-                              <em>Select aircraft type</em>
-                            </MenuItem>
-                            {excelData.aircraftTypes.map((option) => (
-                              <MenuItem key={option.value} value={option.value}>
-                                {option.label}
-                              </MenuItem>
-                            ))}
-                          </TextField>
-                        </FormControl>
-                      )}
-                    />
-                  </Grid>
-
-                  {/* Third Row - Route */}
-                  <Grid item xs={12} md={6}>
-                    <Controller
-                      name="route"
-                      control={control}
-                      render={({ field }) => (
-                        <FormControl fullWidth variant="outlined">
-                          <TextField
-                            {...field}
-                            select
-                            label="Route"
-                            variant="outlined"
-                            fullWidth
-                            disabled={dataLoading}
-                            InputLabelProps={{
-                              shrink: true,
-                              style: {
-                                backgroundColor: 'white',
-                                paddingLeft: 5,
-                                paddingRight: 5,
-                              },
-                            }}
-                          >
-                            <MenuItem value="">
-                              <em>Select route</em>
-                            </MenuItem>
-                            {excelData.routes.map((option) => (
-                              <MenuItem key={option.value} value={option.value}>
-                                {option.label}
-                              </MenuItem>
-                            ))}
-                          </TextField>
-                        </FormControl>
-                      )}
-                    />
-                  </Grid>
                 </Grid>
               </Box>
 
@@ -1503,131 +1748,7 @@ export default function InvoiceModal() {
                   Financial Information
                 </Typography>
                 <Grid container spacing={3}>
-                  {/* Only show these fields to non-suppliers when NOT using multiple GL codes */}
-                  {!isSupplier && !useMultipleGL && (
-                    <>
-                      <Grid item xs={12} md={6}>
-                        <Controller
-                          name="location"
-                          control={control}
-                          render={({ field }) => (
-                            <FormControl fullWidth variant="outlined">
-                              <TextField
-                                {...field}
-                                select
-                                label="Location"
-                                variant="outlined"
-                                fullWidth
-                                disabled={dataLoading}
-                                InputLabelProps={{
-                                  shrink: true,
-                                  style: {
-                                    backgroundColor: 'white',
-                                    paddingLeft: 5,
-                                    paddingRight: 5,
-                                  },
-                                }}
-                              >
-                                <MenuItem value="">
-                                  <em>Select location</em>
-                                </MenuItem>
-                                {excelData.locations.map((option) => (
-                                  <MenuItem
-                                    key={option.value}
-                                    value={option.value}
-                                  >
-                                    {option.label}
-                                  </MenuItem>
-                                ))}
-                              </TextField>
-                            </FormControl>
-                          )}
-                        />
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <Controller
-                          name="cost_center"
-                          control={control}
-                          render={({ field }) => (
-                            <FormControl fullWidth variant="outlined">
-                              <TextField
-                                {...field}
-                                select
-                                label="Cost Center"
-                                variant="outlined"
-                                fullWidth
-                                disabled={dataLoading}
-                                InputLabelProps={{
-                                  shrink: true,
-                                  style: {
-                                    backgroundColor: 'white',
-                                    paddingLeft: 5,
-                                    paddingRight: 5,
-                                  },
-                                }}
-                              >
-                                <MenuItem value="">
-                                  <em>Select cost center</em>
-                                </MenuItem>
-                                {excelData.costCenters.map((option) => (
-                                  <MenuItem
-                                    key={option.value}
-                                    value={option.value}
-                                  >
-                                    {option.label}
-                                  </MenuItem>
-                                ))}
-                              </TextField>
-                            </FormControl>
-                          )}
-                        />
-                      </Grid>
-                    </>
-                  )}
-
-                  {/* Location field for multiple GL mode */}
-                  {!isSupplier && useMultipleGL && (
-                    <Grid item xs={12} md={6}>
-                      <Controller
-                        name="location"
-                        control={control}
-                        render={({ field }) => (
-                          <FormControl fullWidth variant="outlined">
-                            <TextField
-                              {...field}
-                              select
-                              label="Location"
-                              variant="outlined"
-                              fullWidth
-                              disabled={dataLoading}
-                              InputLabelProps={{
-                                shrink: true,
-                                style: {
-                                  backgroundColor: 'white',
-                                  paddingLeft: 5,
-                                  paddingRight: 5,
-                                },
-                              }}
-                            >
-                              <MenuItem value="">
-                                <em>Select location</em>
-                              </MenuItem>
-                              {excelData.locations.map((option) => (
-                                <MenuItem
-                                  key={option.value}
-                                  value={option.value}
-                                >
-                                  {option.label}
-                                </MenuItem>
-                              ))}
-                            </TextField>
-                          </FormControl>
-                        )}
-                      />
-                    </Grid>
-                  )}
-
-                  {/* Currency and Amount - shown to all users including suppliers */}
+                  {/* Currency and Amount - shown to all users */}
                   <Grid item xs={12} md={6}>
                     <Controller
                       name="currency"
