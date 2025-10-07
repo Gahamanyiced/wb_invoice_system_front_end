@@ -149,25 +149,57 @@ function UpdateInvoiceModal({
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isSupplier = user?.role === 'supplier';
 
+  // Helper function to get invoice data regardless of structure
+  const getInvoiceData = (key) => {
+    // Check if data is nested in invoice property
+    if (defaultValues?.invoice) {
+      return defaultValues.invoice[key];
+    }
+    // Otherwise, get from flat structure
+    return defaultValues?.[key];
+  };
+
   // Check if documents are in invoice property or directly in defaultValues
   const documentsInInvoice = Boolean(defaultValues?.invoice?.documents);
 
-  // Initialize value state based on whether documents are in invoice property
-  const [value, setValue] = useState(documentsInInvoice ? 'new' : 'new');
+  // Get documents array
+  const getDocuments = () => {
+    if (documentsInInvoice) {
+      return defaultValues?.invoice?.documents || [];
+    }
+    return defaultValues?.documents || [];
+  };
+
+  // Get GL Lines array
+  const getGLLines = () => {
+    if (defaultValues?.invoice?.gl_lines) {
+      return defaultValues.invoice.gl_lines;
+    }
+    return defaultValues?.gl_lines || [];
+  };
+
+  // Initialize value state
+  const [value, setValue] = useState('new');
   const [comment, setComment] = useState('');
   const [customPaymentTerms, setCustomPaymentTerms] = useState(
-    (defaultValues?.payment_terms || defaultValues?.invoice?.payment_terms) ===
-      'custom'
+    getInvoiceData('payment_terms') === 'custom'
   );
   const [customTermsInput, setCustomTermsInput] = useState('');
 
-  // Initialize GL Lines from the new structure
+  // Initialize GL Lines from the data - now includes location, aircraft_type, route
   const initializeGLLines = () => {
-    const glLines = defaultValues?.gl_lines || [];
+    const glLines = getGLLines();
     if (glLines.length === 0) {
-      // If no GL lines exist, create one empty line
       return [
-        { gl_code: '', gl_description: '', cost_center: '', gl_amount: '' },
+        {
+          gl_code: '',
+          gl_description: '',
+          cost_center: '',
+          gl_amount: '',
+          location: '',
+          aircraft_type: '',
+          route: '',
+        },
       ];
     }
     return glLines.map((line) => ({
@@ -176,25 +208,25 @@ function UpdateInvoiceModal({
       gl_description: line.gl_description || '',
       cost_center: line.cost_center || '',
       gl_amount: line.gl_amount || '',
+      location: line.location || '',
+      aircraft_type: line.aircraft_type || '',
+      route: line.route || '',
     }));
   };
 
-  // Initialize form data with the new structure
+  // Initialize form data with proper data access
   const [formData, setFormData] = useState({
-    supplier_number: defaultValues?.supplier_number || '',
-    supplier_name: defaultValues?.supplier_name || '',
-    invoice_number: defaultValues?.invoice_number || '',
-    reference: defaultValues?.reference || '',
-    invoice_date: defaultValues?.invoice_date || '',
-    service_period: defaultValues?.service_period || '',
-    location: defaultValues?.location || '',
-    currency: defaultValues?.currency || '',
-    amount: defaultValues?.amount || '',
-    quantity: defaultValues?.quantity || '',
-    aircraft_type: defaultValues?.aircraft_type || '',
-    route: defaultValues?.route || '',
-    payment_terms: defaultValues?.payment_terms || '',
-    payment_due_date: defaultValues?.payment_due_date || '',
+    supplier_number: getInvoiceData('supplier_number') || '',
+    supplier_name: getInvoiceData('supplier_name') || '',
+    invoice_number: getInvoiceData('invoice_number') || '',
+    reference: getInvoiceData('reference') || '',
+    invoice_date: getInvoiceData('invoice_date') || '',
+    service_period: getInvoiceData('service_period') || '',
+    currency: getInvoiceData('currency') || '',
+    amount: getInvoiceData('amount') || '',
+    quantity: getInvoiceData('quantity') || '',
+    payment_terms: getInvoiceData('payment_terms') || '',
+    payment_due_date: getInvoiceData('payment_due_date') || '',
   });
 
   // GL Lines state
@@ -211,13 +243,8 @@ function UpdateInvoiceModal({
   });
   const [dataLoading, setDataLoading] = useState(false);
 
-  // Initialize documents state based on where they're located
-  const [documents, setDocuments] = useState(
-    documentsInInvoice
-      ? defaultValues?.invoice?.documents || []
-      : defaultValues?.documents || []
-  );
-
+  // Initialize documents state
+  const [documents, setDocuments] = useState(getDocuments());
   const [anotherDocuments, setAnotherDocuments] = useState([]);
   const [selectedDocumentIndices, setSelectedDocumentIndices] = useState([]);
   const [anotherSelectedDocumentIndices, setAnotherSelectedDocumentIndices] =
@@ -232,10 +259,8 @@ function UpdateInvoiceModal({
   // Function to load Excel data
   const loadExcelData = async () => {
     try {
-      // Import XLSX library dynamically
       const XLSX = await import('xlsx');
 
-      // Read the Excel file from public folder using fetch
       const response = await fetch('/6. COA.xlsx');
       if (!response.ok) {
         throw new Error(`Failed to fetch Excel file: ${response.statusText}`);
@@ -250,7 +275,6 @@ function UpdateInvoiceModal({
         sheetStubs: true,
       });
 
-      // Helper function to process sheet data
       const processSheet = (
         sheetName,
         valueColumn,
@@ -266,7 +290,6 @@ function UpdateInvoiceModal({
 
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-          // Skip header row and process data
           return jsonData
             .slice(1)
             .filter(
@@ -286,29 +309,19 @@ function UpdateInvoiceModal({
                 label: combinedLabel ? `${value} - ${label}` : label,
               };
             })
-            .filter((item) => item.value && item.label); // Remove empty entries
+            .filter((item) => item.value && item.label);
         } catch (error) {
           console.error(`Error processing sheet ${sheetName}:`, error);
           return [];
         }
       };
 
-      // Process each sheet according to your Excel structure
-      const suppliers = processSheet('Supplier Details', 0, 1, true); // Vendor ID + Vendor Name
-      const costCenters = processSheet('Cost Center', 0, 1, true); // CC Code + CC Description
-      const glCodes = processSheet('GL Code', 0, 1, true); // GL Code + GL Description
-      const locations = processSheet('Location Code', 0, 1, true); // Loc Code + LOC Name
-      const aircraftTypes = processSheet('Aircraft Type', 0, 1, true); // Code + Description
-      const routes = processSheet('Route', 0, 1, true); // Code + Description
-
-      console.log('Loaded data counts:', {
-        suppliers: suppliers.length,
-        costCenters: costCenters.length,
-        glCodes: glCodes.length,
-        locations: locations.length,
-        aircraftTypes: aircraftTypes.length,
-        routes: routes.length,
-      });
+      const suppliers = processSheet('Supplier Details', 0, 1, true);
+      const costCenters = processSheet('Cost Center', 0, 1, true);
+      const glCodes = processSheet('GL Code', 0, 1, true);
+      const locations = processSheet('Location Code', 0, 1, true);
+      const aircraftTypes = processSheet('Aircraft Type', 0, 1, true);
+      const routes = processSheet('Route', 0, 1, true);
 
       return {
         suppliers,
@@ -321,7 +334,6 @@ function UpdateInvoiceModal({
     } catch (error) {
       console.error('Error loading Excel data:', error);
 
-      // Return fallback data in case of error
       return {
         suppliers: [{ value: '00001', label: '00001 - Sample Supplier' }],
         costCenters: [{ value: '1000', label: '1000 - Sample Cost Center' }],
@@ -351,19 +363,19 @@ function UpdateInvoiceModal({
     loadData();
   }, []);
 
-  // Check if we need to initialize custom payment terms from the data
-  useState(() => {
+  // Check payment terms on mount
+  useEffect(() => {
     const isStandardTerm = (term) => {
       return (
         !term || paymentTermsOptions.some((option) => option.value === term)
       );
     };
 
-    const paymentTerms = defaultValues?.payment_terms;
+    const paymentTerms = getInvoiceData('payment_terms');
 
     if (paymentTerms === 'custom') {
       setCustomPaymentTerms(true);
-      const customValue = defaultValues?.payment_terms_description || '';
+      const customValue = getInvoiceData('payment_terms_description') || '';
       setCustomTermsInput(customValue);
       if (customValue) {
         setFormData((prev) => ({ ...prev, payment_terms: customValue }));
@@ -420,12 +432,10 @@ function UpdateInvoiceModal({
     }
   };
 
-  // Handle GL Line changes
   const handleGLLineChange = (index, field, value) => {
     const updatedLines = [...glLines];
     updatedLines[index] = { ...updatedLines[index], [field]: value };
 
-    // If it's gl_code selection, auto-populate gl_description
     if (field === 'gl_code' && value) {
       const selectedGL = excelData.glCodes.find((gl) => gl.value === value);
       if (selectedGL) {
@@ -436,7 +446,6 @@ function UpdateInvoiceModal({
 
     setGLLines(updatedLines);
 
-    // Update total amount when gl_amount changes
     if (field === 'gl_amount') {
       const totalAmount = updatedLines.reduce((sum, line) => {
         return sum + (parseFloat(line.gl_amount) || 0);
@@ -445,21 +454,26 @@ function UpdateInvoiceModal({
     }
   };
 
-  // Add new GL Line
   const addGLLine = () => {
     setGLLines([
       ...glLines,
-      { gl_code: '', gl_description: '', cost_center: '', gl_amount: '' },
+      {
+        gl_code: '',
+        gl_description: '',
+        cost_center: '',
+        gl_amount: '',
+        location: '',
+        aircraft_type: '',
+        route: '',
+      },
     ]);
   };
 
-  // Remove GL Line
   const removeGLLine = (index) => {
     if (glLines.length > 1) {
       const updatedLines = glLines.filter((_, i) => i !== index);
       setGLLines(updatedLines);
 
-      // Recalculate total amount
       const totalAmount = updatedLines.reduce((sum, line) => {
         return sum + (parseFloat(line.gl_amount) || 0);
       }, 0);
@@ -467,14 +481,12 @@ function UpdateInvoiceModal({
     }
   };
 
-  // Handler for supplier selection
   const handleSupplierChange = (selectedValue) => {
     if (selectedValue) {
       const selectedSupplier = excelData.suppliers.find(
         (s) => s.value === selectedValue
       );
       if (selectedSupplier) {
-        // Extract number and name from the combined label
         const [number, name] = selectedSupplier.label.split(' - ');
         setFormData((prev) => ({
           ...prev,
@@ -491,7 +503,6 @@ function UpdateInvoiceModal({
     }
   };
 
-  // Handle custom terms input
   const handleCustomTermsChange = (e) => {
     const value = e.target.value;
     setCustomTermsInput(value);
@@ -537,36 +548,29 @@ function UpdateInvoiceModal({
   };
 
   const resetState = () => {
-    setValue(documentsInInvoice ? 'new' : 'new');
+    setValue('new');
     setFormData({
-      supplier_number: defaultValues?.supplier_number || '',
-      supplier_name: defaultValues?.supplier_name || '',
-      invoice_number: defaultValues?.invoice_number || '',
-      reference: defaultValues?.reference || '',
-      invoice_date: defaultValues?.invoice_date || '',
-      service_period: defaultValues?.service_period || '',
-      location: defaultValues?.location || '',
-      currency: defaultValues?.currency || '',
-      amount: defaultValues?.amount || '',
-      quantity: defaultValues?.quantity || '',
-      aircraft_type: defaultValues?.aircraft_type || '',
-      route: defaultValues?.route || '',
-      payment_terms: defaultValues?.payment_terms || '',
-      payment_due_date: defaultValues?.payment_due_date || '',
+      supplier_number: getInvoiceData('supplier_number') || '',
+      supplier_name: getInvoiceData('supplier_name') || '',
+      invoice_number: getInvoiceData('invoice_number') || '',
+      reference: getInvoiceData('reference') || '',
+      invoice_date: getInvoiceData('invoice_date') || '',
+      service_period: getInvoiceData('service_period') || '',
+      currency: getInvoiceData('currency') || '',
+      amount: getInvoiceData('amount') || '',
+      quantity: getInvoiceData('quantity') || '',
+      payment_terms: getInvoiceData('payment_terms') || '',
+      payment_due_date: getInvoiceData('payment_due_date') || '',
     });
     setGLLines(initializeGLLines());
-    setDocuments(
-      documentsInInvoice
-        ? defaultValues?.invoice?.documents || []
-        : defaultValues?.documents || []
-    );
+    setDocuments(getDocuments());
     setSelectedDocumentIndices([]);
     setAnotherSelectedDocumentIndices([]);
     setReplacedDocumentIds([]);
     setAnotherDocuments([]);
     setUploadedFileNames([]);
     setComment('');
-    setCustomPaymentTerms(defaultValues?.payment_terms === 'custom');
+    setCustomPaymentTerms(getInvoiceData('payment_terms') === 'custom');
     setCustomTermsInput('');
   };
 
@@ -604,17 +608,18 @@ function UpdateInvoiceModal({
       return false;
     }
 
-    // Validate GL Lines
+    // Updated validation to include new GL line fields
     const invalidGLLine = glLines.find(
       (line) =>
         !line.gl_code ||
         !line.gl_description ||
         !line.cost_center ||
-        !line.gl_amount
+        !line.gl_amount ||
+        !line.location
     );
 
     if (invalidGLLine) {
-      toast.error('Please fill all GL Line fields');
+      toast.error('Please fill all required GL Line fields');
       return false;
     }
 
@@ -638,14 +643,12 @@ function UpdateInvoiceModal({
           return;
         }
 
-        // Add all form fields
         Object.keys(formData).forEach((key) => {
           if (key !== 'payment_terms_description') {
             data.append(key, formData[key]);
           }
         });
 
-        // Add GL Lines data
         data.append('gl_lines', JSON.stringify(glLines));
       }
 
@@ -666,11 +669,8 @@ function UpdateInvoiceModal({
         });
       }
 
-      // Determine the correct ID based on user role
-      const isSigner = user?.role === 'signer' || user?.role === 'signer_admin';
-      const invoiceId = isSigner
-        ? defaultValues?.invoice?.id || defaultValues?.id
-        : defaultValues?.id;
+      // Get the correct invoice ID
+      const invoiceId = defaultValues?.invoice?.id || defaultValues?.id;
 
       await dispatch(updateInvoice({ id: invoiceId, data }));
       toast.success('Invoice Updated Successfully');
@@ -724,7 +724,6 @@ function UpdateInvoiceModal({
       aria-labelledby="update-invoice-modal-title"
     >
       <Box sx={style.modal}>
-        {/* Header */}
         <Box sx={style.header}>
           <Typography variant="h6" component="h2" fontWeight="500">
             Update Invoice
@@ -740,9 +739,7 @@ function UpdateInvoiceModal({
           </IconButton>
         </Box>
 
-        {/* Content */}
         <Box sx={style.content}>
-          {/* Invoice Information Section */}
           <Paper elevation={0} sx={style.section}>
             <Typography
               variant="subtitle1"
@@ -790,7 +787,6 @@ function UpdateInvoiceModal({
                       fullWidth
                       variant="outlined"
                       size="small"
-                      sx={{ mb: 2 }}
                     />
                   </Grid>
                 </>
@@ -806,7 +802,6 @@ function UpdateInvoiceModal({
                   required
                   variant="outlined"
                   size="small"
-                  sx={{ mb: 2 }}
                 />
               </Grid>
 
@@ -819,7 +814,6 @@ function UpdateInvoiceModal({
                   fullWidth
                   variant="outlined"
                   size="small"
-                  sx={{ mb: 2 }}
                 />
               </Grid>
 
@@ -833,15 +827,7 @@ function UpdateInvoiceModal({
                   fullWidth
                   variant="outlined"
                   size="small"
-                  sx={{ mb: 2 }}
-                  InputLabelProps={{
-                    shrink: true,
-                    style: {
-                      backgroundColor: 'white',
-                      paddingLeft: 5,
-                      paddingRight: 5,
-                    },
-                  }}
+                  InputLabelProps={{ shrink: true }}
                 />
               </Grid>
 
@@ -855,104 +841,27 @@ function UpdateInvoiceModal({
                   required
                   variant="outlined"
                   size="small"
-                  sx={{ mb: 2 }}
                 />
               </Grid>
 
               {!isSupplier && (
-                <>
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth variant="outlined" size="small">
-                      <InputLabel>Location</InputLabel>
-                      <Select
-                        value={formData.location}
-                        onChange={handleChangeFormData}
-                        name="location"
-                        label="Location"
-                        disabled={dataLoading}
-                      >
-                        <MenuItem value="">
-                          <em>Select location</em>
-                        </MenuItem>
-                        {excelData.locations.map((option) => (
-                          <MenuItem key={option.value} value={option.value}>
-                            {option.label}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      label="Quantity"
-                      name="quantity"
-                      value={formData.quantity}
-                      onChange={handleChangeFormData}
-                      fullWidth
-                      variant="outlined"
-                      size="small"
-                      type="number"
-                      inputProps={{
-                        min: 0,
-                        step: 1,
-                      }}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth variant="outlined" size="small">
-                      <InputLabel>Aircraft Type</InputLabel>
-                      <Select
-                        value={formData.aircraft_type}
-                        onChange={handleChangeFormData}
-                        name="aircraft_type"
-                        label="Aircraft Type"
-                        disabled={dataLoading}
-                      >
-                        <MenuItem value="">
-                          <em>Select aircraft type</em>
-                        </MenuItem>
-                        {excelData.aircraftTypes.map((option) => (
-                          <MenuItem key={option.value} value={option.value}>
-                            {option.label}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth variant="outlined" size="small">
-                      <InputLabel>Route</InputLabel>
-                      <Select
-                        value={formData.route}
-                        onChange={handleChangeFormData}
-                        name="route"
-                        label="Route"
-                        disabled={dataLoading}
-                      >
-                        <MenuItem value="">
-                          <em>Select route</em>
-                        </MenuItem>
-                        {excelData.routes.map((option) => (
-                          <MenuItem key={option.value} value={option.value}>
-                            {option.label}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                </>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    label="Quantity"
+                    name="quantity"
+                    value={formData.quantity}
+                    onChange={handleChangeFormData}
+                    fullWidth
+                    variant="outlined"
+                    size="small"
+                    type="number"
+                    inputProps={{ min: 0, step: 1 }}
+                  />
+                </Grid>
               )}
 
               <Grid item xs={12} md={6}>
-                <FormControl
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  sx={{ mb: 2 }}
-                >
+                <FormControl fullWidth variant="outlined" size="small">
                   <InputLabel>Currency *</InputLabel>
                   <Select
                     name="currency"
@@ -980,7 +889,6 @@ function UpdateInvoiceModal({
                   required
                   variant="outlined"
                   size="small"
-                  sx={{ mb: 2 }}
                   type="number"
                   InputProps={{
                     readOnly: !isSupplier && glLines.length > 0,
@@ -995,7 +903,6 @@ function UpdateInvoiceModal({
             </Grid>
           </Paper>
 
-          {/* GL Lines Section - Only for non-suppliers */}
           {!isSupplier && (
             <Paper elevation={0} sx={style.section}>
               <Box
@@ -1050,6 +957,7 @@ function UpdateInvoiceModal({
                     </Box>
 
                     <Grid container spacing={2}>
+                      {/* Row 1: GL Code, GL Description, Cost Center, Amount */}
                       <Grid item xs={12} md={3}>
                         <FormControl fullWidth variant="outlined" size="small">
                           <InputLabel>GL Code *</InputLabel>
@@ -1086,16 +994,10 @@ function UpdateInvoiceModal({
                           fullWidth
                           disabled
                           size="small"
-                          InputLabelProps={{
-                            shrink: true,
-                            style: {
-                              backgroundColor: 'white',
-                              paddingLeft: 5,
-                              paddingRight: 5,
-                            },
-                          }}
+                          InputLabelProps={{ shrink: true }}
                         />
                       </Grid>
+
                       <Grid item xs={12} md={3}>
                         <FormControl fullWidth variant="outlined" size="small">
                           <InputLabel>Cost Center *</InputLabel>
@@ -1123,6 +1025,7 @@ function UpdateInvoiceModal({
                           </Select>
                         </FormControl>
                       </Grid>
+
                       <Grid item xs={12} md={2}>
                         <TextField
                           label="Amount *"
@@ -1141,6 +1044,85 @@ function UpdateInvoiceModal({
                           type="number"
                         />
                       </Grid>
+
+                      {/* Row 2: Location, Aircraft Type, Route */}
+                      <Grid item xs={12} md={4}>
+                        <FormControl fullWidth variant="outlined" size="small">
+                          <InputLabel>Location *</InputLabel>
+                          <Select
+                            value={line.location}
+                            onChange={(e) =>
+                              handleGLLineChange(
+                                index,
+                                'location',
+                                e.target.value
+                              )
+                            }
+                            label="Location *"
+                            required
+                            disabled={dataLoading}
+                          >
+                            <MenuItem value="">
+                              <em>Select location</em>
+                            </MenuItem>
+                            {excelData.locations.map((option) => (
+                              <MenuItem key={option.value} value={option.value}>
+                                {option.label}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+
+                      <Grid item xs={12} md={4}>
+                        <FormControl fullWidth variant="outlined" size="small">
+                          <InputLabel>Aircraft Type</InputLabel>
+                          <Select
+                            value={line.aircraft_type}
+                            onChange={(e) =>
+                              handleGLLineChange(
+                                index,
+                                'aircraft_type',
+                                e.target.value
+                              )
+                            }
+                            label="Aircraft Type"
+                            disabled={dataLoading}
+                          >
+                            <MenuItem value="">
+                              <em>Select aircraft type</em>
+                            </MenuItem>
+                            {excelData.aircraftTypes.map((option) => (
+                              <MenuItem key={option.value} value={option.value}>
+                                {option.label}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+
+                      <Grid item xs={12} md={4}>
+                        <FormControl fullWidth variant="outlined" size="small">
+                          <InputLabel>Route</InputLabel>
+                          <Select
+                            value={line.route}
+                            onChange={(e) =>
+                              handleGLLineChange(index, 'route', e.target.value)
+                            }
+                            label="Route"
+                            disabled={dataLoading}
+                          >
+                            <MenuItem value="">
+                              <em>Select route</em>
+                            </MenuItem>
+                            {excelData.routes.map((option) => (
+                              <MenuItem key={option.value} value={option.value}>
+                                {option.label}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
                     </Grid>
                   </CardContent>
                 </Card>
@@ -1148,7 +1130,6 @@ function UpdateInvoiceModal({
             </Paper>
           )}
 
-          {/* Payment Terms Section - Only visible to non-suppliers */}
           {!isSupplier && (
             <Paper elevation={0} sx={style.section}>
               <Typography
@@ -1174,15 +1155,7 @@ function UpdateInvoiceModal({
                       required
                       fullWidth
                       size="small"
-                      sx={{ mb: 2 }}
-                      InputLabelProps={{
-                        shrink: true,
-                        style: {
-                          backgroundColor: 'white',
-                          paddingLeft: 5,
-                          paddingRight: 5,
-                        },
-                      }}
+                      InputLabelProps={{ shrink: true }}
                     >
                       <MenuItem value="">
                         <em>Select payment terms</em>
@@ -1209,15 +1182,7 @@ function UpdateInvoiceModal({
                       fullWidth
                       required
                       size="small"
-                      sx={{ mb: 2 }}
-                      InputLabelProps={{
-                        shrink: true,
-                        style: {
-                          backgroundColor: 'white',
-                          paddingLeft: 5,
-                          paddingRight: 5,
-                        },
-                      }}
+                      InputLabelProps={{ shrink: true }}
                     />
                   </Grid>
                 )}
@@ -1232,22 +1197,13 @@ function UpdateInvoiceModal({
                     variant="outlined"
                     fullWidth
                     size="small"
-                    sx={{ mb: 2 }}
-                    InputLabelProps={{
-                      shrink: true,
-                      style: {
-                        backgroundColor: 'white',
-                        paddingLeft: 5,
-                        paddingRight: 5,
-                      },
-                    }}
+                    InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
               </Grid>
             </Paper>
           )}
 
-          {/* Comments Section - Available for all users including suppliers */}
           <Paper elevation={0} sx={style.section}>
             <Typography
               variant="subtitle1"
@@ -1271,7 +1227,6 @@ function UpdateInvoiceModal({
             />
           </Paper>
 
-          {/* Document Section - Available for all users including suppliers */}
           <Paper elevation={0} sx={style.section}>
             <Box
               sx={{
@@ -1295,7 +1250,6 @@ function UpdateInvoiceModal({
               </Button>
             </Box>
 
-            {/* Only show RadioGroup if documents are not in invoice property */}
             {!documentsInInvoice && (
               <RadioGroup
                 row
@@ -1330,16 +1284,6 @@ function UpdateInvoiceModal({
               </RadioGroup>
             )}
 
-            {/* If documents are in invoice property, always set value to "new" */}
-            {documentsInInvoice && (
-              <>
-                {/* Hidden state setter to ensure value is "new" */}
-                {value !== 'new' && setValue('new')}
-                {/* No text displayed here, we'll use the heading below */}
-              </>
-            )}
-
-            {/* Existing Documents (when "change" is selected) */}
             {value === 'change' &&
               !documentsInInvoice &&
               getDocumentList().length > 0 && (
@@ -1402,7 +1346,6 @@ function UpdateInvoiceModal({
                 </Box>
               )}
 
-            {/* Document Upload Section */}
             <Box sx={{ mb: 2 }}>
               <Typography variant="subtitle2" gutterBottom fontWeight="500">
                 {value === 'change' && !documentsInInvoice
@@ -1492,7 +1435,6 @@ function UpdateInvoiceModal({
           </Paper>
         </Box>
 
-        {/* Footer */}
         <Box sx={style.footer}>
           <Button
             variant="outlined"

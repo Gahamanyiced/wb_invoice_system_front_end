@@ -36,7 +36,7 @@ import { getInvoiceReport } from '../features/report/reportSlice';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'react-toastify';
 
-// List of payment terms options (same as UpdateInvoiceModal)
+// List of payment terms options
 const paymentTermsOptions = [
   { value: 'net_30', label: 'Net 30 - Payment due within 30 days' },
   { value: 'net_45', label: 'Net 45 - Payment due within 45 days' },
@@ -190,13 +190,11 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
   });
   const [dataLoading, setDataLoading] = useState(false);
 
-  // Function to load Excel data (same as UpdateInvoiceModal)
+  // Function to load Excel data
   const loadExcelData = async () => {
     try {
-      // Import XLSX library dynamically
       const XLSX = await import('xlsx');
 
-      // Read the Excel file from public folder using fetch
       const response = await fetch('/6. COA.xlsx');
       if (!response.ok) {
         throw new Error(`Failed to fetch Excel file: ${response.statusText}`);
@@ -211,7 +209,6 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
         sheetStubs: true,
       });
 
-      // Helper function to process sheet data
       const processSheet = (
         sheetName,
         valueColumn,
@@ -227,7 +224,6 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
 
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-          // Skip header row and process data
           return jsonData
             .slice(1)
             .filter(
@@ -248,20 +244,19 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                 description: label,
               };
             })
-            .filter((item) => item.value && item.label); // Remove empty entries
+            .filter((item) => item.value && item.label);
         } catch (error) {
           console.error(`Error processing sheet ${sheetName}:`, error);
           return [];
         }
       };
 
-      // Process each sheet according to your Excel structure
-      const suppliers = processSheet('Supplier Details', 0, 1, true); // Vendor ID + Vendor Name
-      const costCenters = processSheet('Cost Center', 0, 1, true); // CC Code + CC Description
-      const glCodes = processSheet('GL Code', 0, 1, true); // GL Code + GL Description
-      const locations = processSheet('Location Code', 0, 1, true); // Loc Code + LOC Name
-      const aircraftTypes = processSheet('Aircraft Type', 0, 1, true); // Code + Description
-      const routes = processSheet('Route', 0, 1, true); // Code + Description
+      const suppliers = processSheet('Supplier Details', 0, 1, true);
+      const costCenters = processSheet('Cost Center', 0, 1, true);
+      const glCodes = processSheet('GL Code', 0, 1, true);
+      const locations = processSheet('Location Code', 0, 1, true);
+      const aircraftTypes = processSheet('Aircraft Type', 0, 1, true);
+      const routes = processSheet('Route', 0, 1, true);
 
       return {
         suppliers,
@@ -274,7 +269,6 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
     } catch (error) {
       console.error('Error loading Excel data:', error);
 
-      // Return fallback data in case of error
       return {
         suppliers: [
           {
@@ -357,7 +351,6 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
       const res = await dispatch(trackInvoiceById(selectedId));
       const fetchedInvoice = res.payload;
 
-      // Check if any invoiceItem has status 'signed' and signer.position 'CEO' or 'DCEO'
       const hasSignedCEO = fetchedInvoice.invoice_histories.some(
         (item) => item.status === 'signed' && item.signer.position === 'CEO'
       );
@@ -366,7 +359,6 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
         (item) => item.status === 'signed' && item.signer.position === 'DCEO'
       );
 
-      // Create a new object with filtered invoice_histories
       const processedInvoice = {
         ...fetchedInvoice,
         invoice_histories: (() => {
@@ -444,9 +436,14 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
     }
   };
 
-  // Helper function to get value with fallback - supports both response formats
+  // Helper function to get value - supports BOTH flat and nested structures
   const getValue = (field) => {
     return invoice?.invoice?.[field] || invoice?.[field] || 'N/A';
+  };
+
+  // Helper function to get invoice ID - supports BOTH structures
+  const getInvoiceId = () => {
+    return invoice?.invoice?.id || invoice?.id;
   };
 
   // Helper function to get descriptive label for a field
@@ -503,15 +500,18 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
     return ccItem ? ccItem.label : costCenter;
   };
 
-  // Get GL Lines data - supports both response formats
+  // Get GL Lines data - supports BOTH structures
   const glLines = invoice?.invoice?.gl_lines || invoice?.gl_lines || [];
 
-  // Get invoice owner info - supports both response formats
+  // Get invoice owner info - supports BOTH structures
   const invoiceOwner =
     invoice?.invoice?.invoice_owner || invoice?.invoice_owner;
   const ownerName = invoiceOwner
     ? `${invoiceOwner.firstname || ''} ${invoiceOwner.lastname || ''}`.trim()
     : 'N/A';
+
+  // Get is_roll_back - supports BOTH structures
+  const isRollBack = invoice?.invoice?.is_roll_back || invoice?.is_roll_back;
 
   return (
     <Modal
@@ -697,30 +697,32 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
 
                   <Grid item xs={12} md={6}>
                     <Box sx={style.fieldContainer}>
-                      <Typography sx={style.fieldLabel}>Location</Typography>
-                      <Typography sx={style.fieldValue}>
-                        {dataLoading
-                          ? 'Loading...'
-                          : getDescriptiveValue(
-                              'location',
-                              getValue('location')
-                            )}
-                      </Typography>
-                    </Box>
-                  </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <Box sx={style.fieldContainer}>
                       <Typography sx={style.fieldLabel}>Currency</Typography>
                       <Typography sx={style.fieldValue}>
                         {getValue('currency')}
                       </Typography>
                     </Box>
                   </Grid>
+
+                  <Grid item xs={12} md={6}>
+                    <Box sx={style.fieldContainer}>
+                      <Typography sx={style.fieldLabel}>
+                        Payment Terms
+                      </Typography>
+                      <Typography sx={style.fieldValue}>
+                        {dataLoading
+                          ? 'Loading...'
+                          : getDescriptiveValue(
+                              'payment_terms',
+                              getValue('payment_terms')
+                            )}
+                      </Typography>
+                    </Box>
+                  </Grid>
                 </Grid>
               </Paper>
 
-              {/* GL Lines Section */}
+              {/* GL Lines Section - Now includes location, aircraft_type, route */}
               {glLines.length > 0 && (
                 <Paper elevation={0} sx={style.section}>
                   <Typography
@@ -744,6 +746,7 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                         </Typography>
 
                         <Grid container spacing={2}>
+                          {/* Row 1: GL Code, Description, Cost Center, Amount */}
                           <Grid item xs={12} md={3}>
                             <Box sx={style.fieldContainer}>
                               <Typography sx={style.fieldLabel}>
@@ -797,6 +800,52 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                               </Typography>
                             </Box>
                           </Grid>
+
+                          {/* Row 2: Location, Aircraft Type, Route */}
+                          <Grid item xs={12} md={4}>
+                            <Box sx={style.fieldContainer}>
+                              <Typography sx={style.fieldLabel}>
+                                Location
+                              </Typography>
+                              <Typography sx={style.fieldValue}>
+                                {dataLoading
+                                  ? 'Loading...'
+                                  : getDescriptiveValue(
+                                      'location',
+                                      line.location
+                                    )}
+                              </Typography>
+                            </Box>
+                          </Grid>
+
+                          <Grid item xs={12} md={4}>
+                            <Box sx={style.fieldContainer}>
+                              <Typography sx={style.fieldLabel}>
+                                Aircraft Type
+                              </Typography>
+                              <Typography sx={style.fieldValue}>
+                                {dataLoading
+                                  ? 'Loading...'
+                                  : getDescriptiveValue(
+                                      'aircraft_type',
+                                      line.aircraft_type
+                                    )}
+                              </Typography>
+                            </Box>
+                          </Grid>
+
+                          <Grid item xs={12} md={4}>
+                            <Box sx={style.fieldContainer}>
+                              <Typography sx={style.fieldLabel}>
+                                Route
+                              </Typography>
+                              <Typography sx={style.fieldValue}>
+                                {dataLoading
+                                  ? 'Loading...'
+                                  : getDescriptiveValue('route', line.route)}
+                              </Typography>
+                            </Box>
+                          </Grid>
                         </Grid>
                       </CardContent>
                     </Card>
@@ -804,71 +853,30 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                 </Paper>
               )}
 
-              {/* Additional Details Section */}
-              <Paper elevation={0} sx={style.section}>
-                <Typography
-                  variant="subtitle1"
-                  fontWeight="600"
-                  color="#00529B"
-                  sx={{ mb: 3 }}
-                >
-                  Additional Details
-                </Typography>
+              {/* Additional Details Section - Only Quantity */}
+              {getValue('quantity') !== 'N/A' && (
+                <Paper elevation={0} sx={style.section}>
+                  <Typography
+                    variant="subtitle1"
+                    fontWeight="600"
+                    color="#00529B"
+                    sx={{ mb: 3 }}
+                  >
+                    Additional Details
+                  </Typography>
 
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
-                    <Box sx={style.fieldContainer}>
-                      <Typography sx={style.fieldLabel}>Quantity</Typography>
-                      <Typography sx={style.fieldValue}>
-                        {getValue('quantity')}
-                      </Typography>
-                    </Box>
+                  <Grid container spacing={3}>
+                    <Grid item xs={12} md={6}>
+                      <Box sx={style.fieldContainer}>
+                        <Typography sx={style.fieldLabel}>Quantity</Typography>
+                        <Typography sx={style.fieldValue}>
+                          {getValue('quantity')}
+                        </Typography>
+                      </Box>
+                    </Grid>
                   </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <Box sx={style.fieldContainer}>
-                      <Typography sx={style.fieldLabel}>
-                        Aircraft Type
-                      </Typography>
-                      <Typography sx={style.fieldValue}>
-                        {dataLoading
-                          ? 'Loading...'
-                          : getDescriptiveValue(
-                              'aircraft_type',
-                              getValue('aircraft_type')
-                            )}
-                      </Typography>
-                    </Box>
-                  </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <Box sx={style.fieldContainer}>
-                      <Typography sx={style.fieldLabel}>Route</Typography>
-                      <Typography sx={style.fieldValue}>
-                        {dataLoading
-                          ? 'Loading...'
-                          : getDescriptiveValue('route', getValue('route'))}
-                      </Typography>
-                    </Box>
-                  </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <Box sx={style.fieldContainer}>
-                      <Typography sx={style.fieldLabel}>
-                        Payment Terms
-                      </Typography>
-                      <Typography sx={style.fieldValue}>
-                        {dataLoading
-                          ? 'Loading...'
-                          : getDescriptiveValue(
-                              'payment_terms',
-                              getValue('payment_terms')
-                            )}
-                      </Typography>
-                    </Box>
-                  </Grid>
-                </Grid>
-              </Paper>
+                </Paper>
+              )}
 
               {/* Approval Workflow Section */}
               <Paper elevation={0} sx={style.stepperContainer}>
@@ -986,10 +994,7 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                                         invoiceItem?.signature
                                           ? `${
                                               process.env.REACT_APP_URL
-                                            }/verify-signature/${
-                                              invoice?.invoice?.id ||
-                                              invoice?.id
-                                            }/${encodeURIComponent(
+                                            }/verify-signature/${getInvoiceId()}/${encodeURIComponent(
                                               invoiceItem?.public_key
                                                 ?.replace(
                                                   '-----BEGIN PUBLIC KEY-----\n',
@@ -1055,7 +1060,7 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
             selectedId={selected?.invoice?.id || selected?.id}
             reloadFunction={getInvoiceTrackingData}
             invoice={invoice}
-            isRollBack={invoice?.invoice?.is_roll_back || invoice?.is_roll_back}
+            isRollBack={isRollBack}
           />
         )}
       </Box>

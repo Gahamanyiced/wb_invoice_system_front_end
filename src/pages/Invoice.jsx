@@ -53,7 +53,6 @@ import { getInvoiceToSign } from '../features/invoice/invoiceSlice';
 import FilterPanel from '../components/global/FilterPanel';
 import { setFilters } from '../features/invoice/invoiceSlice';
 import DownloadInvoiceComponent from '../components/DownloadInvoiceComponent';
-
 import { getAllUsersWithNoPagination } from '../features/user/userSlice';
 
 const styles = {
@@ -96,7 +95,6 @@ export default function Invoice() {
   const [closeInvoiceTrackingModalTrigger, setCloseInvoiceTrackingTrigger] =
     useState(false);
   const { allUsers } = useSelector((state) => state.user);
-
   const { invoices, index, filters } = useSelector((state) => state.invoice);
   console.log('invoices', invoices);
   const { cardIndex, year } = useSelector((state) => state.invoiceDashboard);
@@ -122,25 +120,41 @@ export default function Invoice() {
   const [hoverTrack, setHoverTrack] = useState(false);
   const [expandedRows, setExpandedRows] = useState(new Set());
 
-  // Helper function to safely get nested values - handles both response formats
-  const getInvoiceValue = (invoice, directPath, nestedPath = null) => {
-    const path = nestedPath || directPath;
-    return invoice?.[directPath] || invoice?.invoice?.[path] || '';
+  // Helper function to normalize invoice data structure
+  const normalizeInvoiceData = (item) => {
+    // Check if invoice data is nested under 'invoice' property
+    if (item.invoice) {
+      return {
+        ...item.invoice,
+        // Preserve top-level properties that might be needed
+        row_number: item.row_number,
+        signer: item.signer,
+        // Use nested status if available, otherwise fall back to top-level
+        status: item.status || item.invoice.status,
+        created_at: item.created_at || item.invoice.created_at,
+        updated_at: item.updated_at || item.invoice.updated_at,
+      };
+    }
+    // If data is already flat, return as is
+    return item;
+  };
+
+  // Helper function to get GL lines - now supports both structures
+  const getGLLines = (invoice) => {
+    const normalized = normalizeInvoiceData(invoice);
+    return normalized?.gl_lines || [];
+  };
+
+  // Helper function to get documents
+  const getDocuments = (invoice) => {
+    const normalized = normalizeInvoiceData(invoice);
+    return normalized?.documents || [];
   };
 
   // Helper function to get invoice owner information
   const getInvoiceOwner = (invoice) => {
-    return invoice?.invoice_owner || invoice?.invoice?.invoice_owner || {};
-  };
-
-  // Helper function to get GL lines from both formats
-  const getGLLines = (invoice) => {
-    return invoice?.gl_lines || invoice?.invoice?.gl_lines || [];
-  };
-
-  // Helper function to get documents from both formats
-  const getDocuments = (invoice) => {
-    return invoice?.documents || invoice?.invoice?.documents || [];
+    const normalized = normalizeInvoiceData(invoice);
+    return normalized?.invoice_owner || {};
   };
 
   const filterData = (query, result) => {
@@ -148,20 +162,18 @@ export default function Invoice() {
       return result?.results;
     } else {
       const data = result?.results?.filter((item) => {
-        const owner = getInvoiceOwner(item);
+        const normalized = normalizeInvoiceData(item);
+        const owner = normalized?.invoice_owner || {};
         return (
-          item?.created_at?.includes(query) ||
-          item?.invoice?.created_at?.includes(query) ||
-          getInvoiceValue(item, 'supplier_name')
+          normalized?.created_at?.includes(query) ||
+          normalized?.supplier_name
             ?.toLowerCase()
             ?.includes(query?.toLowerCase()) ||
-          getInvoiceValue(item, 'supplier_number')
+          normalized?.supplier_number
             ?.toLowerCase()
             ?.includes(query?.toLowerCase()) ||
-          getInvoiceValue(item, 'status')
-            ?.toLowerCase()
-            ?.includes(query?.toLowerCase()) ||
-          getInvoiceValue(item, 'invoice_number')
+          normalized?.status?.toLowerCase()?.includes(query?.toLowerCase()) ||
+          normalized?.invoice_number
             ?.toLowerCase()
             ?.includes(query?.toLowerCase()) ||
           owner?.firstname?.toLowerCase()?.includes(query?.toLowerCase()) ||
@@ -329,12 +341,12 @@ export default function Invoice() {
   };
 
   const handleDelete = (data) => {
-    const status = getInvoiceValue(data, 'status');
-    if (indexInvoice === 2 && status === 'pending') {
+    const status = data?.status;
+    if (indexInvoice === 2 && (status === 'pending' || status === 'denied')) {
       setSelectedDelete(data);
       setOpenDelete(true);
     } else {
-      toast.error('You are allowed to delete your pending invoice');
+      toast.error('You are allowed to delete your pending & denied invoice');
     }
   };
 
@@ -359,8 +371,11 @@ export default function Invoice() {
   };
 
   const isInvoiceEditable = (invoice) => {
-    const status = getInvoiceValue(invoice, 'status');
-    return status === 'pending' || status === 'rollback';
+    const normalized = normalizeInvoiceData(invoice);
+    const status = normalized?.status;
+    return (
+      status === 'pending' || status === 'rollback' || status === 'to sign'
+    );
   };
 
   const toggleRowExpansion = (invoiceId) => {
@@ -373,11 +388,19 @@ export default function Invoice() {
     setExpandedRows(newExpandedRows);
   };
 
-  // Helper function to get GL lines display - updated for both formats
+  // Helper function to get GL lines display
   const getGLLinesDisplay = (invoice, isExpanded = false) => {
     const glLines = getGLLines(invoice);
     if (glLines.length === 0)
-      return { code: '-', description: '-', costCenter: '-', amount: '-' };
+      return {
+        code: '-',
+        description: '-',
+        costCenter: '-',
+        amount: '-',
+        location: '-',
+        aircraftType: '-',
+        route: '-',
+      };
 
     if (glLines.length === 1 || !isExpanded) {
       const firstLine = glLines[0];
@@ -386,6 +409,9 @@ export default function Invoice() {
         description: firstLine?.gl_description || '-',
         costCenter: firstLine?.cost_center || '-',
         amount: firstLine?.gl_amount || '-',
+        location: firstLine?.location || '-',
+        aircraftType: firstLine?.aircraft_type || '-',
+        route: firstLine?.route || '-',
       };
     }
 
@@ -399,13 +425,17 @@ export default function Invoice() {
       description: `Multiple GL accounts`,
       costCenter: `Multiple centers`,
       amount: totalAmount.toFixed(2),
+      location: 'Multiple',
+      aircraftType: 'Multiple',
+      route: 'Multiple',
     };
   };
 
-  // Helper function to calculate and format total amount - updated for both formats
+  // Helper function to calculate and format total amount
   const getTotalAmount = (invoice) => {
+    const normalized = normalizeInvoiceData(invoice);
     // First try to get from amount field
-    const amount = getInvoiceValue(invoice, 'amount');
+    const amount = normalized?.amount;
     if (amount) {
       return parseFloat(amount).toFixed(2);
     }
@@ -517,11 +547,13 @@ export default function Invoice() {
         <TableCell colSpan={4} />
         <TableCell align="left">{line?.gl_code || '-'}</TableCell>
         <TableCell align="left">{line?.gl_description || '-'}</TableCell>
-        <TableCell colSpan={1} />
+        <TableCell align="left">{line?.location || '-'}</TableCell>
         <TableCell align="left">{line?.cost_center || '-'}</TableCell>
+        <TableCell align="left">{line?.aircraft_type || '-'}</TableCell>
+        <TableCell align="left">{line?.route || '-'}</TableCell>
         <TableCell colSpan={1} />
         <TableCell align="left">{line?.gl_amount || '-'}</TableCell>
-        <TableCell colSpan={3} />
+        <TableCell colSpan={2} />
       </TableRow>
     ));
   };
@@ -580,6 +612,12 @@ export default function Invoice() {
                 COST CENTER
               </TableCell>
               <TableCell align="left" sx={styles.header}>
+                AIRCRAFT TYPE
+              </TableCell>
+              <TableCell align="left" sx={styles.header}>
+                ROUTE
+              </TableCell>
+              <TableCell align="left" sx={styles.header}>
                 CURRENCY
               </TableCell>
               <TableCell align="left" sx={styles.header}>
@@ -597,14 +635,15 @@ export default function Invoice() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {invoices?.results?.map((invoice, index) => {
+            {invoices?.results?.map((item, index) => {
+              const invoice = normalizeInvoiceData(item); // Normalize the data first
               const glDisplay = getGLLinesDisplay(invoice, false);
               const glLines = getGLLines(invoice);
               const hasMultipleGLLines = glLines.length > 1;
               const isExpanded = expandedRows.has(invoice.id);
               const totalAmount = getTotalAmount(invoice);
-              const status = getInvoiceValue(invoice, 'status');
-              const currency = getInvoiceValue(invoice, 'currency');
+              const status = invoice?.status;
+              const currency = invoice?.currency;
 
               return (
                 <>
@@ -621,16 +660,16 @@ export default function Invoice() {
                     }
                   >
                     <TableCell align="left">
-                      {getInvoiceValue(invoice, 'supplier_number') || '-'}
+                      {invoice?.supplier_number || '-'}
                     </TableCell>
                     <TableCell align="left">
-                      {getInvoiceValue(invoice, 'supplier_name') || '-'}
+                      {invoice?.supplier_name || '-'}
                     </TableCell>
                     <TableCell align="left">
-                      {getInvoiceValue(invoice, 'invoice_number') || '-'}
+                      {invoice?.invoice_number || '-'}
                     </TableCell>
                     <TableCell align="left">
-                      {getInvoiceValue(invoice, 'service_period') || '-'}
+                      {invoice?.service_period || '-'}
                     </TableCell>
                     <TableCell align="left">
                       {glDisplay.code}
@@ -647,10 +686,10 @@ export default function Invoice() {
                       )}
                     </TableCell>
                     <TableCell align="left">{glDisplay.description}</TableCell>
-                    <TableCell align="left">
-                      {getInvoiceValue(invoice, 'location') || '-'}
-                    </TableCell>
+                    <TableCell align="left">{glDisplay.location}</TableCell>
                     <TableCell align="left">{glDisplay.costCenter}</TableCell>
+                    <TableCell align="left">{glDisplay.aircraftType}</TableCell>
+                    <TableCell align="left">{glDisplay.route}</TableCell>
                     <TableCell align="left">{currency || '-'}</TableCell>
                     <TableCell align="left">{glDisplay.amount}</TableCell>
                     <TableCell align="left" sx={styles.totalAmountCell}>

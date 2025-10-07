@@ -23,7 +23,7 @@ import AttachmentIcon from '@mui/icons-material/Attachment';
 import DescriptionIcon from '@mui/icons-material/Description';
 import ApproveDialog from './ApproveDialog';
 
-// List of payment terms options (same as UpdateInvoiceModal)
+// List of payment terms options
 const paymentTermsOptions = [
   { value: 'net_30', label: 'Net 30 - Payment due within 30 days' },
   { value: 'net_45', label: 'Net 45 - Payment due within 45 days' },
@@ -221,13 +221,11 @@ const Actions = ({
   });
   const [dataLoading, setDataLoading] = useState(false);
 
-  // Function to load Excel data (same as UpdateInvoiceModal)
+  // Function to load Excel data
   const loadExcelData = async () => {
     try {
-      // Import XLSX library dynamically
       const XLSX = await import('xlsx');
 
-      // Read the Excel file from public folder using fetch
       const response = await fetch('/6. COA.xlsx');
       if (!response.ok) {
         throw new Error(`Failed to fetch Excel file: ${response.statusText}`);
@@ -242,7 +240,6 @@ const Actions = ({
         sheetStubs: true,
       });
 
-      // Helper function to process sheet data
       const processSheet = (
         sheetName,
         valueColumn,
@@ -258,7 +255,6 @@ const Actions = ({
 
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-          // Skip header row and process data
           return jsonData
             .slice(1)
             .filter(
@@ -279,20 +275,19 @@ const Actions = ({
                 description: label,
               };
             })
-            .filter((item) => item.value && item.label); // Remove empty entries
+            .filter((item) => item.value && item.label);
         } catch (error) {
           console.error(`Error processing sheet ${sheetName}:`, error);
           return [];
         }
       };
 
-      // Process each sheet according to your Excel structure
-      const suppliers = processSheet('Supplier Details', 0, 1, true); // Vendor ID + Vendor Name
-      const costCenters = processSheet('Cost Center', 0, 1, true); // CC Code + CC Description
-      const glCodes = processSheet('GL Code', 0, 1, true); // GL Code + GL Description
-      const locations = processSheet('Location Code', 0, 1, true); // Loc Code + LOC Name
-      const aircraftTypes = processSheet('Aircraft Type', 0, 1, true); // Code + Description
-      const routes = processSheet('Route', 0, 1, true); // Code + Description
+      const suppliers = processSheet('Supplier Details', 0, 1, true);
+      const costCenters = processSheet('Cost Center', 0, 1, true);
+      const glCodes = processSheet('GL Code', 0, 1, true);
+      const locations = processSheet('Location Code', 0, 1, true);
+      const aircraftTypes = processSheet('Aircraft Type', 0, 1, true);
+      const routes = processSheet('Route', 0, 1, true);
 
       return {
         suppliers,
@@ -305,7 +300,6 @@ const Actions = ({
     } catch (error) {
       console.error('Error loading Excel data:', error);
 
-      // Return fallback data in case of error
       return {
         suppliers: [
           {
@@ -360,7 +354,7 @@ const Actions = ({
     }
   }, [open]);
 
-  // Helper function to get value with fallback - supports both response formats
+  // Helper function to get value - supports BOTH flat and nested structures
   const getValue = (field) => {
     return invoice?.invoice?.[field] || invoice?.[field] || 'N/A';
   };
@@ -419,13 +413,13 @@ const Actions = ({
     return ccItem ? ccItem.label : costCenter;
   };
 
-  // Get GL Lines data - supports both response formats
+  // Get GL Lines data - supports BOTH structures
   const glLines = invoice?.invoice?.gl_lines || invoice?.gl_lines || [];
 
-  // Get documents - supports both response formats
+  // Get documents - supports BOTH structures
   const documents = invoice?.invoice?.documents || invoice?.documents || [];
 
-  // Get invoice owner info - supports both response formats
+  // Get invoice owner info - supports BOTH structures
   const invoiceOwner =
     invoice?.invoice?.invoice_owner || invoice?.invoice_owner;
   const ownerName = invoiceOwner
@@ -592,27 +586,30 @@ const Actions = ({
 
             <Grid item xs={12} md={6}>
               <Box sx={style.fieldContainer}>
-                <Typography sx={style.fieldLabel}>Location</Typography>
-                <Typography sx={style.fieldValue}>
-                  {dataLoading
-                    ? 'Loading...'
-                    : getDescriptiveValue('location', getValue('location'))}
-                </Typography>
-              </Box>
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Box sx={style.fieldContainer}>
                 <Typography sx={style.fieldLabel}>Currency</Typography>
                 <Typography sx={style.fieldValue}>
                   {getValue('currency')}
                 </Typography>
               </Box>
             </Grid>
+
+            <Grid item xs={12} md={6}>
+              <Box sx={style.fieldContainer}>
+                <Typography sx={style.fieldLabel}>Payment Terms</Typography>
+                <Typography sx={style.fieldValue}>
+                  {dataLoading
+                    ? 'Loading...'
+                    : getDescriptiveValue(
+                        'payment_terms',
+                        getValue('payment_terms')
+                      )}
+                </Typography>
+              </Box>
+            </Grid>
           </Grid>
         </Paper>
 
-        {/* GL Lines Section */}
+        {/* GL Lines Section - Now includes location, aircraft_type, route */}
         {glLines.length > 0 && (
           <Paper elevation={0} sx={style.section}>
             <Typography
@@ -636,6 +633,7 @@ const Actions = ({
                   </Typography>
 
                   <Grid container spacing={2}>
+                    {/* Row 1: GL Code, Description, Cost Center, Amount */}
                     <Grid item xs={12} md={3}>
                       <Box sx={style.fieldContainer}>
                         <Typography sx={style.fieldLabel}>GL Code</Typography>
@@ -679,6 +677,45 @@ const Actions = ({
                         </Typography>
                       </Box>
                     </Grid>
+
+                    {/* Row 2: Location, Aircraft Type, Route */}
+                    <Grid item xs={12} md={4}>
+                      <Box sx={style.fieldContainer}>
+                        <Typography sx={style.fieldLabel}>Location</Typography>
+                        <Typography sx={style.fieldValue}>
+                          {dataLoading
+                            ? 'Loading...'
+                            : getDescriptiveValue('location', line.location)}
+                        </Typography>
+                      </Box>
+                    </Grid>
+
+                    <Grid item xs={12} md={4}>
+                      <Box sx={style.fieldContainer}>
+                        <Typography sx={style.fieldLabel}>
+                          Aircraft Type
+                        </Typography>
+                        <Typography sx={style.fieldValue}>
+                          {dataLoading
+                            ? 'Loading...'
+                            : getDescriptiveValue(
+                                'aircraft_type',
+                                line.aircraft_type
+                              )}
+                        </Typography>
+                      </Box>
+                    </Grid>
+
+                    <Grid item xs={12} md={4}>
+                      <Box sx={style.fieldContainer}>
+                        <Typography sx={style.fieldLabel}>Route</Typography>
+                        <Typography sx={style.fieldValue}>
+                          {dataLoading
+                            ? 'Loading...'
+                            : getDescriptiveValue('route', line.route)}
+                        </Typography>
+                      </Box>
+                    </Grid>
                   </Grid>
                 </CardContent>
               </Card>
@@ -686,67 +723,30 @@ const Actions = ({
           </Paper>
         )}
 
-        {/* Additional Details Section */}
-        <Paper elevation={0} sx={style.section}>
-          <Typography
-            variant="subtitle1"
-            fontWeight="600"
-            color="#00529B"
-            sx={{ mb: 3 }}
-          >
-            Additional Details
-          </Typography>
+        {/* Additional Details Section - Only Quantity */}
+        {getValue('quantity') !== 'N/A' && (
+          <Paper elevation={0} sx={style.section}>
+            <Typography
+              variant="subtitle1"
+              fontWeight="600"
+              color="#00529B"
+              sx={{ mb: 3 }}
+            >
+              Additional Details
+            </Typography>
 
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <Box sx={style.fieldContainer}>
-                <Typography sx={style.fieldLabel}>Quantity</Typography>
-                <Typography sx={style.fieldValue}>
-                  {getValue('quantity')}
-                </Typography>
-              </Box>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Box sx={style.fieldContainer}>
+                  <Typography sx={style.fieldLabel}>Quantity</Typography>
+                  <Typography sx={style.fieldValue}>
+                    {getValue('quantity')}
+                  </Typography>
+                </Box>
+              </Grid>
             </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Box sx={style.fieldContainer}>
-                <Typography sx={style.fieldLabel}>Aircraft Type</Typography>
-                <Typography sx={style.fieldValue}>
-                  {dataLoading
-                    ? 'Loading...'
-                    : getDescriptiveValue(
-                        'aircraft_type',
-                        getValue('aircraft_type')
-                      )}
-                </Typography>
-              </Box>
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Box sx={style.fieldContainer}>
-                <Typography sx={style.fieldLabel}>Route</Typography>
-                <Typography sx={style.fieldValue}>
-                  {dataLoading
-                    ? 'Loading...'
-                    : getDescriptiveValue('route', getValue('route'))}
-                </Typography>
-              </Box>
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Box sx={style.fieldContainer}>
-                <Typography sx={style.fieldLabel}>Payment Terms</Typography>
-                <Typography sx={style.fieldValue}>
-                  {dataLoading
-                    ? 'Loading...'
-                    : getDescriptiveValue(
-                        'payment_terms',
-                        getValue('payment_terms')
-                      )}
-                </Typography>
-              </Box>
-            </Grid>
-          </Grid>
-        </Paper>
+          </Paper>
+        )}
 
         {/* Documents Section */}
         {documents.length > 0 && (
@@ -805,7 +805,7 @@ const Actions = ({
           </Paper>
         )}
 
-        {/* Legacy fields for backward compatibility */}
+        {/* Legacy GL fields for backward compatibility - only if no GL lines exist */}
         {!glLines.length && (
           <Paper elevation={0} sx={style.section}>
             <Typography
@@ -848,12 +848,48 @@ const Actions = ({
                   </Typography>
                 </Box>
               </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Box sx={style.fieldContainer}>
+                  <Typography sx={style.fieldLabel}>Location</Typography>
+                  <Typography sx={style.fieldValue}>
+                    {dataLoading
+                      ? 'Loading...'
+                      : getDescriptiveValue('location', getValue('location'))}
+                  </Typography>
+                </Box>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Box sx={style.fieldContainer}>
+                  <Typography sx={style.fieldLabel}>Aircraft Type</Typography>
+                  <Typography sx={style.fieldValue}>
+                    {dataLoading
+                      ? 'Loading...'
+                      : getDescriptiveValue(
+                          'aircraft_type',
+                          getValue('aircraft_type')
+                        )}
+                  </Typography>
+                </Box>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Box sx={style.fieldContainer}>
+                  <Typography sx={style.fieldLabel}>Route</Typography>
+                  <Typography sx={style.fieldValue}>
+                    {dataLoading
+                      ? 'Loading...'
+                      : getDescriptiveValue('route', getValue('route'))}
+                  </Typography>
+                </Box>
+              </Grid>
             </Grid>
           </Paper>
         )}
       </Box>
 
-      {/* Footer with Action Buttons - All buttons now have the same green color */}
+      {/* Footer with Action Buttons */}
       {isAllowed && (
         <Box sx={style.footer}>
           <Stack direction="row" spacing={2} sx={{ width: '100%' }}>

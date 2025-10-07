@@ -19,7 +19,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import AttachmentIcon from '@mui/icons-material/Attachment';
 
-// List of payment terms options (same as UpdateInvoiceModal)
+// List of payment terms options
 const paymentTermsOptions = [
   { value: 'net_30', label: 'Net 30 - Payment due within 30 days' },
   { value: 'net_45', label: 'Net 45 - Payment due within 45 days' },
@@ -150,13 +150,11 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
   });
   const [dataLoading, setDataLoading] = useState(false);
 
-  // Function to load Excel data (same as UpdateInvoiceModal)
+  // Function to load Excel data
   const loadExcelData = async () => {
     try {
-      // Import XLSX library dynamically
       const XLSX = await import('xlsx');
 
-      // Read the Excel file from public folder using fetch
       const response = await fetch('/6. COA.xlsx');
       if (!response.ok) {
         throw new Error(`Failed to fetch Excel file: ${response.statusText}`);
@@ -171,7 +169,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
         sheetStubs: true,
       });
 
-      // Helper function to process sheet data
       const processSheet = (
         sheetName,
         valueColumn,
@@ -187,7 +184,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
 
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-          // Skip header row and process data
           return jsonData
             .slice(1)
             .filter(
@@ -208,20 +204,19 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                 description: label,
               };
             })
-            .filter((item) => item.value && item.label); // Remove empty entries
+            .filter((item) => item.value && item.label);
         } catch (error) {
           console.error(`Error processing sheet ${sheetName}:`, error);
           return [];
         }
       };
 
-      // Process each sheet according to your Excel structure
-      const suppliers = processSheet('Supplier Details', 0, 1, true); // Vendor ID + Vendor Name
-      const costCenters = processSheet('Cost Center', 0, 1, true); // CC Code + CC Description
-      const glCodes = processSheet('GL Code', 0, 1, true); // GL Code + GL Description
-      const locations = processSheet('Location Code', 0, 1, true); // Loc Code + LOC Name
-      const aircraftTypes = processSheet('Aircraft Type', 0, 1, true); // Code + Description
-      const routes = processSheet('Route', 0, 1, true); // Code + Description
+      const suppliers = processSheet('Supplier Details', 0, 1, true);
+      const costCenters = processSheet('Cost Center', 0, 1, true);
+      const glCodes = processSheet('GL Code', 0, 1, true);
+      const locations = processSheet('Location Code', 0, 1, true);
+      const aircraftTypes = processSheet('Aircraft Type', 0, 1, true);
+      const routes = processSheet('Route', 0, 1, true);
 
       return {
         suppliers,
@@ -234,7 +229,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
     } catch (error) {
       console.error('Error loading Excel data:', error);
 
-      // Return fallback data in case of error
       return {
         suppliers: [
           {
@@ -289,9 +283,9 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
     }
   }, [open]);
 
-  // Helper function to get value with fallback - supports both response formats
+  // Helper function to get value - now only supports flat structure
   const getValue = (field) => {
-    return defaultValues?.[field] || defaultValues?.invoice?.[field] || 'N/A';
+    return defaultValues?.[field] || 'N/A';
   };
 
   // Helper function to get descriptive label for a field
@@ -348,17 +342,14 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
     return ccItem ? ccItem.label : costCenter;
   };
 
-  // Get GL Lines data - supports both response formats
-  const glLines =
-    defaultValues?.gl_lines || defaultValues?.invoice?.gl_lines || [];
+  // Get GL Lines data - now only flat structure
+  const glLines = defaultValues?.gl_lines || [];
 
-  // Get documents - supports both response formats
-  const documents =
-    defaultValues?.documents || defaultValues?.invoice?.documents || [];
+  // Get documents - now only flat structure
+  const documents = defaultValues?.documents || [];
 
-  // Get invoice owner info - supports both response formats
-  const invoiceOwner =
-    defaultValues?.invoice_owner || defaultValues?.invoice?.invoice_owner;
+  // Get invoice owner info - now only flat structure
+  const invoiceOwner = defaultValues?.invoice_owner;
   const ownerName = invoiceOwner
     ? `${invoiceOwner.firstname || ''} ${invoiceOwner.lastname || ''}`.trim()
     : 'N/A';
@@ -463,45 +454,9 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
 
               <Grid item xs={12} md={6}>
                 <Box sx={style.fieldContainer}>
-                  <Typography sx={style.fieldLabel}>Location</Typography>
-                  <Typography sx={style.fieldValue}>
-                    {dataLoading
-                      ? 'Loading...'
-                      : getDescriptiveValue('location', getValue('location'))}
-                  </Typography>
-                </Box>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>Quantity</Typography>
                   <Typography sx={style.fieldValue}>
                     {getValue('quantity')}
-                  </Typography>
-                </Box>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Box sx={style.fieldContainer}>
-                  <Typography sx={style.fieldLabel}>Aircraft Type</Typography>
-                  <Typography sx={style.fieldValue}>
-                    {dataLoading
-                      ? 'Loading...'
-                      : getDescriptiveValue(
-                          'aircraft_type',
-                          getValue('aircraft_type')
-                        )}
-                  </Typography>
-                </Box>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Box sx={style.fieldContainer}>
-                  <Typography sx={style.fieldLabel}>Route</Typography>
-                  <Typography sx={style.fieldValue}>
-                    {dataLoading
-                      ? 'Loading...'
-                      : getDescriptiveValue('route', getValue('route'))}
                   </Typography>
                 </Box>
               </Grid>
@@ -597,6 +552,47 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                               line.gl_amount,
                               getValue('currency')
                             )}
+                          </Typography>
+                        </Box>
+                      </Grid>
+
+                      {/* New GL Line fields */}
+                      <Grid item xs={12} md={4}>
+                        <Box sx={style.fieldContainer}>
+                          <Typography sx={style.fieldLabel}>
+                            Location
+                          </Typography>
+                          <Typography sx={style.fieldValue}>
+                            {dataLoading
+                              ? 'Loading...'
+                              : getDescriptiveValue('location', line.location)}
+                          </Typography>
+                        </Box>
+                      </Grid>
+
+                      <Grid item xs={12} md={4}>
+                        <Box sx={style.fieldContainer}>
+                          <Typography sx={style.fieldLabel}>
+                            Aircraft Type
+                          </Typography>
+                          <Typography sx={style.fieldValue}>
+                            {dataLoading
+                              ? 'Loading...'
+                              : getDescriptiveValue(
+                                  'aircraft_type',
+                                  line.aircraft_type
+                                )}
+                          </Typography>
+                        </Box>
+                      </Grid>
+
+                      <Grid item xs={12} md={4}>
+                        <Box sx={style.fieldContainer}>
+                          <Typography sx={style.fieldLabel}>Route</Typography>
+                          <Typography sx={style.fieldValue}>
+                            {dataLoading
+                              ? 'Loading...'
+                              : getDescriptiveValue('route', line.route)}
                           </Typography>
                         </Box>
                       </Grid>
