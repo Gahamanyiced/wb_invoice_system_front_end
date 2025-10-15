@@ -48,7 +48,7 @@ const styles = {
 };
 
 function User() {
-  const { users, allUsers, filters } = useSelector((state) => state.user);  
+  const { users, allUsers, filters } = useSelector((state) => state.user);
   const dispatch = useDispatch();
   const [selectedView, setSelectedView] = useState();
   const [openView, setOpenView] = useState(false);
@@ -119,7 +119,7 @@ function User() {
   const filterConfig = {
     title: 'User Filters',
     fields: [
-      { name: 'name', label: 'Name', type: 'text', showSearchIcon: true },
+      { name: 'name', label: 'Name/Company Name', type: 'text', showSearchIcon: true },
       {
         name: 'role',
         label: 'Role',
@@ -129,6 +129,7 @@ function User() {
           { value: 'signer', label: 'Signer' },
           { value: 'staff', label: 'Staff' },
           { value: 'signer_Admin', label: 'Signer_Admin' },
+          { value: 'supplier', label: 'Supplier' },
         ],
       },
       {
@@ -174,6 +175,9 @@ function User() {
                 NAME
               </TableCell>
               <TableCell align="left" sx={styles.header}>
+                COMPANY NAME
+              </TableCell>
+              <TableCell align="left" sx={styles.header}>
                 STATION
               </TableCell>
               <TableCell align="left" sx={styles.header}>
@@ -192,6 +196,9 @@ function User() {
                   {user?.created_at?.slice(0, 10)}
                 </TableCell>
                 <TableCell align="left">{`${user?.firstname} ${user?.lastname}`}</TableCell>
+                <TableCell align="left">
+                  {user?.supplier_profile?.company_name || '-'}
+                </TableCell>
                 <TableCell align="left">{user?.station}</TableCell>
                 <TableCell align="left">{user?.role}</TableCell>
                 <TableCell align="left">
