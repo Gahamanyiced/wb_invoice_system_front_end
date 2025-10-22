@@ -558,10 +558,10 @@ function SupplierRegister() {
                         {...registerField('profile.supplier_number')}
                         name="profile.supplier_number"
                         label="Supplier Number"
-                        fullWidth
-                        required
+                        fullWidth                     
                         margin="normal"
                         variant="outlined"
+                         required={false}
                         error={!!errors.profile?.supplier_number}
                         helperText={errors.profile?.supplier_number?.message}
                         InputProps={{

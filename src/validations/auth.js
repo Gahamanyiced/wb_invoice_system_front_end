@@ -56,7 +56,8 @@ export const supplierRegistrationValidation = Yup.object({
       .required('Company name is required')
       .max(100, 'Company name must be at most 100 characters long'),
     supplier_number: Yup.string()
-      .required('Supplier number is required')
+      .nullable()
+      .transform((value) => value || null)
       .max(30, 'Supplier number must be at most 30 characters long'),
     tax_id: Yup.string()
       .required('Tax ID is required')
