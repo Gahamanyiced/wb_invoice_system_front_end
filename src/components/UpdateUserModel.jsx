@@ -149,7 +149,8 @@ function UpdateUserModel({
           bank_name: defaultValues.supplier_profile.bank_name || '',
           account_name: defaultValues.supplier_profile.account_name || '',
           account_number: defaultValues.supplier_profile.account_number || '',
-          payment_currency: defaultValues.supplier_profile.payment_currency || '',
+          payment_currency:
+            defaultValues.supplier_profile.payment_currency || '',
           iban: defaultValues.supplier_profile.iban || '',
           swift_code: defaultValues.supplier_profile.swift_code || '',
           sort_code: defaultValues.supplier_profile.sort_code || '',
@@ -520,12 +521,12 @@ function UpdateUserModel({
                 <Grid item xs={12} md={6}>
                   <TextField
                     label="Payment Currency"
+                    name="payment_currency"
                     value={supplierData.payment_currency}
+                    onChange={handleSupplierChange}
                     fullWidth
                     variant="outlined"
                     size="small"
-                    InputProps={{ readOnly: true }}
-                    sx={style.readOnlyField}
                   />
                 </Grid>
 
