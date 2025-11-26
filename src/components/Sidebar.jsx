@@ -27,6 +27,7 @@ import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import AssignmentTurnedInOutlinedIcon from '@mui/icons-material/AssignmentTurnedInOutlined';
 import AssessmentIcon from '@mui/icons-material/Assessment';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 
 // Redux actions
 import { setIndex } from '../features/invoice/invoiceSlice';
@@ -387,7 +388,15 @@ export default function Sidebar() {
               </Collapse>
             </Box>
 
-            {/* Reports Menu Item - NEW ADDITION */}
+            {/* Petty Cash Menu Item */}
+            <StyledNavLink to="/petty-cash">
+              <MenuIcon>
+                <AccountBalanceWalletIcon fontSize="small" />
+              </MenuIcon>
+              <Typography sx={{ fontSize: '15px' }}>Petty Cash</Typography>
+            </StyledNavLink>
+
+            {/* Reports Menu Item */}
             <MenuLink onClick={handleOpenReporting}>
               <MenuIcon>
                 <AssessmentIcon fontSize="small" />
@@ -490,7 +499,7 @@ export default function Sidebar() {
         </Box>
       </SidebarContainer>
 
-      {/* Reporting Sidebar - NEW ADDITION */}
+      {/* Reporting Sidebar */}
       <ReportingSidebar
         open={reportingSidebarOpen}
         onClose={handleCloseReporting}
