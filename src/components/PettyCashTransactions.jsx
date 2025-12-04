@@ -1,4 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+  issuePettyCash,
+  getAllPettyCash,
+  acknowledgePettyCash,
+} from '../features/pettyCash/pettyCashSlice';
+import { getAllSigners } from '../features/user/userSlice';
+import { toast } from 'react-toastify';
 import {
   Box,
   Button,
@@ -69,32 +77,37 @@ const styles = {
 const PettyCashTransactions = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [openViewModal, setOpenViewModal] = useState(false);
-  const [openEditModal, setOpenEditModal] = useState(false);
   const [openAcknowledgeDialog, setOpenAcknowledgeDialog] = useState(false);
-  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
 
-  const [transactions, setTransactions] = useState([
-    // Sample data - replace with actual data from API
-    {
-      id: 1,
-      amount: 50000,
-      cm: 'John Doe',
-      paymentDate: '2024-11-15',
-      title: 'Office Supplies',
-      description: 'Purchase of stationery items',
-      status: 'approved',
-      documents: ['receipt1.pdf'],
-    },
-  ]);
+  const dispatch = useDispatch();
+  const { pettyCashList, isLoading } = useSelector((state) => state.pettyCash);
+  const { users: signersData } = useSelector((state) => state.user);
+
+  const [transactions, setTransactions] = useState([]);
+
+  // Extract signers from paginated response
+  const signers = signersData?.results || [];
+
+  // Fetch data on component mount
+  useEffect(() => {
+    dispatch(getAllPettyCash({ page: 1 }));
+    dispatch(getAllSigners()); // Fetch signers for the dropdown
+  }, [dispatch]);
+
+  // Update local state when Redux state changes
+  useEffect(() => {
+    if (pettyCashList?.results) {
+      setTransactions(pettyCashList.results);
+    }
+  }, [pettyCashList]);
 
   const [formData, setFormData] = useState({
     amount: '',
-    cm: '',
-    paymentDate: '',
-    title: '',
-    description: '',
-    documents: [],
+    holder_id: '',
+    issue_date: '',
+    notes: '',
+    supporting_document: null,
   });
 
   const handleOpenDialog = () => {
@@ -106,11 +119,10 @@ const PettyCashTransactions = () => {
     // Reset form
     setFormData({
       amount: '',
-      cm: '',
-      paymentDate: '',
-      title: '',
-      description: '',
-      documents: [],
+      holder_id: '',
+      issue_date: '',
+      notes: '',
+      supporting_document: null,
     });
   };
 
@@ -123,26 +135,43 @@ const PettyCashTransactions = () => {
   };
 
   const handleFileUpload = (e) => {
-    const files = Array.from(e.target.files);
+    const file = e.target.files[0];
     setFormData({
       ...formData,
-      documents: [...formData.documents, ...files],
+      supporting_document: file,
     });
   };
 
-  const handleRemoveFile = (index) => {
-    const newDocuments = formData.documents.filter((_, i) => i !== index);
+  const handleRemoveFile = () => {
     setFormData({
       ...formData,
-      documents: newDocuments,
+      supporting_document: null,
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // TODO: Integrate with backend API
-    console.log('Form submitted:', formData);
-    handleCloseDialog();
+
+    // Create FormData for file upload
+    const submitData = new FormData();
+    submitData.append('holder_id', formData.holder_id);
+    submitData.append('amount', formData.amount);
+    submitData.append('issue_date', formData.issue_date);
+    submitData.append('notes', formData.notes);
+
+    if (formData.supporting_document) {
+      submitData.append('supporting_document', formData.supporting_document);
+    }
+
+    try {
+      await dispatch(issuePettyCash(submitData)).unwrap();
+      toast.success('Petty cash issued successfully');
+      handleCloseDialog();
+      // Refresh the list
+      dispatch(getAllPettyCash({ page: 1 }));
+    } catch (error) {
+      toast.error(error || 'Failed to issue petty cash');
+    }
   };
 
   // Handler functions for actions
@@ -151,28 +180,30 @@ const PettyCashTransactions = () => {
     setOpenViewModal(true);
   };
 
-  const handleEdit = (transaction) => {
-    setSelectedTransaction(transaction);
-    setOpenEditModal(true);
-  };
-
   const handleAcknowledge = (transaction) => {
     setSelectedTransaction(transaction);
     setOpenAcknowledgeDialog(true);
   };
 
-  const handleDelete = (transaction) => {
-    setSelectedTransaction(transaction);
-    setOpenDeleteDialog(true);
+  const handleAcknowledgeSubmit = async (id, comment) => {
+    try {
+      await dispatch(
+        acknowledgePettyCash({
+          id,
+          formData: { acknowledgment_notes: comment },
+        })
+      ).unwrap();
+      toast.success('Transaction acknowledged successfully');
+      handleCloseAcknowledgeDialog();
+      // Refresh the list
+      dispatch(getAllPettyCash({ page: 1 }));
+    } catch (error) {
+      toast.error(error || 'Failed to acknowledge transaction');
+    }
   };
 
   const handleCloseViewModal = () => {
     setOpenViewModal(false);
-    setSelectedTransaction(null);
-  };
-
-  const handleCloseEditModal = () => {
-    setOpenEditModal(false);
     setSelectedTransaction(null);
   };
 
@@ -181,24 +212,21 @@ const PettyCashTransactions = () => {
     setSelectedTransaction(null);
   };
 
-  const handleCloseDeleteDialog = () => {
-    setOpenDeleteDialog(false);
-    setSelectedTransaction(null);
-  };
-
   const getStatusChip = (status) => {
     const statusColors = {
+      active: { bgcolor: '#66BB6A', color: 'white' },
+      exhausted: { bgcolor: '#EF5350', color: 'white' },
       pending: { bgcolor: '#FFA726', color: 'white' },
-      approved: { bgcolor: '#66BB6A', color: 'white' },
-      denied: { bgcolor: '#EF5350', color: 'white' },
     };
 
     return (
       <Chip
-        label={status.charAt(0).toUpperCase() + status.slice(1)}
+        label={
+          status ? status.charAt(0).toUpperCase() + status.slice(1) : 'N/A'
+        }
         size="small"
         sx={{
-          ...statusColors[status],
+          ...(statusColors[status] || { bgcolor: '#9E9E9E', color: 'white' }),
           fontWeight: 500,
           minWidth: '80px',
         }}
@@ -236,73 +264,138 @@ const PettyCashTransactions = () => {
           <TableHead>
             <TableRow sx={{ bgcolor: 'rgba(0, 82, 155, 0.05)' }}>
               <TableCell sx={styles.headerCell}>ID</TableCell>
-              <TableCell sx={styles.headerCell}>Title</TableCell>
-              <TableCell sx={styles.headerCell}>CM</TableCell>
+              <TableCell sx={styles.headerCell}>Holder</TableCell>
               <TableCell sx={styles.headerCell}>Amount</TableCell>
-              <TableCell sx={styles.headerCell}>Payment Date</TableCell>
+              <TableCell sx={styles.headerCell}>Remaining</TableCell>
+              <TableCell sx={styles.headerCell}>Issue Date</TableCell>
+              <TableCell sx={styles.headerCell}>Created At</TableCell>
               <TableCell sx={styles.headerCell}>Status</TableCell>
+              <TableCell sx={styles.headerCell}>Acknowledged</TableCell>
               <TableCell sx={styles.headerCell} align="center">
                 Actions
               </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {transactions.map((transaction) => (
-              <TableRow
-                key={transaction.id}
-                hover
-                sx={{
-                  '&:hover': {
-                    bgcolor: 'rgba(0, 82, 155, 0.02)',
-                  },
-                }}
-              >
-                <TableCell>{transaction.id}</TableCell>
-                <TableCell>{transaction.title}</TableCell>
-                <TableCell>{transaction.cm}</TableCell>
-                <TableCell>
-                  {new Intl.NumberFormat('en-RW', {
-                    style: 'currency',
-                    currency: 'RWF',
-                  }).format(transaction.amount)}
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
+                  Loading...
                 </TableCell>
-                <TableCell>{transaction.paymentDate}</TableCell>
-                <TableCell>{getStatusChip(transaction.status)}</TableCell>
-                <TableCell align="center">
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      gap: 1,
-                      justifyContent: 'center',
-                      flexWrap: 'wrap',
-                    }}
-                  >
-                    <Button
+              </TableRow>
+            ) : transactions.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
+                  No transactions found
+                </TableCell>
+              </TableRow>
+            ) : (
+              transactions.map((transaction) => (
+                <TableRow
+                  key={transaction.id}
+                  hover
+                  sx={{
+                    '&:hover': {
+                      bgcolor: 'rgba(0, 82, 155, 0.02)',
+                    },
+                  }}
+                >
+                  <TableCell>{transaction.id}</TableCell>
+                  <TableCell>
+                    {transaction.holder?.firstname}{' '}
+                    {transaction.holder?.lastname}
+                  </TableCell>
+                  <TableCell>
+                    {new Intl.NumberFormat('en-RW', {
+                      style: 'currency',
+                      currency: 'RWF',
+                    }).format(transaction.amount)}
+                  </TableCell>
+                  <TableCell>
+                    {new Intl.NumberFormat('en-RW', {
+                      style: 'currency',
+                      currency: 'RWF',
+                    }).format(transaction.remaining_amount)}
+                  </TableCell>
+                  <TableCell>{transaction.issue_date}</TableCell>
+                  <TableCell>
+                    {transaction.created_at
+                      ? new Date(transaction.created_at).toLocaleString(
+                          'en-US',
+                          {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          }
+                        )
+                      : 'N/A'}
+                  </TableCell>
+                  <TableCell>{getStatusChip(transaction.status)}</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={transaction.is_acknowledged ? 'Yes' : 'No'}
                       size="small"
-                      startIcon={<VisibilityOutlinedIcon />}
-                      onClick={() => handleView(transaction)}
                       sx={{
-                        color: '#00529B',
-                        textTransform: 'none',
-                        minWidth: '70px',
-                        fontSize: '0.75rem',
+                        bgcolor: transaction.is_acknowledged
+                          ? '#66BB6A'
+                          : '#FFA726',
+                        color: 'white',
+                        fontWeight: 500,
+                        minWidth: '60px',
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell align="center">
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        gap: 1,
+                        justifyContent: 'center',
+                        flexWrap: 'wrap',
                       }}
                     >
-                      View
-                    </Button>
-                    <Button
-                      size="small"
-                      startIcon={<CheckCircleOutlineIcon />}
-                      onClick={() => handleAcknowledge(transaction)}
-                      sx={{
-                        color: '#66BB6A',
-                        textTransform: 'none',
-                        minWidth: '110px',
-                        fontSize: '0.75rem',
-                      }}
-                    >
-                      Acknowledge
-                    </Button>
+                      <Button
+                        size="small"
+                        startIcon={<VisibilityOutlinedIcon />}
+                        onClick={() => handleView(transaction)}
+                        sx={{
+                          color: '#00529B',
+                          textTransform: 'none',
+                          minWidth: '70px',
+                          fontSize: '0.75rem',
+                        }}
+                      >
+                        View
+                      </Button>
+                      {(() => {
+                        // Get logged-in user from localStorage
+                        const userStr = localStorage.getItem('user');
+                        if (userStr) {
+                          const loggedInUser = JSON.parse(userStr);
+                          // Show acknowledge button only if logged-in user is the holder
+                          if (loggedInUser.id === transaction.holder?.id) {
+                            return (
+                              <Button
+                                size="small"
+                                startIcon={<CheckCircleOutlineIcon />}
+                                onClick={() => handleAcknowledge(transaction)}
+                                sx={{
+                                  color: '#66BB6A',
+                                  textTransform: 'none',
+                                  minWidth: '110px',
+                                  fontSize: '0.75rem',
+                                }}
+                              >
+                                Acknowledge
+                              </Button>
+                            );
+                          }
+                        }
+                        return null;
+                      })()}
+                      {/* Edit and Delete buttons commented as requested
                     <Button
                       size="small"
                       startIcon={<EditOutlinedIcon />}
@@ -329,10 +422,12 @@ const PettyCashTransactions = () => {
                     >
                       Delete
                     </Button>
-                  </Box>
-                </TableCell>
-              </TableRow>
-            ))}
+                    */}
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </TableContainer>
@@ -367,60 +462,109 @@ const PettyCashTransactions = () => {
         <form onSubmit={handleSubmit}>
           <DialogContent sx={{ mt: 2 }}>
             <Grid container spacing={3}>
-              {/* Title */}
+              {/* Select Holder - Prominently displayed at the top with larger size */}
               <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Title *"
-                  name="title"
-                  value={formData.title}
-                  onChange={handleInputChange}
-                  required
-                />
-              </Grid>
-
-              {/* Select CM - Full width for better visibility */}
-              <Grid item xs={12}>
-                <FormControl fullWidth required>
-                  <InputLabel>Select CM</InputLabel>
-                  <Select
-                    name="cm"
-                    value={formData.cm}
-                    onChange={handleInputChange}
-                    label="Select CM"
+                <Box
+                  sx={{
+                    p: 2,
+                    bgcolor: 'rgba(0, 82, 155, 0.03)',
+                    borderRadius: 2,
+                    border: '2px solid rgba(0, 82, 155, 0.1)',
+                  }}
+                >
+                  <Typography
+                    variant="subtitle1"
+                    sx={{
+                      color: '#00529B',
+                      fontWeight: 600,
+                      mb: 1.5,
+                      fontSize: '1rem',
+                    }}
                   >
-                    <MenuItem value="John Doe">John Doe</MenuItem>
-                    <MenuItem value="Jane Smith">Jane Smith</MenuItem>
-                    <MenuItem value="Bob Johnson">Bob Johnson</MenuItem>
-                    {/* TODO: Replace with dynamic data from API */}
-                  </Select>
-                </FormControl>
+                    Select Petty Cash Holder *
+                  </Typography>
+                  <FormControl fullWidth required size="large">
+                    <InputLabel sx={{ fontSize: '1.1rem' }}>
+                      Choose Holder
+                    </InputLabel>
+                    <Select
+                      name="holder_id"
+                      value={formData.holder_id}
+                      onChange={handleInputChange}
+                      label="Choose Holder"
+                      sx={{
+                        fontSize: '1.1rem',
+                        '& .MuiSelect-select': {
+                          py: 2,
+                        },
+                      }}
+                      MenuProps={{
+                        PaperProps: {
+                          style: {
+                            maxHeight: 400,
+                          },
+                        },
+                      }}
+                    >
+                      <MenuItem value="" disabled>
+                        <em>Select a holder from the list</em>
+                      </MenuItem>
+                      {signers && signers.length > 0 ? (
+                        signers.map((signer) => (
+                          <MenuItem
+                            key={signer.id}
+                            value={signer.id}
+                            sx={{ py: 1.5 }}
+                          >
+                            <Box>
+                              <Typography variant="body1" fontWeight={500}>
+                                {signer.firstname} {signer.lastname}
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ display: 'block' }}
+                              >
+                                {signer.position} • {signer.department} •{' '}
+                                {signer.section}
+                              </Typography>
+                            </Box>
+                          </MenuItem>
+                        ))
+                      ) : (
+                        <MenuItem value="" disabled>
+                          <em>Loading signers...</em>
+                        </MenuItem>
+                      )}
+                    </Select>
+                  </FormControl>
+                </Box>
               </Grid>
 
-              {/* Amount */}
+              {/* Amount and Issue Date - Side by side */}
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
-                  label="Amount *"
+                  label="Amount (RWF) *"
                   name="amount"
                   type="number"
                   value={formData.amount}
                   onChange={handleInputChange}
                   required
                   InputProps={{
-                    inputProps: { min: 0 },
+                    inputProps: { min: 0, step: 100 },
                   }}
+                  placeholder="e.g., 50000"
                 />
               </Grid>
 
-              {/* Payment Date */}
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
-                  label="Payment Date *"
-                  name="paymentDate"
+                  label="Issue Date *"
+                  name="issue_date"
                   type="date"
-                  value={formData.paymentDate}
+                  value={formData.issue_date}
                   onChange={handleInputChange}
                   required
                   InputLabelProps={{
@@ -429,34 +573,34 @@ const PettyCashTransactions = () => {
                 />
               </Grid>
 
-              {/* Description */}
+              {/* Notes */}
               <Grid item xs={12}>
                 <TextField
                   fullWidth
-                  label="Description"
-                  name="description"
-                  value={formData.description}
+                  label="Notes / Purpose"
+                  name="notes"
+                  value={formData.notes}
                   onChange={handleInputChange}
                   multiline
                   rows={4}
+                  placeholder="Describe the purpose of this petty cash issuance..."
                 />
               </Grid>
 
-              {/* Supporting Documents */}
+              {/* Supporting Document */}
               <Grid item xs={12}>
                 <Typography
                   variant="subtitle2"
                   gutterBottom
                   sx={{ color: '#00529B', fontWeight: 600 }}
                 >
-                  Supporting Documents
+                  Supporting Document (Optional)
                 </Typography>
                 <Box sx={styles.uploadBox}>
                   <input
                     accept="*/*"
                     style={{ display: 'none' }}
                     id="transaction-file-upload"
-                    multiple
                     type="file"
                     onChange={handleFileUpload}
                   />
@@ -473,52 +617,49 @@ const PettyCashTransactions = () => {
                         sx={{ fontSize: 40, color: '#00529B', mb: 1 }}
                       />
                       <Typography variant="body2" color="textSecondary">
-                        Click to upload supporting documents
+                        Click to upload supporting document
                       </Typography>
                       <Typography
                         variant="caption"
                         color="textSecondary"
                         sx={{ mt: 0.5 }}
                       >
-                        Multiple files allowed
+                        PDF, DOC, DOCX, or image files
                       </Typography>
                     </Box>
                   </label>
                 </Box>
 
-                {/* Display uploaded files */}
-                {formData.documents.length > 0 && (
+                {/* Display uploaded file */}
+                {formData.supporting_document && (
                   <Box sx={{ mt: 2 }}>
-                    {formData.documents.map((file, index) => (
-                      <Box
-                        key={index}
-                        sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          p: 1,
-                          mb: 1,
-                          bgcolor: 'rgba(0, 82, 155, 0.05)',
-                          borderRadius: 1,
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <AttachFileIcon
-                            sx={{ mr: 1, color: '#00529B', fontSize: 20 }}
-                          />
-                          <Typography variant="body2">
-                            {file.name || file}
-                          </Typography>
-                        </Box>
-                        <IconButton
-                          size="small"
-                          onClick={() => handleRemoveFile(index)}
-                          sx={{ color: '#d32f2f' }}
-                        >
-                          <CloseIcon fontSize="small" />
-                        </IconButton>
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        p: 1.5,
+                        bgcolor: 'rgba(0, 82, 155, 0.05)',
+                        borderRadius: 1,
+                        border: '1px solid rgba(0, 82, 155, 0.2)',
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <AttachFileIcon
+                          sx={{ mr: 1, color: '#00529B', fontSize: 20 }}
+                        />
+                        <Typography variant="body2">
+                          {formData.supporting_document.name}
+                        </Typography>
                       </Box>
-                    ))}
+                      <IconButton
+                        size="small"
+                        onClick={handleRemoveFile}
+                        sx={{ color: '#d32f2f' }}
+                      >
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
                   </Box>
                 )}
               </Grid>
@@ -561,30 +702,13 @@ const PettyCashTransactions = () => {
         />
       )}
 
-      {/* Edit Transaction Modal */}
-      {selectedTransaction && (
-        <EditTransactionModal
-          open={openEditModal}
-          handleClose={handleCloseEditModal}
-          transaction={selectedTransaction}
-        />
-      )}
-
       {/* Acknowledge Transaction Dialog */}
       {selectedTransaction && (
         <AcknowledgeTransactionDialog
           open={openAcknowledgeDialog}
           handleClose={handleCloseAcknowledgeDialog}
           transaction={selectedTransaction}
-        />
-      )}
-
-      {/* Delete Transaction Dialog */}
-      {selectedTransaction && (
-        <DeleteTransactionDialog
-          open={openDeleteDialog}
-          handleClose={handleCloseDeleteDialog}
-          transaction={selectedTransaction}
+          onAcknowledge={handleAcknowledgeSubmit}
         />
       )}
     </Box>

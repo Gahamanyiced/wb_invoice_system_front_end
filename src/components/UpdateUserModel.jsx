@@ -96,6 +96,7 @@ function UpdateUserModel({
     section: '',
     role: '',
     is_approved: false,
+    is_petty_cash_user: false,
   });
 
   const [supplierData, setSupplierData] = useState({
@@ -131,6 +132,7 @@ function UpdateUserModel({
         section: defaultValues.section || '',
         role: defaultValues.role || '',
         is_approved: defaultValues.is_approved || false,
+        is_petty_cash_user: defaultValues.is_petty_cash_user || false,
       });
 
       if (defaultValues.supplier_profile) {
@@ -340,6 +342,21 @@ function UpdateUserModel({
                   >
                     <MenuItem value={true}>Approved</MenuItem>
                     <MenuItem value={false}>Not Approved</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth variant="outlined" size="small">
+                  <InputLabel>Petty Cash Access</InputLabel>
+                  <Select
+                    label="Petty Cash Access"
+                    name="is_petty_cash_user"
+                    value={formData.is_petty_cash_user}
+                    onChange={handleChange}
+                  >
+                    <MenuItem value={true}>Enabled</MenuItem>
+                    <MenuItem value={false}>Disabled</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>

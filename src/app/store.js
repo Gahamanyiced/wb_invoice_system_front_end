@@ -7,6 +7,7 @@ import userReducer from '../features/user/userSlice';
 import reportReducer from '../features/report/reportSlice';
 import sectionReducer from '../features/section/sectionSlice';
 import signingFlowReducer from '../features/signingFlow/signingFlowSlice';
+import pettyCashReducer from '../features/pettyCash/pettyCashSlice';
 
 const reducer = {
   invoice: invoiceReducer,
@@ -17,6 +18,7 @@ const reducer = {
   section: sectionReducer,
   signingFlow: signingFlowReducer,
   report: reportReducer,
+  pettyCash: pettyCashReducer,
 };
 
 export default configureStore({
