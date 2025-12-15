@@ -4,6 +4,7 @@ export function extractErrorMessage(error) {
     error?.response?.data?.error ||
     error?.message ||
     error?.error ||
-    error?.toString()
+    error?.toString() ||
+    'An error occurred'
   );
 }
