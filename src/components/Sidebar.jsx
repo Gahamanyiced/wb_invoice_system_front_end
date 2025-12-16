@@ -61,7 +61,6 @@ const SidebarContainer = styled(Box)(({ theme }) => ({
   color: COLORS.textPrimary,
   display: 'flex',
   flexDirection: 'column',
-  justifyContent: 'space-between',
   boxShadow: '0 0 20px rgba(0, 0, 0, 0.1)',
   transition: 'width 0.3s ease',
   overflow: 'hidden',
@@ -198,8 +197,10 @@ export default function Sidebar() {
   // User data
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const username = JSON.parse(localStorage.getItem('username') || '""');
-  const firstName = username.split('.')[0] || '';
-  const lastName = username.split('.')[1] || '';
+
+  // Get names from user object (preferred) or fallback to username parsing
+  const firstName = user?.firstname || username.split('.')[0] || '';
+  const lastName = user?.lastname || username.split('.')[1] || '';
 
   // Set initial active menu based on URL path
   useEffect(() => {
@@ -270,7 +271,17 @@ export default function Sidebar() {
 
   // Get initials for avatar
   const getInitials = () => {
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+    // Trim and handle names with spaces
+    const first = firstName.trim();
+    const last = lastName.trim();
+
+    if (!first && !last) return 'U';
+
+    // Get first character of first name and last name
+    const firstInitial = first.charAt(0).toUpperCase();
+    const lastInitial = last.charAt(0).toUpperCase();
+
+    return `${firstInitial}${lastInitial}`;
   };
 
   // Helper function to capitalize the first letter of a string safely
@@ -282,7 +293,27 @@ export default function Sidebar() {
   return (
     <>
       <SidebarContainer>
-        <Box>
+        {/* Scrollable Content Area */}
+        <Box
+          sx={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            '&::-webkit-scrollbar': {
+              width: '6px',
+            },
+            '&::-webkit-scrollbar-track': {
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            },
+            '&::-webkit-scrollbar-thumb': {
+              backgroundColor: 'rgba(255, 255, 255, 0.2)',
+              borderRadius: '3px',
+              '&:hover': {
+                backgroundColor: 'rgba(255, 255, 255, 0.3)',
+              },
+            },
+          }}
+        >
           {/* Logo Section */}
           <LogoContainer>
             <Box
@@ -388,13 +419,15 @@ export default function Sidebar() {
               </Collapse>
             </Box>
 
-            {/* Petty Cash Menu Item */}
-            <StyledNavLink to="/petty-cash">
-              <MenuIcon>
-                <AccountBalanceWalletIcon fontSize="small" />
-              </MenuIcon>
-              <Typography sx={{ fontSize: '15px' }}>Petty Cash</Typography>
-            </StyledNavLink>
+            {/* Petty Cash Menu Item - Only show if user has petty cash access */}
+            {user?.is_petty_cash_user && (
+              <StyledNavLink to="/petty-cash">
+                <MenuIcon>
+                  <AccountBalanceWalletIcon fontSize="small" />
+                </MenuIcon>
+                <Typography sx={{ fontSize: '15px' }}>Petty Cash</Typography>
+              </StyledNavLink>
+            )}
 
             {/* Reports Menu Item */}
             <MenuLink onClick={handleOpenReporting}>
@@ -459,11 +492,23 @@ export default function Sidebar() {
               </>
             )}
           </List>
+
+          {/* Bottom padding to ensure content doesn't get hidden behind fixed footer */}
+          <Box sx={{ height: '120px' }} />
         </Box>
 
-        {/* User Profile and Logout Section */}
-        <Box>
-          <Box sx={{ px: 3, pb: 2 }}>
+        {/* Fixed Bottom Section - Logout and User Profile */}
+        <Box
+          sx={{
+            position: 'sticky',
+            bottom: 0,
+            backgroundColor: COLORS.sidebar,
+            borderTop: `1px solid ${COLORS.divider}`,
+            zIndex: 10,
+          }}
+        >
+          {/* Logout Button */}
+          <Box sx={{ px: 2, pt: 2, pb: 1 }}>
             <MenuLink onClick={handleLogout}>
               <MenuIcon>
                 <LogoutOutlinedIcon fontSize="small" />
@@ -472,6 +517,7 @@ export default function Sidebar() {
             </MenuLink>
           </Box>
 
+          {/* User Profile Section */}
           <UserProfileSection>
             <Avatar
               sx={{
@@ -483,15 +529,23 @@ export default function Sidebar() {
               {getInitials()}
             </Avatar>
             <UserInfo>
-              <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                {firstName.charAt(0).toUpperCase() + firstName.slice(1)}
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 500,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {capitalizeFirstLetter(firstName.trim())}
               </Typography>
               <Typography
                 variant="caption"
                 sx={{ color: COLORS.textSecondary }}
               >
                 {user && user.role && typeof user.role === 'string'
-                  ? capitalizeFirstLetter(user.role)
+                  ? capitalizeFirstLetter(user.role.replace('_', ' '))
                   : 'User'}
               </Typography>
             </UserInfo>

@@ -16,10 +16,6 @@ import {
   Box,
   Typography,
   TextField,
-  Stepper,
-  Step,
-  StepLabel,
-  StepContent,
   Paper,
   Chip,
   IconButton,
@@ -31,40 +27,73 @@ import {
   Select,
   MenuItem,
   Grid,
-  Card,
-  CardContent,
-  Avatar,
+  Stepper,
+  Step,
+  StepLabel,
+  StepContent,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PendingIcon from '@mui/icons-material/Pending';
 import CancelIcon from '@mui/icons-material/Cancel';
-import TimelineIcon from '@mui/icons-material/Timeline';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import SendIcon from '@mui/icons-material/Send';
-import PersonIcon from '@mui/icons-material/Person';
-import BusinessIcon from '@mui/icons-material/Business';
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import UndoIcon from '@mui/icons-material/Undo';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbDownIcon from '@mui/icons-material/ThumbDown';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
+import PersonIcon from '@mui/icons-material/Person';
+
+const style = {
+  dialogPaper: {
+    maxWidth: '900px',
+    width: '90%',
+    maxHeight: '90vh',
+  },
+  header: {
+    bgcolor: '#00529B',
+    color: 'white',
+    p: 2,
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  content: {
+    p: 3,
+  },
+  section: {
+    mb: 3,
+    p: 2,
+    bgcolor: 'rgba(0, 82, 155, 0.02)',
+    borderRadius: 1,
+  },
+  fieldContainer: {
+    mb: 2,
+  },
+  fieldLabel: {
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: '#666',
+    mb: 0.5,
+  },
+  fieldValue: {
+    fontSize: '1rem',
+    color: '#333',
+  },
+};
 
 const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
   const dispatch = useDispatch();
   const { isLoading } = useSelector((state) => state.pettyCash);
 
-  // Get logged-in user from localStorage
   const [loggedInUser, setLoggedInUser] = useState(null);
-
   const [trackingData, setTrackingData] = useState(null);
   const [loadingTracking, setLoadingTracking] = useState(false);
-  const [signAction, setSignAction] = useState(''); // 'approve', 'approve_and_forward', 'deny', 'rollback'
+  const [signAction, setSignAction] = useState('');
   const [signNotes, setSignNotes] = useState('');
   const [showSignForm, setShowSignForm] = useState(false);
-  const [selectedSigners, setSelectedSigners] = useState([]); // For approve_and_forward
-  const [availableSigners, setAvailableSigners] = useState([]); // List of signers from API
+  const [selectedSigners, setSelectedSigners] = useState([]);
+  const [availableSigners, setAvailableSigners] = useState([]);
 
   // Get user from localStorage on component mount
   useEffect(() => {
@@ -89,13 +118,10 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
 
   const fetchSigners = async () => {
     try {
-      // API Endpoint: GET /auth/signer-list/
       const result = await dispatch(getAllSigners()).unwrap();
-      // Extract the results array from the paginated response
       setAvailableSigners(result?.results || []);
     } catch (error) {
       console.error('Failed to fetch signers:', error);
-      // Set empty array on error so UI doesn't break
       setAvailableSigners([]);
     }
   };
@@ -103,14 +129,10 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
   const fetchTrackingData = async () => {
     setLoadingTracking(true);
     try {
-      // Use the track endpoint: GET /invoice/petty-cash-request/{id}/track/
       const result = await dispatch(trackPettyCashRequest(request.id)).unwrap();
-
-      // The response contains: { request: {...}, request_histories: [...] }
       setTrackingData(result);
     } catch (error) {
       toast.error(error || 'Failed to fetch tracking data');
-      // Set empty tracking data on error so we can still show the UI
       setTrackingData({ request: request, request_histories: [] });
     } finally {
       setLoadingTracking(false);
@@ -123,39 +145,41 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
       return;
     }
 
-    // Validate next signers for approve_and_forward
+    // Validate notes for deny and rollback
+    if (
+      (signAction === 'deny' || signAction === 'rollback') &&
+      !signNotes.trim()
+    ) {
+      toast.error('Notes are required for deny and rollback actions');
+      return;
+    }
+
     if (signAction === 'approve_and_forward' && selectedSigners.length === 0) {
       toast.error('Please select at least one next signer');
       return;
     }
 
     try {
-      // API Endpoint: POST /invoice/petty-cash-request/sign/{id}/
       let signData = {};
 
-      // Build request payload based on action
       if (signAction === 'approve') {
-        // Simple approve with final_approval flag
         signData = {
           status: 'signed',
           notes: signNotes || '',
           final_approval: true,
         };
       } else if (signAction === 'approve_and_forward') {
-        // Approve and forward to next signers
         signData = {
           status: 'signed',
           notes: signNotes || '',
-          next_signers: selectedSigners, // Array of signer IDs
+          next_signers: selectedSigners,
         };
       } else if (signAction === 'deny') {
-        // Deny the request
         signData = {
           status: 'denied',
           notes: signNotes || '',
         };
       } else if (signAction === 'rollback') {
-        // Rollback signature
         signData = {
           status: 'rollback',
           notes: signNotes || '',
@@ -176,11 +200,9 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
           : 'rolled back';
       toast.success(`Request ${actionText} successfully`);
 
-      // Refresh tracking data and request list
       await fetchTrackingData();
       dispatch(getAllPettyCashRequests({ page: 1 }));
 
-      // Reset form
       setShowSignForm(false);
       setSignAction('');
       setSignNotes('');
@@ -191,7 +213,6 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
   };
 
   const getStatusChip = (status) => {
-    // Normalize status: convert underscores to spaces for matching
     const normalizedStatus = status?.toLowerCase().replace(/_/g, ' ');
 
     const statusConfig = {
@@ -230,8 +251,6 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
     };
 
     const config = statusConfig[normalizedStatus] || statusConfig.pending;
-
-    // Display status with proper formatting (replace underscores with spaces)
     const displayStatus = status?.replace(/_/g, ' ');
 
     return (
@@ -248,126 +267,51 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
     );
   };
 
-  const getStepIcon = (status) => {
-    const iconProps = { sx: { fontSize: 32 } };
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(parseFloat(amount || 0));
+  };
 
-    // Normalize status: convert underscores to spaces
-    const statusLower = status?.toLowerCase().replace(/_/g, ' ');
-
-    if (statusLower === 'approved' || statusLower === 'verified') {
-      return (
-        <CheckCircleIcon
-          {...iconProps}
-          sx={{ ...iconProps.sx, color: '#66BB6A' }}
-        />
-      );
-    } else if (statusLower === 'denied') {
-      return (
-        <CancelIcon {...iconProps} sx={{ ...iconProps.sx, color: '#EF5350' }} />
-      );
-    } else if (statusLower === 'rolled_back' || statusLower === 'rolled back') {
-      return (
-        <UndoIcon {...iconProps} sx={{ ...iconProps.sx, color: '#9E9E9E' }} />
-      );
-    } else if (statusLower === 'waiting to sign' || statusLower === 'to sign') {
-      return (
-        <HourglassEmptyIcon
-          {...iconProps}
-          sx={{ ...iconProps.sx, color: '#FF9800' }}
-        />
-      );
-    } else if (statusLower === 'to verify') {
-      return (
-        <VerifiedUserIcon
-          {...iconProps}
-          sx={{ ...iconProps.sx, color: '#42A5F5' }}
-        />
-      );
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return dateString;
     }
-    return (
-      <PendingIcon {...iconProps} sx={{ ...iconProps.sx, color: '#FFA726' }} />
-    );
   };
 
   const canUserSign = () => {
     if (!trackingData || !loggedInUser) return false;
-
-    // Check if any history has "to verify" or "to sign" status for this user
-    // Handle both formats: "to_verify"/"to verify" and "to_sign"/"to sign"
     const canSign = trackingData.request_histories?.some((history) => {
       const statusLower = history.status?.toLowerCase().replace(/_/g, ' ');
       return (
         history.user?.id === loggedInUser.id &&
-        (statusLower === 'to verify' || // ✅ Can verify
-          statusLower === 'to sign')
-      ); // ✅ Can sign
+        (statusLower === 'to verify' || statusLower === 'to sign')
+      );
     });
-
     return canSign;
   };
 
-  const canRollback = () => {
-    if (!trackingData || !loggedInUser) return false;
-
-    // User can rollback if they have signed (approved/verified status)
-    // Handle both formats: "approved"/"verified"
-    const userHasSigned = trackingData.request_histories?.some((history) => {
-      const statusLower = history.status?.toLowerCase().replace(/_/g, ' ');
-      return (
-        history.user?.id === loggedInUser.id &&
-        (statusLower === 'approved' || statusLower === 'verified')
-      );
-    });
-
-    return userHasSigned;
-  };
-
-  const getStepBackgroundColor = (status) => {
-    // Normalize status: convert underscores to spaces
-    const statusLower = status?.toLowerCase().replace(/_/g, ' ');
-
-    if (statusLower === 'approved' || statusLower === 'verified') {
-      return 'rgba(102, 187, 106, 0.08)';
-    } else if (statusLower === 'denied') {
-      return 'rgba(239, 83, 80, 0.08)';
-    } else if (statusLower === 'rolled back') {
-      return 'rgba(158, 158, 158, 0.08)';
-    } else if (statusLower === 'waiting to sign' || statusLower === 'to sign') {
-      return 'rgba(255, 152, 0, 0.08)';
-    } else if (statusLower === 'to verify') {
-      return 'rgba(66, 165, 245, 0.08)';
-    }
-    return 'rgba(255, 167, 38, 0.08)';
-  };
-
-  const getStepBorderColor = (status) => {
-    // Normalize status: convert underscores to spaces
-    const statusLower = status?.toLowerCase().replace(/_/g, ' ');
-
-    if (statusLower === 'approved' || statusLower === 'verified') {
-      return '#66BB6A';
-    } else if (statusLower === 'denied') {
-      return '#EF5350';
-    } else if (statusLower === 'rolled back') {
-      return '#9E9E9E';
-    } else if (statusLower === 'waiting to sign' || statusLower === 'to sign') {
-      return '#FF9800';
-    } else if (statusLower === 'to verify') {
-      return '#42A5F5';
-    }
-    return '#FFA726';
-  };
+  const currentRequest = trackingData?.request || request;
 
   if (!request) return null;
-
-  // Use trackingData.request if available, otherwise use the passed request
-  const currentRequest = trackingData?.request || request;
 
   return (
     <Dialog
       open={open}
       onClose={handleClose}
-      maxWidth="lg"
+      maxWidth="md"
       fullWidth
       PaperProps={{
         sx: {
@@ -377,212 +321,313 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
       }}
     >
       {/* Header */}
-      <DialogTitle
-        sx={{
-          bgcolor: '#00529B',
-          color: 'white',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          py: 2,
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <TimelineIcon />
-          <Typography variant="h6" fontWeight={600}>
-            Track & Sign Petty Cash Request
-          </Typography>
-        </Box>
-        <IconButton onClick={handleClose} sx={{ color: 'white' }} size="small">
+      <Box sx={style.header}>
+        <Typography variant="h6" fontWeight={600}>
+          Track & Sign Request
+        </Typography>
+        <IconButton
+          edge="end"
+          color="inherit"
+          onClick={handleClose}
+          size="small"
+        >
           <CloseIcon />
         </IconButton>
-      </DialogTitle>
+      </Box>
 
-      <DialogContent sx={{ p: 3 }}>
-        {/* Request Summary Card */}
-        <Card elevation={3} sx={{ mb: 3, bgcolor: 'rgba(0, 82, 155, 0.02)' }}>
-          <CardContent>
-            <Grid container spacing={3}>
-              {/* Request ID & Status */}
-              <Grid item xs={12} md={3}>
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Request ID
-                  </Typography>
-                  <Typography variant="h4" fontWeight={700} color="#00529B">
-                    #{currentRequest.id}
-                  </Typography>
-                </Box>
-              </Grid>
+      <DialogContent sx={style.content}>
+        {/* Request Summary */}
+        <Paper elevation={0} sx={style.section}>
+          <Typography
+            variant="subtitle1"
+            fontWeight={600}
+            color="#00529B"
+            gutterBottom
+          >
+            Request Summary
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
 
-              {/* Status */}
-              <Grid item xs={12} md={3}>
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant="caption" color="text.secondary" mb={1}>
-                    Status
-                  </Typography>
-                  <Box sx={{ mt: 0.5 }}>
-                    {getStatusChip(currentRequest.status)}
-                  </Box>
-                  <Chip
-                    icon={
-                      currentRequest.is_verified ? (
-                        <CheckCircleIcon sx={{ fontSize: 14 }} />
-                      ) : (
-                        <PendingIcon sx={{ fontSize: 14 }} />
-                      )
-                    }
-                    label={
-                      currentRequest.is_verified ? 'Verified' : 'Not Verified'
-                    }
-                    size="small"
-                    sx={{
-                      bgcolor: currentRequest.is_verified
-                        ? '#66BB6A'
-                        : '#FFA726',
-                      color: 'white',
-                      fontWeight: 500,
-                      mt: 1,
-                    }}
-                  />
-                </Box>
-              </Grid>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <Box sx={style.fieldContainer}>
+                <Typography sx={style.fieldLabel}>Status</Typography>
+                {getStatusChip(currentRequest.status)}
+              </Box>
+            </Grid>
 
-              {/* Total Amount */}
-              <Grid item xs={12} md={3}>
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Total Amount
-                  </Typography>
-                  <Typography variant="h5" fontWeight={700} color="#00529B">
-                    {new Intl.NumberFormat('en-RW', {
-                      style: 'currency',
-                      currency: 'RWF',
-                      minimumFractionDigits: 0,
-                    }).format(parseFloat(currentRequest.total_expenses || 0))}
-                  </Typography>
-                </Box>
-              </Grid>
-
-              {/* Signatures */}
-              <Grid item xs={12} md={3}>
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Approval Progress
-                  </Typography>
-                  <Typography variant="h5" fontWeight={700} color="#00529B">
-                    {currentRequest.signature_count} / Level{' '}
-                    {currentRequest.current_approval_level}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Signatures
-                  </Typography>
-                </Box>
-              </Grid>
-
-              {/* Requester Info */}
-              <Grid item xs={12} md={6}>
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    p: 1.5,
-                    bgcolor: 'white',
-                    borderRadius: 1,
-                  }}
+            <Grid item xs={12} sm={6}>
+              <Box sx={style.fieldContainer}>
+                <Typography sx={style.fieldLabel}>Total Expenses</Typography>
+                <Typography
+                  sx={style.fieldValue}
+                  fontWeight={700}
+                  color="#00529B"
                 >
-                  <PersonIcon sx={{ color: '#00529B', mr: 1 }} />
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
-                      Requester
-                    </Typography>
-                    <Typography variant="body2" fontWeight={600}>
-                      {currentRequest.requester?.firstname}{' '}
-                      {currentRequest.requester?.lastname}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {currentRequest.requester?.position} •{' '}
-                      {currentRequest.requester?.department}
-                    </Typography>
-                  </Box>
-                </Box>
-              </Grid>
+                  {formatCurrency(currentRequest.total_expenses)}
+                </Typography>
+              </Box>
+            </Grid>
 
-              {/* Verifier Info */}
-              <Grid item xs={12} md={6}>
-                <Box
+            <Grid item xs={12} sm={6}>
+              <Box sx={style.fieldContainer}>
+                <Typography sx={style.fieldLabel}>Requester</Typography>
+                <Typography sx={style.fieldValue}>
+                  {currentRequest.requester?.firstname}{' '}
+                  {currentRequest.requester?.lastname}
+                </Typography>
+              </Box>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <Box sx={style.fieldContainer}>
+                <Typography sx={style.fieldLabel}>Verifier</Typography>
+                <Typography sx={style.fieldValue}>
+                  {currentRequest.verifier?.firstname}{' '}
+                  {currentRequest.verifier?.lastname}
+                </Typography>
+              </Box>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <Box sx={style.fieldContainer}>
+                <Typography sx={style.fieldLabel}>Signatures</Typography>
+                <Typography sx={style.fieldValue}>
+                  {currentRequest.signature_count || 0} signature(s)
+                </Typography>
+              </Box>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <Box sx={style.fieldContainer}>
+                <Typography sx={style.fieldLabel}>Verified</Typography>
+                <Chip
+                  label={currentRequest.is_verified ? 'Yes' : 'No'}
+                  size="small"
                   sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    p: 1.5,
-                    bgcolor: 'white',
-                    borderRadius: 1,
+                    bgcolor: currentRequest.is_verified ? '#66BB6A' : '#FFA726',
+                    color: 'white',
+                    fontWeight: 500,
                   }}
-                >
-                  <VerifiedUserIcon sx={{ color: '#00529B', mr: 1 }} />
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
-                      Verifier
-                    </Typography>
-                    <Typography variant="body2" fontWeight={600}>
-                      {currentRequest.verifier?.firstname}{' '}
-                      {currentRequest.verifier?.lastname}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {currentRequest.verifier?.position} •{' '}
-                      {currentRequest.verifier?.department}
-                    </Typography>
-                  </Box>
-                </Box>
-              </Grid>
+                />
+              </Box>
+            </Grid>
 
-              {/* Related Petty Cash */}
+            <Grid item xs={12} sm={6}>
+              <Box sx={style.fieldContainer}>
+                <Typography sx={style.fieldLabel}>Created At</Typography>
+                <Typography sx={style.fieldValue}>
+                  {formatDate(currentRequest.created_at)}
+                </Typography>
+              </Box>
+            </Grid>
+
+            {currentRequest.verification_notes && (
               <Grid item xs={12}>
+                <Box sx={style.fieldContainer}>
+                  <Typography sx={style.fieldLabel}>
+                    Verification Notes
+                  </Typography>
+                  <Typography sx={style.fieldValue}>
+                    {currentRequest.verification_notes}
+                  </Typography>
+                </Box>
+              </Grid>
+            )}
+          </Grid>
+        </Paper>
+
+        {/* Expenses List */}
+        <Paper elevation={0} sx={style.section}>
+          <Typography
+            variant="subtitle1"
+            fontWeight={600}
+            color="#00529B"
+            gutterBottom
+          >
+            Expenses ({currentRequest.expenses?.length || 0})
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+
+          {currentRequest.expenses && currentRequest.expenses.length > 0 ? (
+            currentRequest.expenses.map((expense, index) => (
+              <Box
+                key={expense.id || index}
+                sx={{
+                  border: '1px solid rgba(0, 82, 155, 0.2)',
+                  borderRadius: '8px',
+                  p: 2,
+                  mb: 2,
+                  bgcolor: 'rgba(0, 82, 155, 0.02)',
+                }}
+              >
                 <Box
                   sx={{
                     display: 'flex',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
-                    p: 1.5,
-                    bgcolor: 'white',
-                    borderRadius: 1,
+                    mb: 2,
                   }}
                 >
-                  <AccountBalanceWalletIcon sx={{ color: '#00529B', mr: 1 }} />
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="caption" color="text.secondary">
-                      Related Petty Cash
-                    </Typography>
-                    <Typography variant="body2" fontWeight={600}>
-                      PC-{currentRequest.related_petty_cash?.id} -{' '}
-                      {currentRequest.related_petty_cash?.holder?.firstname}{' '}
-                      {currentRequest.related_petty_cash?.holder?.lastname}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Amount:{' '}
-                      {new Intl.NumberFormat('en-RW', {
-                        style: 'currency',
-                        currency: 'RWF',
-                        minimumFractionDigits: 0,
-                      }).format(
-                        parseFloat(
-                          currentRequest.related_petty_cash?.amount || 0
-                        )
-                      )}{' '}
-                      • Remaining:{' '}
-                      {new Intl.NumberFormat('en-RW', {
-                        style: 'currency',
-                        currency: 'RWF',
-                        minimumFractionDigits: 0,
-                      }).format(
-                        parseFloat(
-                          currentRequest.related_petty_cash?.remaining_amount ||
-                            0
-                        )
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Expense #{index + 1}
+                  </Typography>
+                  <Typography variant="h6" fontWeight={700} color="#00529B">
+                    {formatCurrency(expense.amount)}
+                  </Typography>
+                </Box>
+
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <Box sx={style.fieldContainer}>
+                      <Typography sx={style.fieldLabel}>Date</Typography>
+                      <Typography sx={style.fieldValue}>
+                        {expense.date
+                          ? new Date(expense.date).toLocaleDateString()
+                          : 'N/A'}
+                      </Typography>
+                    </Box>
+                  </Grid>
+
+                  <Grid item xs={12}>
+                    <Box sx={style.fieldContainer}>
+                      <Typography sx={style.fieldLabel}>Description</Typography>
+                      <Typography sx={style.fieldValue}>
+                        {expense.item_description || 'No description'}
+                      </Typography>
+                    </Box>
+                  </Grid>
+
+                  <Grid item xs={12}>
+                    <Box sx={style.fieldContainer}>
+                      <Typography sx={style.fieldLabel}>
+                        Supporting Document
+                      </Typography>
+                      {expense.supporting_document ? (
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            p: 1.5,
+                            bgcolor: 'rgba(0, 82, 155, 0.05)',
+                            borderRadius: 1,
+                            cursor: 'pointer',
+                            mt: 0.5,
+                            '&:hover': {
+                              bgcolor: 'rgba(0, 82, 155, 0.1)',
+                            },
+                          }}
+                          onClick={() =>
+                            window.open(expense.supporting_document, '_blank')
+                          }
+                        >
+                          <Typography variant="body2" sx={{ flex: 1 }}>
+                            {expense.supporting_document.split('/').pop()}
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            sx={{ color: '#00529B', fontWeight: 500 }}
+                          >
+                            View
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Typography
+                          sx={style.fieldValue}
+                          color="text.secondary"
+                        >
+                          No document attached
+                        </Typography>
                       )}
-                    </Typography>
-                  </Box>
+                    </Box>
+                  </Grid>
+                </Grid>
+              </Box>
+            ))
+          ) : (
+            <Typography color="text.secondary">No expenses recorded</Typography>
+          )}
+
+          {/* Total Summary */}
+          <Box
+            sx={{
+              mt: 2,
+              p: 2,
+              bgcolor: 'rgba(0, 82, 155, 0.08)',
+              borderRadius: 1,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <Typography variant="h6" fontWeight={600}>
+              Total Expenses:
+            </Typography>
+            <Typography variant="h5" fontWeight={700} color="#00529B">
+              {formatCurrency(currentRequest.total_expenses)}
+            </Typography>
+          </Box>
+        </Paper>
+
+        {/* Related Petty Cash */}
+        <Paper elevation={0} sx={style.section}>
+          <Typography
+            variant="subtitle1"
+            fontWeight={600}
+            color="#00529B"
+            gutterBottom
+          >
+            Related Petty Cash Transaction
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <Box sx={style.fieldContainer}>
+                <Typography sx={style.fieldLabel}>Holder</Typography>
+                <Typography sx={style.fieldValue}>
+                  {currentRequest.related_petty_cash?.holder?.firstname}{' '}
+                  {currentRequest.related_petty_cash?.holder?.lastname}
+                </Typography>
+              </Box>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <Box sx={style.fieldContainer}>
+                <Typography sx={style.fieldLabel}>Issued By</Typography>
+                <Typography sx={style.fieldValue}>
+                  {currentRequest.related_petty_cash?.issued_by?.firstname}{' '}
+                  {currentRequest.related_petty_cash?.issued_by?.lastname}
+                </Typography>
+              </Box>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <Box sx={style.fieldContainer}>
+                <Typography sx={style.fieldLabel}>Issue Date</Typography>
+                <Typography sx={style.fieldValue}>
+                  {currentRequest.related_petty_cash?.issue_date
+                    ? new Date(
+                        currentRequest.related_petty_cash.issue_date
+                      ).toLocaleDateString()
+                    : 'N/A'}
+                </Typography>
+              </Box>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <Box sx={style.fieldContainer}>
+                <Typography sx={style.fieldLabel}>Status</Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <Chip
-                    label={currentRequest.related_petty_cash?.status?.toUpperCase()}
+                    label={
+                      currentRequest.related_petty_cash?.status
+                        ? currentRequest.related_petty_cash.status
+                            .charAt(0)
+                            .toUpperCase() +
+                          currentRequest.related_petty_cash.status.slice(1)
+                        : 'N/A'
+                    }
                     size="small"
                     sx={{
                       bgcolor:
@@ -593,25 +638,132 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
                       fontWeight: 500,
                     }}
                   />
+                  {currentRequest.related_petty_cash?.is_acknowledged && (
+                    <Chip
+                      icon={<CheckCircleIcon sx={{ fontSize: 14 }} />}
+                      label="Acknowledged"
+                      size="small"
+                      sx={{
+                        bgcolor: '#42A5F5',
+                        color: 'white',
+                        fontWeight: 500,
+                      }}
+                    />
+                  )}
+                </Box>
+              </Box>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <Box sx={style.fieldContainer}>
+                <Typography sx={style.fieldLabel}>Total Amount</Typography>
+                <Typography
+                  sx={style.fieldValue}
+                  fontWeight={700}
+                  color="#00529B"
+                >
+                  {formatCurrency(currentRequest.related_petty_cash?.amount)}
+                </Typography>
+              </Box>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <Box sx={style.fieldContainer}>
+                <Typography sx={style.fieldLabel}>Remaining Amount</Typography>
+                <Typography
+                  sx={style.fieldValue}
+                  fontWeight={700}
+                  color="#00529B"
+                >
+                  {formatCurrency(
+                    currentRequest.related_petty_cash?.remaining_amount
+                  )}
+                </Typography>
+              </Box>
+            </Grid>
+
+            {currentRequest.related_petty_cash?.notes && (
+              <Grid item xs={12}>
+                <Box sx={style.fieldContainer}>
+                  <Typography sx={style.fieldLabel}>Notes</Typography>
+                  <Typography sx={style.fieldValue}>
+                    {currentRequest.related_petty_cash.notes}
+                  </Typography>
                 </Box>
               </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
+            )}
 
-        <Divider sx={{ my: 3 }} />
+            {currentRequest.related_petty_cash?.acknowledgment_notes && (
+              <Grid item xs={12}>
+                <Box sx={style.fieldContainer}>
+                  <Typography sx={style.fieldLabel}>
+                    Acknowledgment Notes
+                  </Typography>
+                  <Typography sx={style.fieldValue}>
+                    {currentRequest.related_petty_cash.acknowledgment_notes}
+                  </Typography>
+                </Box>
+              </Grid>
+            )}
+
+            {currentRequest.related_petty_cash?.acknowledged_at && (
+              <Grid item xs={12} sm={6}>
+                <Box sx={style.fieldContainer}>
+                  <Typography sx={style.fieldLabel}>Acknowledged At</Typography>
+                  <Typography sx={style.fieldValue}>
+                    {formatDate(
+                      currentRequest.related_petty_cash.acknowledged_at
+                    )}
+                  </Typography>
+                </Box>
+              </Grid>
+            )}
+
+            {currentRequest.related_petty_cash?.supporting_document && (
+              <Grid item xs={12}>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    p: 2,
+                    bgcolor: 'rgba(0, 82, 155, 0.05)',
+                    borderRadius: 1,
+                    cursor: 'pointer',
+                    '&:hover': {
+                      bgcolor: 'rgba(0, 82, 155, 0.1)',
+                    },
+                  }}
+                  onClick={() =>
+                    window.open(
+                      currentRequest.related_petty_cash.supporting_document,
+                      '_blank'
+                    )
+                  }
+                >
+                  <Typography sx={{ flex: 1 }}>Supporting Document</Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{ color: '#00529B', fontWeight: 500 }}
+                  >
+                    View Document
+                  </Typography>
+                </Box>
+              </Grid>
+            )}
+          </Grid>
+        </Paper>
 
         {/* Request History & Signatures */}
-        <Box sx={{ mb: 3 }}>
+        <Paper elevation={0} sx={style.section}>
           <Typography
-            variant="h6"
+            variant="subtitle1"
             fontWeight={600}
             color="#00529B"
-            sx={{ mb: 2 }}
+            gutterBottom
           >
-            <TimelineIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
             Request History & Signatures
           </Typography>
+          <Divider sx={{ mb: 2 }} />
 
           {loadingTracking ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
@@ -619,124 +771,88 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
             </Box>
           ) : trackingData?.request_histories &&
             trackingData.request_histories.length > 0 ? (
-            <Stepper
-              orientation="vertical"
-              activeStep={trackingData.request_histories.length}
-            >
+            <Stepper orientation="vertical">
               {trackingData.request_histories.map((history, index) => (
-                <Step key={history.id || index} completed active>
+                <Step key={history.id} active={true} completed={false}>
                   <StepLabel
-                    icon={getStepIcon(history.status)}
-                    StepIconProps={{
-                      sx: {
-                        width: 50,
-                        height: 50,
-                      },
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 2,
-                        flexWrap: 'wrap',
-                      }}
-                    >
-                      <Box>
-                        <Typography variant="subtitle1" fontWeight={600}>
-                          {history.user?.firstname} {history.user?.lastname}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {history.user?.position} • {history.user?.department}
-                          {history.user?.section &&
-                            ` • ${history.user.section}`}
-                        </Typography>
+                    StepIconComponent={() => (
+                      <Box
+                        sx={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: '50%',
+                          bgcolor:
+                            history.status?.toLowerCase() === 'approved'
+                              ? '#66BB6A'
+                              : history.status?.toLowerCase() === 'denied'
+                              ? '#EF5350'
+                              : '#42A5F5',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'white',
+                        }}
+                      >
+                        <PersonIcon />
                       </Box>
-                      {history.created_at && (
-                        <Box
-                          sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
-                        >
-                          <AccessTimeIcon
-                            sx={{ fontSize: 14, color: 'text.secondary' }}
-                          />
-                          <Typography variant="caption" color="text.secondary">
-                            {new Date(history.created_at).toLocaleDateString(
-                              'en-GB'
-                            )}{' '}
-                            {new Date(history.created_at).toLocaleTimeString(
-                              'en-GB',
-                              {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              }
-                            )}
-                          </Typography>
-                        </Box>
-                      )}
-                    </Box>
+                    )}
+                  >
+                    <Typography variant="subtitle2" fontWeight={600}>
+                      {history.user?.firstname} {history.user?.lastname}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {history.user?.position} • Level {history.approval_level}
+                    </Typography>
                   </StepLabel>
                   <StepContent>
                     <Paper
-                      elevation={2}
+                      elevation={0}
                       sx={{
-                        p: 2.5,
-                        ml: 2,
-                        bgcolor: getStepBackgroundColor(history.status),
-                        borderLeft: '4px solid',
-                        borderColor: getStepBorderColor(history.status),
+                        p: 2,
+                        bgcolor: 'rgba(0, 82, 155, 0.03)',
+                        borderRadius: 1,
+                        border: '1px solid rgba(0, 82, 155, 0.1)',
                       }}
                     >
                       <Grid container spacing={2}>
-                        <Grid item xs={12} md={6}>
-                          <Box sx={{ mb: 1 }}>
+                        <Grid item xs={12} sm={6}>
+                          <Typography variant="caption" color="text.secondary">
+                            Status
+                          </Typography>
+                          <Box sx={{ mt: 0.5 }}>
+                            {getStatusChip(history.status)}
+                          </Box>
+                        </Grid>
+
+                        <Grid item xs={12} sm={6}>
+                          <Typography variant="caption" color="text.secondary">
+                            Date
+                          </Typography>
+                          <Typography variant="body2">
+                            {formatDate(history.created_at)}
+                          </Typography>
+                        </Grid>
+
+                        {history.notes && (
+                          <Grid item xs={12}>
                             <Typography
                               variant="caption"
                               color="text.secondary"
                             >
-                              Status
+                              Notes
                             </Typography>
-                            <Box sx={{ mt: 0.5 }}>
-                              {getStatusChip(history.status)}
-                            </Box>
-                          </Box>
-                        </Grid>
-                        <Grid item xs={12} md={6}>
-                          <Typography variant="body2" color="text.secondary">
-                            <strong>Approval Level:</strong>{' '}
-                            {history.approval_level}
-                          </Typography>
-                        </Grid>
-                        {history.notes && (
-                          <Grid item xs={12}>
-                            <Box
-                              sx={{
-                                p: 1.5,
-                                bgcolor: 'rgba(255, 255, 255, 0.7)',
-                                borderRadius: 1,
-                                borderLeft: '3px solid #00529B',
-                              }}
-                            >
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                                display="block"
-                                fontWeight={600}
-                              >
-                                Notes:
-                              </Typography>
-                              <Typography variant="body2">
-                                {history.notes}
-                              </Typography>
-                            </Box>
+                            <Typography variant="body2">
+                              {history.notes}
+                            </Typography>
                           </Grid>
                         )}
+
                         <Grid item xs={12}>
                           <Box
                             sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}
                           >
                             {history.is_user_head_of_department && (
                               <Chip
-                                icon={<BusinessIcon sx={{ fontSize: 14 }} />}
                                 label="Head of Department"
                                 size="small"
                                 sx={{
@@ -780,27 +896,25 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
               ))}
             </Stepper>
           ) : (
-            <Alert severity="info" sx={{ mt: 2 }}>
+            <Alert severity="info">
               No signature history found. The tracking data will appear here
               once signers start reviewing this request.
             </Alert>
           )}
-        </Box>
-
-        <Divider sx={{ my: 3 }} />
+        </Paper>
 
         {/* Sign Request Section */}
         {canUserSign() && (
-          <Box>
+          <Paper elevation={0} sx={style.section}>
             <Typography
-              variant="h6"
+              variant="subtitle1"
               fontWeight={600}
               color="#00529B"
-              sx={{ mb: 2 }}
+              gutterBottom
             >
-              <VerifiedUserIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
               Sign This Request
             </Typography>
+            <Divider sx={{ mb: 2 }} />
 
             {!showSignForm ? (
               <Button
@@ -821,25 +935,12 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
                 Sign This Request
               </Button>
             ) : (
-              <Paper
-                elevation={3}
-                sx={{
-                  p: 3,
-                  border: '2px solid rgba(0, 82, 155, 0.2)',
-                  borderRadius: 2,
-                }}
-              >
+              <Box>
                 <FormControl fullWidth sx={{ mb: 2 }}>
                   <InputLabel>Action *</InputLabel>
                   <Select
                     value={signAction}
-                    onChange={(e) => {
-                      setSignAction(e.target.value);
-                      // Fetch signers list when approve & forward is selected
-                      if (e.target.value === 'approve_and_forward') {
-                        // Signers already fetched on dialog open
-                      }
-                    }}
+                    onChange={(e) => setSignAction(e.target.value)}
                     label="Action *"
                     required
                   >
@@ -866,7 +967,7 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
                         <ThumbDownIcon
                           sx={{ color: '#EF5350', fontSize: 20 }}
                         />
-                        <Typography>Deny Request</Typography>
+                        <Typography>Deny</Typography>
                       </Box>
                     </MenuItem>
                     <MenuItem value="rollback">
@@ -874,141 +975,120 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
                         sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
                       >
                         <UndoIcon sx={{ color: '#9E9E9E', fontSize: 20 }} />
-                        <Typography>Rollback Request</Typography>
+                        <Typography>Rollback</Typography>
                       </Box>
                     </MenuItem>
                   </Select>
                 </FormControl>
 
-                {/* Show warning alert for rollback action */}
-                {signAction === 'rollback' && (
-                  <Alert severity="warning" sx={{ mb: 2 }}>
-                    You are about to rollback your signature. This will return
-                    the request to its previous state.
-                  </Alert>
-                )}
-
-                {/* Additional Signers Field - Only show for "approve_and_forward" */}
                 {signAction === 'approve_and_forward' && (
-                  <FormControl fullWidth sx={{ mb: 2 }}>
-                    <InputLabel>Select Next Signers *</InputLabel>
-                    <Select
-                      multiple
-                      value={selectedSigners}
-                      onChange={(e) => setSelectedSigners(e.target.value)}
-                      label="Select Next Signers *"
-                      required
-                      renderValue={(selected) => (
-                        <Box
-                          sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}
-                        >
-                          {selected.map((signerId) => {
-                            const signer = availableSigners.find(
-                              (s) => s.id === signerId
-                            );
-                            return (
-                              <Chip
-                                key={signerId}
-                                label={
-                                  signer
-                                    ? `${signer.firstname} ${signer.lastname}`
-                                    : signerId
-                                }
-                                size="small"
-                                sx={{
-                                  bgcolor: 'rgba(0, 82, 155, 0.1)',
-                                  color: '#00529B',
-                                }}
-                              />
-                            );
-                          })}
-                        </Box>
-                      )}
-                    >
-                      {availableSigners.length > 0 ? (
-                        availableSigners.map((signer) => (
+                  <Box sx={{ mb: 2 }}>
+                    <FormControl fullWidth>
+                      <InputLabel>Select Next Signers *</InputLabel>
+                      <Select
+                        multiple
+                        value={selectedSigners}
+                        onChange={(e) => setSelectedSigners(e.target.value)}
+                        label="Select Next Signers *"
+                        required
+                        renderValue={(selected) => (
+                          <Box
+                            sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}
+                          >
+                            {selected.map((signerId) => {
+                              const signer = availableSigners.find(
+                                (s) => s.id === signerId
+                              );
+                              return (
+                                <Chip
+                                  key={signerId}
+                                  label={`${signer?.firstname} ${signer?.lastname}`}
+                                  onDelete={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedSigners(
+                                      selectedSigners.filter(
+                                        (id) => id !== signerId
+                                      )
+                                    );
+                                  }}
+                                  onMouseDown={(e) => {
+                                    e.stopPropagation();
+                                  }}
+                                  size="small"
+                                  sx={{
+                                    bgcolor: '#00529B',
+                                    color: 'white',
+                                    '& .MuiChip-deleteIcon': {
+                                      color: 'white',
+                                      '&:hover': {
+                                        color: '#ffcccc',
+                                      },
+                                    },
+                                  }}
+                                />
+                              );
+                            })}
+                          </Box>
+                        )}
+                        MenuProps={{
+                          PaperProps: {
+                            style: {
+                              maxHeight: 300,
+                            },
+                          },
+                          autoFocus: false,
+                        }}
+                      >
+                        {availableSigners.map((signer) => (
                           <MenuItem key={signer.id} value={signer.id}>
-                            <Box>
-                              <Typography variant="body2" fontWeight={600}>
-                                {signer.firstname} {signer.lastname}
-                              </Typography>
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                              >
-                                {signer.position} • {signer.department}
-                              </Typography>
+                            <Box
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                width: '100%',
+                              }}
+                            >
+                              <Box sx={{ flex: 1 }}>
+                                <Typography variant="body2" fontWeight={500}>
+                                  {signer.firstname} {signer.lastname}
+                                </Typography>
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                >
+                                  {signer.position} • {signer.department}
+                                </Typography>
+                              </Box>
+                              {selectedSigners.includes(signer.id) && (
+                                <CheckCircleIcon
+                                  sx={{ color: '#00529B', fontSize: 20 }}
+                                />
+                              )}
                             </Box>
                           </MenuItem>
-                        ))
-                      ) : (
-                        <MenuItem disabled>
-                          <Typography variant="body2" color="text.secondary">
-                            Loading signers...
-                          </Typography>
-                        </MenuItem>
-                      )}
-                    </Select>
-                  </FormControl>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Box>
                 )}
 
                 <TextField
                   fullWidth
-                  label={
-                    signAction === 'rollback'
-                      ? 'Reason for Rollback (Optional)'
-                      : 'Notes (Optional)'
-                  }
                   multiline
                   rows={3}
+                  label={
+                    signAction === 'deny' || signAction === 'rollback'
+                      ? 'Notes (Required) *'
+                      : 'Notes (Optional)'
+                  }
                   value={signNotes}
                   onChange={(e) => setSignNotes(e.target.value)}
-                  placeholder={
-                    signAction === 'rollback'
-                      ? 'Explain why you are rolling back your signature...'
-                      : 'Add any comments or reasons for your decision...'
-                  }
+                  placeholder="Add any comments or notes..."
+                  required={signAction === 'deny' || signAction === 'rollback'}
                   sx={{ mb: 2 }}
                 />
 
                 <Box sx={{ display: 'flex', gap: 2 }}>
-                  <Button
-                    variant="contained"
-                    startIcon={<SendIcon />}
-                    onClick={handleSignRequest}
-                    disabled={
-                      isLoading ||
-                      !signAction ||
-                      (signAction === 'approve_and_forward' &&
-                        selectedSigners.length === 0)
-                    }
-                    sx={{
-                      bgcolor:
-                        signAction === 'approve' ||
-                        signAction === 'approve_and_forward'
-                          ? '#66BB6A'
-                          : signAction === 'deny'
-                          ? '#EF5350'
-                          : '#9E9E9E',
-                      '&:hover': {
-                        bgcolor:
-                          signAction === 'approve' ||
-                          signAction === 'approve_and_forward'
-                            ? '#4CAF50'
-                            : signAction === 'deny'
-                            ? '#D32F2F'
-                            : '#757575',
-                      },
-                      textTransform: 'none',
-                      px: 4,
-                    }}
-                  >
-                    {isLoading
-                      ? 'Submitting...'
-                      : signAction === 'rollback'
-                      ? 'Confirm Rollback'
-                      : 'Submit Signature'}
-                  </Button>
                   <Button
                     variant="outlined"
                     onClick={() => {
@@ -1018,128 +1098,34 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
                       setSelectedSigners([]);
                     }}
                     sx={{
-                      borderColor: '#999',
+                      borderColor: '#666',
                       color: '#666',
                       textTransform: 'none',
-                      px: 3,
                     }}
                   >
                     Cancel
                   </Button>
+                  <Button
+                    variant="contained"
+                    onClick={handleSignRequest}
+                    disabled={isLoading}
+                    sx={{
+                      bgcolor: '#00529B',
+                      '&:hover': {
+                        bgcolor: '#003d73',
+                      },
+                      textTransform: 'none',
+                    }}
+                  >
+                    {isLoading ? 'Signing...' : 'Submit Signature'}
+                  </Button>
                 </Box>
-              </Paper>
+              </Box>
             )}
-          </Box>
+          </Paper>
         )}
 
-        {/* Rollback Section - Separate from Sign Form */}
-        {canRollback() && !canUserSign() && (
-          <Box>
-            <Typography
-              variant="h6"
-              fontWeight={600}
-              color="#00529B"
-              sx={{ mb: 2 }}
-            >
-              <UndoIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-              Rollback Your Signature
-            </Typography>
-
-            {!showSignForm ? (
-              <Button
-                variant="outlined"
-                startIcon={<UndoIcon />}
-                onClick={() => {
-                  setShowSignForm(true);
-                  setSignAction('rollback');
-                }}
-                size="large"
-                sx={{
-                  borderColor: '#9E9E9E',
-                  color: '#666',
-                  '&:hover': {
-                    borderColor: '#757575',
-                    bgcolor: 'rgba(158, 158, 158, 0.1)',
-                  },
-                  textTransform: 'none',
-                  py: 1.5,
-                  px: 4,
-                }}
-              >
-                Rollback Signature
-              </Button>
-            ) : (
-              signAction === 'rollback' && (
-                <Paper
-                  elevation={3}
-                  sx={{
-                    p: 3,
-                    border: '2px solid rgba(158, 158, 158, 0.2)',
-                    borderRadius: 2,
-                  }}
-                >
-                  <Alert severity="warning" sx={{ mb: 2 }}>
-                    You are about to rollback your signature. This will return
-                    the request to its previous state.
-                  </Alert>
-
-                  <TextField
-                    fullWidth
-                    label="Reason for Rollback (Optional)"
-                    multiline
-                    rows={3}
-                    value={signNotes}
-                    onChange={(e) => setSignNotes(e.target.value)}
-                    placeholder="Explain why you are rolling back your signature..."
-                    sx={{ mb: 2 }}
-                  />
-
-                  <Box sx={{ display: 'flex', gap: 2 }}>
-                    <Button
-                      variant="contained"
-                      startIcon={<UndoIcon />}
-                      onClick={handleSignRequest}
-                      disabled={isLoading}
-                      sx={{
-                        bgcolor: '#9E9E9E',
-                        '&:hover': {
-                          bgcolor: '#757575',
-                        },
-                        textTransform: 'none',
-                        px: 4,
-                      }}
-                    >
-                      {isLoading ? 'Processing...' : 'Confirm Rollback'}
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      onClick={() => {
-                        setShowSignForm(false);
-                        setSignAction('');
-                        setSignNotes('');
-                      }}
-                      sx={{
-                        borderColor: '#999',
-                        color: '#666',
-                        textTransform: 'none',
-                        px: 3,
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                  </Box>
-                </Paper>
-              )
-            )}
-          </Box>
-        )}
-
-        {!canUserSign() && !canRollback() && (
-          <Alert severity="info" icon={<VerifiedUserIcon />}>
-            You do not have permission to sign this request at this time.
-          </Alert>
-        )}
-
+        {/* Status Alert */}
         {currentRequest.status !== 'pending' &&
           currentRequest.status !== 'waiting to sign' && (
             <Alert

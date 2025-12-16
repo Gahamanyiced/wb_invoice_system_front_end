@@ -32,6 +32,8 @@ import {
   MenuItem,
   Typography,
   Divider,
+  Tooltip,
+  TablePagination,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
@@ -44,6 +46,9 @@ import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import ViewPettyCashRequestModal from './ViewPettyCashRequestModal';
 import TrackAndSignPettyCashDialog from './TrackAndSignPettyCashDialog';
+// Commented out - Edit and Delete modals (functionality disabled)
+// import EditPettyCashRequestModal from './EditPettyCashRequestModal';
+// import DeletePettyCashRequestDialog from './DeletePettyCashRequestDialog';
 
 const styles = {
   header: {
@@ -92,11 +97,30 @@ const PettyCashRequests = () => {
   const [openViewModal, setOpenViewModal] = useState(false);
   const [openTrackSignDialog, setOpenTrackSignDialog] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  // Commented out - Edit and Delete modals (buttons disabled)
+  // const [openEditModal, setOpenEditModal] = useState(false);
+  // const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
 
   // Extract data from paginated responses
   const signers = signersData?.results || [];
   const availablePettyCash = pettyCashList?.results || [];
   const requests = pettyCashRequests?.results || [];
+  const totalCount = pettyCashRequests?.count || 0;
+
+  // Pagination handlers
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+    dispatch(getAllPettyCashRequests({ page: newPage + 1 }));
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+    dispatch(getAllPettyCashRequests({ page: 1 }));
+  };
 
   // Fetch data on component mount
   useEffect(() => {
@@ -250,6 +274,29 @@ const PettyCashRequests = () => {
     setOpenTrackSignDialog(true);
   };
 
+  // Commented out - Edit and Delete handlers (buttons disabled)
+  // const handleEdit = (request) => {
+  //   setSelectedRequest(request);
+  //   setOpenEditModal(true);
+  // };
+
+  // const handleDelete = (request) => {
+  //   setSelectedRequest(request);
+  //   setOpenDeleteDialog(true);
+  // };
+
+  // const handleDeleteConfirm = async () => {
+  //   try {
+  //     await dispatch(deletePettyCashRequest(selectedRequest.id)).unwrap();
+  //     toast.success('Petty cash request deleted successfully');
+  //     dispatch(getAllPettyCashRequests({ page: 1 }));
+  //     setOpenDeleteDialog(false);
+  //     setSelectedRequest(null);
+  //   } catch (error) {
+  //     toast.error(error || 'Failed to delete petty cash request');
+  //   }
+  // };
+
   const getStatusChip = (status) => {
     const statusColors = {
       pending: { bgcolor: '#FFA726', color: 'white' },
@@ -302,15 +349,15 @@ const PettyCashRequests = () => {
         </Button>
       </Box>
 
-      {/* Table - ENHANCED: Removed Verified & Verifier, Added Created At, Changed Related Petty Cash format */}
+      {/* Table */}
       <TableContainer component={Paper} elevation={2}>
         <Table sx={styles.table}>
           <TableHead>
             <TableRow sx={{ bgcolor: 'rgba(0, 82, 155, 0.05)' }}>
-              <TableCell sx={styles.headerCell}>ID</TableCell>
+              <TableCell sx={styles.headerCell}>#</TableCell>
               <TableCell sx={styles.headerCell}>Requester</TableCell>
               <TableCell sx={styles.headerCell}>Related Petty Cash</TableCell>
-              <TableCell sx={styles.headerCell}>Total Expenses (RWF)</TableCell>
+              <TableCell sx={styles.headerCell}>Total Expenses (USD)</TableCell>
               <TableCell sx={styles.headerCell}>Created At</TableCell>
               <TableCell sx={styles.headerCell}>Status</TableCell>
               <TableCell sx={styles.headerCell} align="center">
@@ -334,7 +381,7 @@ const PettyCashRequests = () => {
                 </TableCell>
               </TableRow>
             ) : (
-              requests.map((request) => (
+              requests.map((request, index) => (
                 <TableRow
                   key={request.id}
                   hover
@@ -344,7 +391,7 @@ const PettyCashRequests = () => {
                     },
                   }}
                 >
-                  <TableCell>{request.id}</TableCell>
+                  <TableCell>{page * rowsPerPage + index + 1}</TableCell>
                   <TableCell>
                     {request.requester?.firstname} {request.requester?.lastname}
                   </TableCell>
@@ -354,106 +401,93 @@ const PettyCashRequests = () => {
                     {request.related_petty_cash?.issued_by?.lastname}
                   </TableCell>
                   <TableCell>
-                    {new Intl.NumberFormat('en-RW', {
+                    {new Intl.NumberFormat('en-US', {
                       style: 'currency',
-                      currency: 'RWF',
-                      minimumFractionDigits: 0,
-                      maximumFractionDigits: 0,
+                      currency: 'USD',
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
                     }).format(parseFloat(request.total_expenses || 0))}
                   </TableCell>
                   <TableCell>
                     {request.created_at
-                      ? new Date(request.created_at).toLocaleString('en-US', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })
+                      ? new Date(request.created_at).toLocaleString()
                       : 'N/A'}
                   </TableCell>
                   <TableCell>{getStatusChip(request.status)}</TableCell>
                   <TableCell align="center">
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        gap: 1,
-                        justifyContent: 'center',
-                        flexWrap: 'wrap',
-                      }}
-                    >
-                      <Button
+                    <Tooltip title="View" arrow>
+                      <IconButton
                         size="small"
-                        startIcon={<VisibilityOutlinedIcon />}
                         onClick={() => handleView(request)}
-                        sx={{
-                          color: '#00529B',
-                          textTransform: 'none',
-                          minWidth: '70px',
-                          fontSize: '0.75rem',
-                        }}
+                        sx={{ color: '#00529B' }}
                       >
-                        View
-                      </Button>
-                      {/* Edit button - commented out */}
-                      {/* <Button
+                        <VisibilityOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    {/* Edit button - Commented out (disabled) */}
+                    {/* <Tooltip title="Edit" arrow>
+                      <IconButton
                         size="small"
-                        startIcon={<EditOutlinedIcon />}
-                        onClick={() => {
-                          setSelectedRequest(request);
-                          setOpenEditModal(true);
-                        }}
-                        sx={{
-                          color: '#00529B',
-                          textTransform: 'none',
-                          minWidth: '70px',
-                          fontSize: '0.75rem',
-                        }}
+                        onClick={() => handleEdit(request)}
+                        sx={{ color: '#FFA726' }}
                       >
-                        Edit
-                      </Button> */}
-                      <Button
+                        <EditOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip> */}
+                    <Tooltip title="Track & Sign" arrow>
+                      <IconButton
                         size="small"
-                        startIcon={<TrackChangesIcon />}
                         onClick={() => handleTrackAndSign(request)}
-                        sx={{
-                          color: '#FFA726',
-                          textTransform: 'none',
-                          minWidth: '110px',
-                          fontSize: '0.75rem',
-                        }}
+                        sx={{ color: '#42A5F5' }}
                       >
-                        Track & Sign
-                      </Button>
-                      {/* Delete button - commented out */}
-                      {/* <Button
+                        <TrackChangesIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    {/* Delete button - Commented out (disabled) */}
+                    {/* <Tooltip title="Delete" arrow>
+                      <IconButton
                         size="small"
-                        startIcon={<DeleteOutlineIcon />}
                         onClick={() => handleDelete(request)}
-                        sx={{
-                          color: '#d32f2f',
-                          textTransform: 'none',
-                          minWidth: '70px',
-                          fontSize: '0.75rem',
-                        }}
+                        sx={{ color: '#EF5350' }}
                       >
-                        Delete
-                      </Button> */}
-                    </Box>
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip> */}
                   </TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
+        <TablePagination
+          rowsPerPageOptions={[5, 10, 25, 50]}
+          component="div"
+          count={totalCount}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={handleChangePage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          sx={{
+            borderTop: '1px solid rgba(224, 224, 224, 1)',
+            '.MuiTablePagination-selectLabel, .MuiTablePagination-displayedRows':
+              {
+                mb: 0,
+              },
+          }}
+        />
       </TableContainer>
 
-      {/* Request Petty Cash Dialog */}
+      {/* Create Request Dialog */}
       <Dialog
         open={openDialog}
         onClose={handleCloseDialog}
         maxWidth="md"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+          },
+        }}
       >
         <DialogTitle
           sx={{
@@ -464,7 +498,9 @@ const PettyCashRequests = () => {
             alignItems: 'center',
           }}
         >
-          <Typography variant="h6">Request Petty Cash</Typography>
+          <Typography variant="h6" fontWeight={600}>
+            Create Petty Cash Request
+          </Typography>
           <IconButton
             edge="end"
             color="inherit"
@@ -497,7 +533,7 @@ const PettyCashRequests = () => {
                       mb: 1,
                     }}
                   >
-                    Select Related Petty Cash *
+                    Select Related Petty Cash Transactions *
                   </Typography>
                   <FormControl fullWidth required>
                     <Select
@@ -521,7 +557,7 @@ const PettyCashRequests = () => {
                       }}
                     >
                       <MenuItem value="" disabled>
-                        <em>Select a petty cash from the list</em>
+                        <em>Select a petty cash transaction from the list</em>
                       </MenuItem>
                       {availablePettyCash.length === 0 ? (
                         <MenuItem value="" disabled>
@@ -536,22 +572,36 @@ const PettyCashRequests = () => {
                               value={pc.id}
                               sx={{ py: 1.5 }}
                             >
-                              <Box>
+                              <Box sx={{ width: '100%' }}>
                                 <Typography variant="body1" fontWeight={500}>
-                                  PC-{pc.id} - {pc.holder?.firstname}{' '}
-                                  {pc.holder?.lastname}
+                                  {pc.holder?.firstname} {pc.holder?.lastname}
                                 </Typography>
                                 <Typography
                                   variant="caption"
                                   color="text.secondary"
+                                  display="block"
                                 >
-                                  Amount: RWF{' '}
+                                  Amount: USD{' '}
                                   {parseFloat(pc.amount || 0).toLocaleString()}{' '}
-                                  • Remaining: RWF{' '}
+                                  • Remaining: USD{' '}
                                   {parseFloat(
                                     pc.remaining_amount || 0
                                   ).toLocaleString()}
                                 </Typography>
+                                {pc.notes && (
+                                  <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                    sx={{
+                                      display: 'block',
+                                      fontStyle: 'italic',
+                                      mt: 0.5,
+                                      color: '#666',
+                                    }}
+                                  >
+                                    Notes: {pc.notes}
+                                  </Typography>
+                                )}
                               </Box>
                             </MenuItem>
                           ))
@@ -595,40 +645,19 @@ const PettyCashRequests = () => {
                           py: 1.5,
                         },
                       }}
-                      MenuProps={{
-                        PaperProps: {
-                          style: {
-                            maxHeight: 400,
-                          },
-                        },
-                      }}
                     >
                       <MenuItem value="" disabled>
                         <em>Select a verifier from the list</em>
                       </MenuItem>
                       {signers.length === 0 ? (
                         <MenuItem value="" disabled>
-                          <em>Loading signers...</em>
+                          <em>No signers available</em>
                         </MenuItem>
                       ) : (
                         signers.map((signer) => (
-                          <MenuItem
-                            key={signer.id}
-                            value={signer.id}
-                            sx={{ py: 1.5 }}
-                          >
-                            <Box>
-                              <Typography variant="body1" fontWeight={500}>
-                                {signer.firstname} {signer.lastname}
-                              </Typography>
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                              >
-                                {signer.position} • {signer.department} •{' '}
-                                {signer.section}
-                              </Typography>
-                            </Box>
+                          <MenuItem key={signer.id} value={signer.id}>
+                            {signer.firstname} {signer.lastname} -{' '}
+                            {signer.position}
                           </MenuItem>
                         ))
                       )}
@@ -648,31 +677,27 @@ const PettyCashRequests = () => {
                     mb: 2,
                   }}
                 >
-                  <Typography
-                    variant="h6"
-                    sx={{ color: '#00529B', fontWeight: 600 }}
-                  >
+                  <Typography variant="h6" color="#00529B" fontWeight={600}>
                     Expenses
                   </Typography>
                   <Button
                     variant="outlined"
+                    size="small"
                     startIcon={<AddIcon />}
                     onClick={handleAddExpense}
                     sx={{
-                      color: '#00529B',
                       borderColor: '#00529B',
+                      color: '#00529B',
                       '&:hover': {
                         borderColor: '#003d73',
                         bgcolor: 'rgba(0, 82, 155, 0.05)',
                       },
-                      textTransform: 'none',
                     }}
                   >
                     Add Expense
                   </Button>
                 </Box>
 
-                {/* Expense Items */}
                 {formData.expenses.map((expense, index) => (
                   <Box key={index} sx={styles.expenseCard}>
                     <Box
@@ -683,19 +708,16 @@ const PettyCashRequests = () => {
                         mb: 2,
                       }}
                     >
-                      <Typography
-                        variant="subtitle2"
-                        sx={{ color: '#00529B', fontWeight: 600 }}
-                      >
+                      <Typography variant="subtitle2" fontWeight={600}>
                         Expense #{index + 1}
                       </Typography>
                       {formData.expenses.length > 1 && (
                         <IconButton
                           size="small"
                           onClick={() => handleRemoveExpense(index)}
-                          sx={{ color: '#d32f2f' }}
+                          sx={{ color: '#EF5350' }}
                         >
-                          <RemoveCircleOutlineIcon />
+                          <RemoveCircleOutlineIcon fontSize="small" />
                         </IconButton>
                       )}
                     </Box>
@@ -703,24 +725,22 @@ const PettyCashRequests = () => {
                     <Grid container spacing={2}>
                       <Grid item xs={12} md={4}>
                         <TextField
-                          fullWidth
-                          label="Date *"
+                          label="Date"
                           type="date"
                           value={expense.date}
                           onChange={(e) =>
                             handleExpenseChange(index, 'date', e.target.value)
                           }
+                          fullWidth
                           required
-                          InputLabelProps={{
-                            shrink: true,
-                          }}
+                          InputLabelProps={{ shrink: true }}
+                          size="small"
                         />
                       </Grid>
 
                       <Grid item xs={12} md={8}>
                         <TextField
-                          fullWidth
-                          label="Item Description *"
+                          label="Item Description"
                           value={expense.item_description}
                           onChange={(e) =>
                             handleExpenseChange(
@@ -729,90 +749,65 @@ const PettyCashRequests = () => {
                               e.target.value
                             )
                           }
+                          fullWidth
                           required
-                          placeholder="e.g., Office supplies - pens, paper"
+                          size="small"
+                          placeholder="e.g., Office supplies"
                         />
                       </Grid>
 
                       <Grid item xs={12} md={6}>
                         <TextField
-                          fullWidth
-                          label="Amount (RWF) *"
+                          label="Amount (USD)"
                           type="number"
                           value={expense.amount}
                           onChange={(e) =>
                             handleExpenseChange(index, 'amount', e.target.value)
                           }
+                          fullWidth
                           required
-                          InputProps={{
-                            inputProps: { min: 0, step: 100 },
-                          }}
-                          placeholder="e.g., 5000"
+                          size="small"
+                          inputProps={{ step: '0.01', min: '0' }}
                         />
                       </Grid>
 
                       <Grid item xs={12} md={6}>
-                        <Typography
-                          variant="caption"
-                          gutterBottom
-                          sx={{
-                            color: '#666',
-                            fontWeight: 500,
-                            display: 'block',
-                          }}
-                        >
-                          Supporting Document
-                        </Typography>
-                        <Box sx={styles.uploadBox}>
-                          <input
-                            accept="*/*"
-                            style={{ display: 'none' }}
-                            id={`expense-file-upload-${index}`}
-                            type="file"
-                            onChange={(e) => handleFileUpload(index, e)}
-                          />
-                          <label htmlFor={`expense-file-upload-${index}`}>
-                            <Box
-                              sx={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                cursor: 'pointer',
-                              }}
-                            >
-                              <CloudUploadIcon
-                                sx={{ fontSize: 30, color: '#00529B', mb: 0.5 }}
-                              />
-                              <Typography
-                                variant="caption"
-                                color="textSecondary"
-                              >
-                                Click to upload document
-                              </Typography>
-                            </Box>
-                          </label>
-                        </Box>
-
+                        <input
+                          accept="image/*,.pdf"
+                          style={{ display: 'none' }}
+                          id={`expense-file-${index}`}
+                          type="file"
+                          onChange={(e) => handleFileUpload(index, e)}
+                        />
+                        <label htmlFor={`expense-file-${index}`}>
+                          <Box sx={styles.uploadBox}>
+                            <CloudUploadIcon sx={{ color: '#00529B', mb: 1 }} />
+                            <Typography variant="caption">
+                              {expense.supporting_document
+                                ? expense.supporting_document.name
+                                : 'Upload Receipt'}
+                            </Typography>
+                          </Box>
+                        </label>
                         {expense.supporting_document && (
                           <Box
                             sx={{
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'space-between',
-                              p: 1,
                               mt: 1,
-                              bgcolor: 'rgba(0, 82, 155, 0.05)',
-                              borderRadius: 1,
-                              border: '1px solid rgba(0, 82, 155, 0.2)',
                             }}
                           >
-                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            <Box
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                              }}
+                            >
                               <AttachFileIcon
-                                sx={{
-                                  mr: 1,
-                                  color: '#00529B',
-                                  fontSize: 18,
-                                }}
+                                fontSize="small"
+                                sx={{ color: '#00529B' }}
                               />
                               <Typography variant="caption">
                                 {expense.supporting_document.name}
@@ -832,29 +827,23 @@ const PettyCashRequests = () => {
                   </Box>
                 ))}
 
-                {/* Total Amount Summary */}
+                {/* Total Amount Display */}
                 <Box
                   sx={{
-                    mt: 3,
+                    mt: 2,
                     p: 2,
                     bgcolor: 'rgba(0, 82, 155, 0.08)',
-                    borderRadius: 2,
+                    borderRadius: 1,
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
                   }}
                 >
-                  <Typography variant="h6" sx={{ color: '#00529B' }}>
+                  <Typography variant="h6" fontWeight={600}>
                     Total Amount:
                   </Typography>
-                  <Typography
-                    variant="h6"
-                    sx={{ color: '#00529B', fontWeight: 700 }}
-                  >
-                    {new Intl.NumberFormat('en-RW', {
-                      style: 'currency',
-                      currency: 'RWF',
-                    }).format(calculateTotalAmount())}
+                  <Typography variant="h6" fontWeight={700} color="#00529B">
+                    USD {calculateTotalAmount().toLocaleString()}
                   </Typography>
                 </Box>
               </Grid>

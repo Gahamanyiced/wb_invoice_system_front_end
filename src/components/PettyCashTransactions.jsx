@@ -31,6 +31,7 @@ import {
   MenuItem,
   Typography,
   Tooltip,
+  TablePagination,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
@@ -79,6 +80,8 @@ const PettyCashTransactions = () => {
   const [openViewModal, setOpenViewModal] = useState(false);
   const [openAcknowledgeDialog, setOpenAcknowledgeDialog] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const dispatch = useDispatch();
   const { pettyCashList, isLoading } = useSelector((state) => state.pettyCash);
@@ -88,6 +91,19 @@ const PettyCashTransactions = () => {
 
   // Extract signers from paginated response
   const signers = signersData?.results || [];
+  const totalCount = pettyCashList?.count || 0;
+
+  // Pagination handlers
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+    dispatch(getAllPettyCash({ page: newPage + 1 }));
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+    dispatch(getAllPettyCash({ page: 1 }));
+  };
 
   // Fetch data on component mount
   useEffect(() => {
@@ -234,6 +250,15 @@ const PettyCashTransactions = () => {
     );
   };
 
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(parseFloat(amount || 0));
+  };
+
   return (
     <Box>
       {/* Header */}
@@ -263,10 +288,10 @@ const PettyCashTransactions = () => {
         <Table sx={styles.table}>
           <TableHead>
             <TableRow sx={{ bgcolor: 'rgba(0, 82, 155, 0.05)' }}>
-              <TableCell sx={styles.headerCell}>ID</TableCell>
+              <TableCell sx={styles.headerCell}>#</TableCell>
               <TableCell sx={styles.headerCell}>Holder</TableCell>
-              <TableCell sx={styles.headerCell}>Amount</TableCell>
-              <TableCell sx={styles.headerCell}>Remaining</TableCell>
+              <TableCell sx={styles.headerCell}>Amount (USD)</TableCell>
+              <TableCell sx={styles.headerCell}>Remaining (USD)</TableCell>
               <TableCell sx={styles.headerCell}>Issue Date</TableCell>
               <TableCell sx={styles.headerCell}>Created At</TableCell>
               <TableCell sx={styles.headerCell}>Status</TableCell>
@@ -290,7 +315,7 @@ const PettyCashTransactions = () => {
                 </TableCell>
               </TableRow>
             ) : (
-              transactions.map((transaction) => (
+              transactions.map((transaction, index) => (
                 <TableRow
                   key={transaction.id}
                   hover
@@ -300,22 +325,14 @@ const PettyCashTransactions = () => {
                     },
                   }}
                 >
-                  <TableCell>{transaction.id}</TableCell>
+                  <TableCell>{page * rowsPerPage + index + 1}</TableCell>
                   <TableCell>
                     {transaction.holder?.firstname}{' '}
                     {transaction.holder?.lastname}
                   </TableCell>
+                  <TableCell>{formatCurrency(transaction.amount)}</TableCell>
                   <TableCell>
-                    {new Intl.NumberFormat('en-RW', {
-                      style: 'currency',
-                      currency: 'RWF',
-                    }).format(transaction.amount)}
-                  </TableCell>
-                  <TableCell>
-                    {new Intl.NumberFormat('en-RW', {
-                      style: 'currency',
-                      currency: 'RWF',
-                    }).format(transaction.remaining_amount)}
+                    {formatCurrency(transaction.remaining_amount)}
                   </TableCell>
                   <TableCell>{transaction.issue_date}</TableCell>
                   <TableCell>
@@ -353,22 +370,18 @@ const PettyCashTransactions = () => {
                         display: 'flex',
                         gap: 1,
                         justifyContent: 'center',
-                        flexWrap: 'wrap',
+                        alignItems: 'center',
                       }}
                     >
-                      <Button
-                        size="small"
-                        startIcon={<VisibilityOutlinedIcon />}
-                        onClick={() => handleView(transaction)}
-                        sx={{
-                          color: '#00529B',
-                          textTransform: 'none',
-                          minWidth: '70px',
-                          fontSize: '0.75rem',
-                        }}
-                      >
-                        View
-                      </Button>
+                      <Tooltip title="View" arrow>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleView(transaction)}
+                          sx={{ color: '#00529B' }}
+                        >
+                          <VisibilityOutlinedIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                       {(() => {
                         // Get logged-in user from localStorage
                         const userStr = localStorage.getItem('user');
@@ -377,51 +390,39 @@ const PettyCashTransactions = () => {
                           // Show acknowledge button only if logged-in user is the holder
                           if (loggedInUser.id === transaction.holder?.id) {
                             return (
-                              <Button
-                                size="small"
-                                startIcon={<CheckCircleOutlineIcon />}
-                                onClick={() => handleAcknowledge(transaction)}
-                                sx={{
-                                  color: '#66BB6A',
-                                  textTransform: 'none',
-                                  minWidth: '110px',
-                                  fontSize: '0.75rem',
-                                }}
-                              >
-                                Acknowledge
-                              </Button>
+                              <Tooltip title="Acknowledge" arrow>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleAcknowledge(transaction)}
+                                  sx={{ color: '#66BB6A' }}
+                                >
+                                  <CheckCircleOutlineIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
                             );
                           }
                         }
                         return null;
                       })()}
                       {/* Edit and Delete buttons commented as requested
-                    <Button
-                      size="small"
-                      startIcon={<EditOutlinedIcon />}
-                      onClick={() => handleEdit(transaction)}
-                      sx={{
-                        color: '#00529B',
-                        textTransform: 'none',
-                        minWidth: '70px',
-                        fontSize: '0.75rem',
-                      }}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      size="small"
-                      startIcon={<DeleteOutlineIcon />}
-                      onClick={() => handleDelete(transaction)}
-                      sx={{
-                        color: '#d32f2f',
-                        textTransform: 'none',
-                        minWidth: '70px',
-                        fontSize: '0.75rem',
-                      }}
-                    >
-                      Delete
-                    </Button>
+                    <Tooltip title="Edit" arrow>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleEdit(transaction)}
+                        sx={{ color: '#FFA726' }}
+                      >
+                        <EditOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Delete" arrow>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleDelete(transaction)}
+                        sx={{ color: '#EF5350' }}
+                      >
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                     */}
                     </Box>
                   </TableCell>
@@ -430,6 +431,22 @@ const PettyCashTransactions = () => {
             )}
           </TableBody>
         </Table>
+        <TablePagination
+          rowsPerPageOptions={[5, 10, 25, 50]}
+          component="div"
+          count={totalCount}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={handleChangePage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          sx={{
+            borderTop: '1px solid rgba(224, 224, 224, 1)',
+            '.MuiTablePagination-selectLabel, .MuiTablePagination-displayedRows':
+              {
+                mb: 0,
+              },
+          }}
+        />
       </TableContainer>
 
       {/* Create Transaction Dialog */}
@@ -545,16 +562,16 @@ const PettyCashTransactions = () => {
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
-                  label="Amount (RWF) *"
+                  label="Amount (USD) *"
                   name="amount"
                   type="number"
                   value={formData.amount}
                   onChange={handleInputChange}
                   required
                   InputProps={{
-                    inputProps: { min: 0, step: 100 },
+                    inputProps: { min: 0, step: 0.01 },
                   }}
-                  placeholder="e.g., 50000"
+                  placeholder="e.g., 500.00"
                 />
               </Grid>
 

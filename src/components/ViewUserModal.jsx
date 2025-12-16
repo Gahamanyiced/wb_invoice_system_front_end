@@ -50,6 +50,9 @@ const ViewUserModal = ({ defaultValues, open, handleClose }) => {
         <Typography>Role: {defaultValues?.role}</Typography>
         <Typography>Position: {defaultValues?.position}</Typography>
         <Typography>Approved: {`${defaultValues?.is_approved}`}</Typography>
+        <Typography>
+          Petty Cash User: {`${defaultValues?.is_petty_cash_user}`}
+        </Typography>
 
         {hasSupplierProfile && (
           <>
