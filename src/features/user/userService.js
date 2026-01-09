@@ -1,7 +1,23 @@
 import http from '../../http-common';
 
-const getAllSigners = async (id) => {
-  const response = await http.get('/auth/signer-list/');
+const getAllSigners = async (data = {}) => {
+  // Filter out empty values
+  const filterEmpty = (obj) =>
+    Object.fromEntries(
+      Object.entries(obj).filter(([_, v]) => v !== '' && v != null)
+    );
+
+  const filteredData = filterEmpty(data);
+
+  // Use URLSearchParams to convert the data object into a query string
+  const queryParams = new URLSearchParams(filteredData).toString();
+
+  // If there are query params, append them to the URL
+  const url = queryParams 
+    ? `/auth/signer-list/?${queryParams}` 
+    : '/auth/signer-list/';
+
+  const response = await http.get(url);
   return response.data;
 };
 

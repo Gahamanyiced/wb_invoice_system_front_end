@@ -34,6 +34,7 @@ import {
   Divider,
   Tooltip,
   TablePagination,
+  Alert,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
@@ -86,6 +87,17 @@ const styles = {
   },
 };
 
+// Currency options
+const CURRENCIES = [
+  { code: 'USD', name: 'US Dollar', symbol: '$' },
+  { code: 'EUR', name: 'Euro', symbol: '€' },
+  { code: 'GBP', name: 'British Pound', symbol: '£' },
+  { code: 'RWF', name: 'Rwandan Franc', symbol: 'FRw' },
+  { code: 'KES', name: 'Kenyan Shilling', symbol: 'KSh' },
+  { code: 'UGX', name: 'Ugandan Shilling', symbol: 'USh' },
+  { code: 'TZS', name: 'Tanzanian Shilling', symbol: 'TSh' },
+];
+
 const PettyCashRequests = () => {
   const dispatch = useDispatch();
   const { pettyCashRequests, pettyCashList, isLoading } = useSelector(
@@ -99,6 +111,7 @@ const PettyCashRequests = () => {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [currencyError, setCurrencyError] = useState('');
 
   // Commented out - Edit and Delete modals (buttons disabled)
   // const [openEditModal, setOpenEditModal] = useState(false);
@@ -125,7 +138,7 @@ const PettyCashRequests = () => {
   // Fetch data on component mount
   useEffect(() => {
     dispatch(getAllPettyCashRequests({ page: 1 }));
-    dispatch(getAllSigners());
+    dispatch(getAllSigners({ is_petty_cash_user: 'true' })); // Fetch only petty cash users
     dispatch(getAllPettyCash({ page: 1, status: 'active' }));
   }, [dispatch]);
 
@@ -137,6 +150,7 @@ const PettyCashRequests = () => {
         date: '',
         item_description: '',
         amount: '',
+        currency: 'USD', // Default currency
         supporting_document: null,
       },
     ],
@@ -148,6 +162,7 @@ const PettyCashRequests = () => {
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
+    setCurrencyError('');
     setFormData({
       related_petty_cash_id: '',
       verifier_id: '',
@@ -156,6 +171,7 @@ const PettyCashRequests = () => {
           date: '',
           item_description: '',
           amount: '',
+          currency: 'USD',
           supporting_document: null,
         },
       ],
@@ -173,6 +189,17 @@ const PettyCashRequests = () => {
   const handleExpenseChange = (index, field, value) => {
     const newExpenses = [...formData.expenses];
     newExpenses[index][field] = value;
+
+    // If currency is changed on the first expense, update all other expenses
+    if (index === 0 && field === 'currency') {
+      newExpenses.forEach((expense, i) => {
+        if (i !== 0) {
+          expense.currency = value;
+        }
+      });
+      setCurrencyError(''); // Clear any existing error
+    }
+
     setFormData({
       ...formData,
       expenses: newExpenses,
@@ -180,6 +207,9 @@ const PettyCashRequests = () => {
   };
 
   const handleAddExpense = () => {
+    // Use the currency from the first expense
+    const firstExpenseCurrency = formData.expenses[0]?.currency || 'USD';
+
     setFormData({
       ...formData,
       expenses: [
@@ -188,6 +218,7 @@ const PettyCashRequests = () => {
           date: '',
           item_description: '',
           amount: '',
+          currency: firstExpenseCurrency, // Match first expense currency
           supporting_document: null,
         },
       ],
@@ -225,8 +256,32 @@ const PettyCashRequests = () => {
     });
   };
 
+  const validateCurrencies = () => {
+    if (formData.expenses.length <= 1) return true;
+
+    const firstCurrency = formData.expenses[0].currency;
+    const allSameCurrency = formData.expenses.every(
+      (expense) => expense.currency === firstCurrency
+    );
+
+    if (!allSameCurrency) {
+      setCurrencyError(
+        `All expenses must use the same currency. Please ensure all expenses use ${firstCurrency}.`
+      );
+      return false;
+    }
+
+    setCurrencyError('');
+    return true;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validate currencies before submitting
+    if (!validateCurrencies()) {
+      return;
+    }
 
     try {
       const submitData = new FormData();
@@ -240,6 +295,7 @@ const PettyCashRequests = () => {
         date: expense.date,
         item_description: expense.item_description,
         amount: expense.amount,
+        currency: expense.currency,
       }));
 
       submitData.append('expenses', JSON.stringify(expensesData));
@@ -247,7 +303,7 @@ const PettyCashRequests = () => {
       formData.expenses.forEach((expense, index) => {
         if (expense.supporting_document) {
           submitData.append(
-            `expense_${index}_document`,
+            `expense_document_${index}`,
             expense.supporting_document
           );
         }
@@ -325,6 +381,13 @@ const PettyCashRequests = () => {
     );
   };
 
+  const formatAmount = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(parseFloat(amount || 0));
+  };
+
   return (
     <Box>
       {/* Header */}
@@ -357,7 +420,8 @@ const PettyCashRequests = () => {
               <TableCell sx={styles.headerCell}>#</TableCell>
               <TableCell sx={styles.headerCell}>Requester</TableCell>
               <TableCell sx={styles.headerCell}>Related Petty Cash</TableCell>
-              <TableCell sx={styles.headerCell}>Total Expenses (USD)</TableCell>
+              <TableCell sx={styles.headerCell}>Total Expenses</TableCell>
+              <TableCell sx={styles.headerCell}>Currency</TableCell>
               <TableCell sx={styles.headerCell}>Created At</TableCell>
               <TableCell sx={styles.headerCell}>Status</TableCell>
               <TableCell sx={styles.headerCell} align="center">
@@ -368,13 +432,13 @@ const PettyCashRequests = () => {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
                   <Typography>Loading...</Typography>
                 </TableCell>
               </TableRow>
             ) : requests.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
                   <Typography color="text.secondary">
                     No petty cash requests found
                   </Typography>
@@ -400,13 +464,18 @@ const PettyCashRequests = () => {
                     {request.related_petty_cash?.issued_by?.firstname}{' '}
                     {request.related_petty_cash?.issued_by?.lastname}
                   </TableCell>
+                  <TableCell>{formatAmount(request.total_expenses)}</TableCell>
                   <TableCell>
-                    {new Intl.NumberFormat('en-US', {
-                      style: 'currency',
-                      currency: 'USD',
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }).format(parseFloat(request.total_expenses || 0))}
+                    <Chip
+                      label={request.currency || 'USD'}
+                      size="small"
+                      sx={{
+                        bgcolor: '#00529B',
+                        color: 'white',
+                        fontWeight: 500,
+                        minWidth: '60px',
+                      }}
+                    />
                   </TableCell>
                   <TableCell>
                     {request.created_at
@@ -514,6 +583,15 @@ const PettyCashRequests = () => {
         <form onSubmit={handleSubmit}>
           <DialogContent sx={{ mt: 2 }}>
             <Grid container spacing={3}>
+              {/* Currency Error Alert */}
+              {currencyError && (
+                <Grid item xs={12}>
+                  <Alert severity="error" onClose={() => setCurrencyError('')}>
+                    {currencyError}
+                  </Alert>
+                </Grid>
+              )}
+
               {/* Related Petty Cash */}
               <Grid item xs={12}>
                 <Box
@@ -581,9 +659,9 @@ const PettyCashRequests = () => {
                                   color="text.secondary"
                                   display="block"
                                 >
-                                  Amount: USD{' '}
+                                  Amount: {pc.currency || 'USD'}{' '}
                                   {parseFloat(pc.amount || 0).toLocaleString()}{' '}
-                                  • Remaining: USD{' '}
+                                  • Remaining: {pc.currency || 'USD'}{' '}
                                   {parseFloat(
                                     pc.remaining_amount || 0
                                   ).toLocaleString()}
@@ -723,7 +801,7 @@ const PettyCashRequests = () => {
                     </Box>
 
                     <Grid container spacing={2}>
-                      <Grid item xs={12} md={4}>
+                      <Grid item xs={12} md={6}>
                         <TextField
                           label="Date"
                           type="date"
@@ -738,7 +816,7 @@ const PettyCashRequests = () => {
                         />
                       </Grid>
 
-                      <Grid item xs={12} md={8}>
+                      <Grid item xs={12} md={6}>
                         <TextField
                           label="Item Description"
                           value={expense.item_description}
@@ -756,9 +834,9 @@ const PettyCashRequests = () => {
                         />
                       </Grid>
 
-                      <Grid item xs={12} md={6}>
+                      <Grid item xs={12} md={4}>
                         <TextField
-                          label="Amount (USD)"
+                          label="Amount"
                           type="number"
                           value={expense.amount}
                           onChange={(e) =>
@@ -771,7 +849,55 @@ const PettyCashRequests = () => {
                         />
                       </Grid>
 
-                      <Grid item xs={12} md={6}>
+                      <Grid item xs={12} md={4}>
+                        <FormControl fullWidth required size="small">
+                          <InputLabel>Currency</InputLabel>
+                          <Select
+                            value={expense.currency}
+                            onChange={(e) =>
+                              handleExpenseChange(
+                                index,
+                                'currency',
+                                e.target.value
+                              )
+                            }
+                            label="Currency"
+                            disabled={index !== 0} // Only first expense can change currency
+                          >
+                            {CURRENCIES.map((curr) => (
+                              <MenuItem key={curr.code} value={curr.code}>
+                                <Box
+                                  sx={{ display: 'flex', alignItems: 'center' }}
+                                >
+                                  <Typography variant="body2" sx={{ mr: 1 }}>
+                                    {curr.symbol}
+                                  </Typography>
+                                  <Typography variant="body2" fontWeight={500}>
+                                    {curr.code}
+                                  </Typography>
+                                  <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                    sx={{ ml: 1 }}
+                                  >
+                                    - {curr.name}
+                                  </Typography>
+                                </Box>
+                              </MenuItem>
+                            ))}
+                          </Select>
+                          {index === 0 && formData.expenses.length > 1 && (
+                            <Typography
+                              variant="caption"
+                              sx={{ mt: 0.5, color: '#00529B' }}
+                            >
+                              Changing this will update all expenses
+                            </Typography>
+                          )}
+                        </FormControl>
+                      </Grid>
+
+                      <Grid item xs={12} md={4}>
                         <input
                           accept="image/*,.pdf"
                           style={{ display: 'none' }}
@@ -840,10 +966,13 @@ const PettyCashRequests = () => {
                   }}
                 >
                   <Typography variant="h6" fontWeight={600}>
-                    Total Amount:
+                    Total Amount ({formData.expenses[0]?.currency || 'USD'}):
                   </Typography>
                   <Typography variant="h6" fontWeight={700} color="#00529B">
-                    USD {calculateTotalAmount().toLocaleString()}
+                    {calculateTotalAmount().toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                   </Typography>
                 </Box>
               </Grid>

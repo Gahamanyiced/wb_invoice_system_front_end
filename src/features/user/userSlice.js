@@ -15,12 +15,12 @@ const initialState = {
   },
 };
 
-//get all signers
+//get all signers with optional filters
 export const getAllSigners = createAsyncThunk(
   'user/getAllSigners',
-  async (_, thunkAPI) => {
+  async (data, thunkAPI) => {
     try {
-      return await userService.getAllSigners();
+      return await userService.getAllSigners(data);
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }

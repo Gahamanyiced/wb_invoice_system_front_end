@@ -111,10 +111,8 @@ const ViewPettyCashRequestModal = ({ open, handleClose, request }) => {
     }
   };
 
-  const formatCurrency = (amount) => {
+  const formatAmount = (amount) => {
     return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(parseFloat(amount || 0));
@@ -167,13 +165,28 @@ const ViewPettyCashRequestModal = ({ open, handleClose, request }) => {
 
               <Grid item xs={12} sm={6}>
                 <Box sx={style.fieldContainer}>
+                  <Typography sx={style.fieldLabel}>Currency</Typography>
+                  <Chip
+                    label={request.currency || 'USD'}
+                    size="small"
+                    sx={{
+                      bgcolor: '#00529B',
+                      color: 'white',
+                      fontWeight: 500,
+                    }}
+                  />
+                </Box>
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>Total Expenses</Typography>
                   <Typography
                     sx={style.fieldValue}
                     fontWeight={700}
                     color="#00529B"
                   >
-                    {formatCurrency(request.total_expenses)}
+                    {formatAmount(request.total_expenses)}
                   </Typography>
                 </Box>
               </Grid>
@@ -328,6 +341,21 @@ const ViewPettyCashRequestModal = ({ open, handleClose, request }) => {
 
               <Grid item xs={12} sm={6}>
                 <Box sx={style.fieldContainer}>
+                  <Typography sx={style.fieldLabel}>Currency</Typography>
+                  <Chip
+                    label={request.related_petty_cash?.currency || 'USD'}
+                    size="small"
+                    sx={{
+                      bgcolor: '#00529B',
+                      color: 'white',
+                      fontWeight: 500,
+                    }}
+                  />
+                </Box>
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>Status</Typography>
                   <Chip
                     label={
@@ -368,7 +396,7 @@ const ViewPettyCashRequestModal = ({ open, handleClose, request }) => {
                 <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>Total Amount</Typography>
                   <Typography sx={style.fieldValue} fontWeight={700}>
-                    {formatCurrency(request.related_petty_cash?.amount)}
+                    {formatAmount(request.related_petty_cash?.amount)}
                   </Typography>
                 </Box>
               </Grid>
@@ -379,9 +407,7 @@ const ViewPettyCashRequestModal = ({ open, handleClose, request }) => {
                     Remaining Amount
                   </Typography>
                   <Typography sx={style.fieldValue} fontWeight={700}>
-                    {formatCurrency(
-                      request.related_petty_cash?.remaining_amount
-                    )}
+                    {formatAmount(request.related_petty_cash?.remaining_amount)}
                   </Typography>
                 </Box>
               </Grid>
@@ -552,9 +578,20 @@ const ViewPettyCashRequestModal = ({ open, handleClose, request }) => {
                     <Typography variant="subtitle2" fontWeight={600}>
                       Expense #{index + 1}
                     </Typography>
-                    <Typography variant="h6" fontWeight={700} color="#00529B">
-                      {formatCurrency(expense.amount)}
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Chip
+                        label={expense.currency || request.currency || 'USD'}
+                        size="small"
+                        sx={{
+                          bgcolor: '#00529B',
+                          color: 'white',
+                          fontWeight: 500,
+                        }}
+                      />
+                      <Typography variant="h6" fontWeight={700} color="#00529B">
+                        {formatAmount(expense.amount)}
+                      </Typography>
+                    </Box>
                   </Box>
 
                   <Grid container spacing={2}>
@@ -648,10 +685,10 @@ const ViewPettyCashRequestModal = ({ open, handleClose, request }) => {
               }}
             >
               <Typography variant="h6" fontWeight={600}>
-                Total Expenses:
+                Total Expenses ({request.currency || 'USD'}):
               </Typography>
               <Typography variant="h5" fontWeight={700} color="#00529B">
-                {formatCurrency(request.total_expenses)}
+                {formatAmount(request.total_expenses)}
               </Typography>
             </Box>
           </Paper>

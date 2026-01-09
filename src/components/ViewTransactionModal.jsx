@@ -66,12 +66,18 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
       active: { bgcolor: '#66BB6A', color: 'white' },
       exhausted: { bgcolor: '#EF5350', color: 'white' },
       pending: { bgcolor: '#FFA726', color: 'white' },
+      pending_acknowledgment: { bgcolor: '#FF9800', color: 'white' },
     };
 
     return (
       <Chip
         label={
-          status ? status.charAt(0).toUpperCase() + status.slice(1) : 'N/A'
+          status
+            ? status
+                .split('_')
+                .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ')
+            : 'N/A'
         }
         sx={{
           ...(statusColors[status] || { bgcolor: '#9E9E9E', color: 'white' }),
@@ -93,10 +99,8 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
     });
   };
 
-  const formatCurrency = (amount) => {
+  const formatAmount = (amount) => {
     return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(parseFloat(amount || 0));
@@ -139,13 +143,28 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
 
               <Grid item xs={12} sm={6}>
                 <Box sx={style.fieldContainer}>
+                  <Typography sx={style.fieldLabel}>Currency</Typography>
+                  <Chip
+                    label={transaction?.currency || 'USD'}
+                    size="small"
+                    sx={{
+                      bgcolor: '#00529B',
+                      color: 'white',
+                      fontWeight: 500,
+                    }}
+                  />
+                </Box>
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>Amount Issued</Typography>
                   <Typography
                     sx={style.fieldValue}
                     fontWeight={700}
                     color="#00529B"
                   >
-                    {formatCurrency(transaction?.amount)}
+                    {formatAmount(transaction?.amount)}
                   </Typography>
                 </Box>
               </Grid>
@@ -160,7 +179,7 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
                     fontWeight={700}
                     color="#00529B"
                   >
-                    {formatCurrency(transaction?.remaining_amount)}
+                    {formatAmount(transaction?.remaining_amount)}
                   </Typography>
                 </Box>
               </Grid>

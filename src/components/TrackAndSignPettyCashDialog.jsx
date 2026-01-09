@@ -118,7 +118,9 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
 
   const fetchSigners = async () => {
     try {
-      const result = await dispatch(getAllSigners()).unwrap();
+      const result = await dispatch(
+        getAllSigners({ is_petty_cash_user: 'true' })
+      ).unwrap();
       setAvailableSigners(result?.results || []);
     } catch (error) {
       console.error('Failed to fetch signers:', error);
@@ -267,10 +269,8 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
     );
   };
 
-  const formatCurrency = (amount) => {
+  const formatAmount = (amount) => {
     return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(parseFloat(amount || 0));
@@ -358,13 +358,28 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
 
             <Grid item xs={12} sm={6}>
               <Box sx={style.fieldContainer}>
+                <Typography sx={style.fieldLabel}>Currency</Typography>
+                <Chip
+                  label={currentRequest.currency || 'USD'}
+                  size="small"
+                  sx={{
+                    bgcolor: '#00529B',
+                    color: 'white',
+                    fontWeight: 500,
+                  }}
+                />
+              </Box>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <Box sx={style.fieldContainer}>
                 <Typography sx={style.fieldLabel}>Total Expenses</Typography>
                 <Typography
                   sx={style.fieldValue}
                   fontWeight={700}
                   color="#00529B"
                 >
-                  {formatCurrency(currentRequest.total_expenses)}
+                  {formatAmount(currentRequest.total_expenses)}
                 </Typography>
               </Box>
             </Grid>
@@ -472,9 +487,22 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
                   <Typography variant="subtitle2" fontWeight={600}>
                     Expense #{index + 1}
                   </Typography>
-                  <Typography variant="h6" fontWeight={700} color="#00529B">
-                    {formatCurrency(expense.amount)}
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Chip
+                      label={
+                        expense.currency || currentRequest.currency || 'USD'
+                      }
+                      size="small"
+                      sx={{
+                        bgcolor: '#00529B',
+                        color: 'white',
+                        fontWeight: 500,
+                      }}
+                    />
+                    <Typography variant="h6" fontWeight={700} color="#00529B">
+                      {formatAmount(expense.amount)}
+                    </Typography>
+                  </Box>
                 </Box>
 
                 <Grid container spacing={2}>
@@ -561,10 +589,10 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
             }}
           >
             <Typography variant="h6" fontWeight={600}>
-              Total Expenses:
+              Total Expenses ({currentRequest.currency || 'USD'}):
             </Typography>
             <Typography variant="h5" fontWeight={700} color="#00529B">
-              {formatCurrency(currentRequest.total_expenses)}
+              {formatAmount(currentRequest.total_expenses)}
             </Typography>
           </Box>
         </Paper>
@@ -617,6 +645,21 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
 
             <Grid item xs={12} sm={6}>
               <Box sx={style.fieldContainer}>
+                <Typography sx={style.fieldLabel}>Currency</Typography>
+                <Chip
+                  label={currentRequest.related_petty_cash?.currency || 'USD'}
+                  size="small"
+                  sx={{
+                    bgcolor: '#00529B',
+                    color: 'white',
+                    fontWeight: 500,
+                  }}
+                />
+              </Box>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <Box sx={style.fieldContainer}>
                 <Typography sx={style.fieldLabel}>Status</Typography>
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <Chip
@@ -662,7 +705,7 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
                   fontWeight={700}
                   color="#00529B"
                 >
-                  {formatCurrency(currentRequest.related_petty_cash?.amount)}
+                  {formatAmount(currentRequest.related_petty_cash?.amount)}
                 </Typography>
               </Box>
             </Grid>
@@ -675,7 +718,7 @@ const TrackAndSignPettyCashDialog = ({ open, handleClose, request }) => {
                   fontWeight={700}
                   color="#00529B"
                 >
-                  {formatCurrency(
+                  {formatAmount(
                     currentRequest.related_petty_cash?.remaining_amount
                   )}
                 </Typography>

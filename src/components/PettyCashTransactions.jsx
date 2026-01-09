@@ -75,6 +75,17 @@ const styles = {
   },
 };
 
+// Currency options
+const CURRENCIES = [
+  { code: 'USD', name: 'US Dollar', symbol: '$' },
+  { code: 'EUR', name: 'Euro', symbol: '€' },
+  { code: 'GBP', name: 'British Pound', symbol: '£' },
+  { code: 'RWF', name: 'Rwandan Franc', symbol: 'FRw' },
+  { code: 'KES', name: 'Kenyan Shilling', symbol: 'KSh' },
+  { code: 'UGX', name: 'Ugandan Shilling', symbol: 'USh' },
+  { code: 'TZS', name: 'Tanzanian Shilling', symbol: 'TSh' },
+];
+
 const PettyCashTransactions = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [openViewModal, setOpenViewModal] = useState(false);
@@ -108,7 +119,7 @@ const PettyCashTransactions = () => {
   // Fetch data on component mount
   useEffect(() => {
     dispatch(getAllPettyCash({ page: 1 }));
-    dispatch(getAllSigners()); // Fetch signers for the dropdown
+    dispatch(getAllSigners({ is_petty_cash_user: 'true' })); // Fetch only petty cash users
   }, [dispatch]);
 
   // Update local state when Redux state changes
@@ -120,6 +131,7 @@ const PettyCashTransactions = () => {
 
   const [formData, setFormData] = useState({
     amount: '',
+    currency: 'USD', // Default currency
     holder_id: '',
     issue_date: '',
     notes: '',
@@ -135,6 +147,7 @@ const PettyCashTransactions = () => {
     // Reset form
     setFormData({
       amount: '',
+      currency: 'USD',
       holder_id: '',
       issue_date: '',
       notes: '',
@@ -172,6 +185,7 @@ const PettyCashTransactions = () => {
     const submitData = new FormData();
     submitData.append('holder_id', formData.holder_id);
     submitData.append('amount', formData.amount);
+    submitData.append('currency', formData.currency);
     submitData.append('issue_date', formData.issue_date);
     submitData.append('notes', formData.notes);
 
@@ -233,12 +247,18 @@ const PettyCashTransactions = () => {
       active: { bgcolor: '#66BB6A', color: 'white' },
       exhausted: { bgcolor: '#EF5350', color: 'white' },
       pending: { bgcolor: '#FFA726', color: 'white' },
+      pending_acknowledgment: { bgcolor: '#FF9800', color: 'white' },
     };
 
     return (
       <Chip
         label={
-          status ? status.charAt(0).toUpperCase() + status.slice(1) : 'N/A'
+          status
+            ? status
+                .split('_')
+                .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ')
+            : 'N/A'
         }
         size="small"
         sx={{
@@ -250,10 +270,8 @@ const PettyCashTransactions = () => {
     );
   };
 
-  const formatCurrency = (amount) => {
+  const formatAmount = (amount) => {
     return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(parseFloat(amount || 0));
@@ -290,8 +308,9 @@ const PettyCashTransactions = () => {
             <TableRow sx={{ bgcolor: 'rgba(0, 82, 155, 0.05)' }}>
               <TableCell sx={styles.headerCell}>#</TableCell>
               <TableCell sx={styles.headerCell}>Holder</TableCell>
-              <TableCell sx={styles.headerCell}>Amount (USD)</TableCell>
-              <TableCell sx={styles.headerCell}>Remaining (USD)</TableCell>
+              <TableCell sx={styles.headerCell}>Amount</TableCell>
+              <TableCell sx={styles.headerCell}>Currency</TableCell>
+              <TableCell sx={styles.headerCell}>Remaining</TableCell>
               <TableCell sx={styles.headerCell}>Issue Date</TableCell>
               <TableCell sx={styles.headerCell}>Created At</TableCell>
               <TableCell sx={styles.headerCell}>Status</TableCell>
@@ -304,13 +323,13 @@ const PettyCashTransactions = () => {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
+                <TableCell colSpan={10} align="center" sx={{ py: 3 }}>
                   Loading...
                 </TableCell>
               </TableRow>
             ) : transactions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
+                <TableCell colSpan={10} align="center" sx={{ py: 3 }}>
                   No transactions found
                 </TableCell>
               </TableRow>
@@ -330,9 +349,21 @@ const PettyCashTransactions = () => {
                     {transaction.holder?.firstname}{' '}
                     {transaction.holder?.lastname}
                   </TableCell>
-                  <TableCell>{formatCurrency(transaction.amount)}</TableCell>
+                  <TableCell>{formatAmount(transaction.amount)}</TableCell>
                   <TableCell>
-                    {formatCurrency(transaction.remaining_amount)}
+                    <Chip
+                      label={transaction.currency || 'USD'}
+                      size="small"
+                      sx={{
+                        bgcolor: '#00529B',
+                        color: 'white',
+                        fontWeight: 500,
+                        minWidth: '60px',
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    {formatAmount(transaction.remaining_amount)}
                   </TableCell>
                   <TableCell>{transaction.issue_date}</TableCell>
                   <TableCell>
@@ -558,11 +589,11 @@ const PettyCashTransactions = () => {
                 </Box>
               </Grid>
 
-              {/* Amount and Issue Date - Side by side */}
-              <Grid item xs={12} md={6}>
+              {/* Amount, Currency and Issue Date */}
+              <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
-                  label="Amount (USD) *"
+                  label="Amount *"
                   name="amount"
                   type="number"
                   value={formData.amount}
@@ -575,7 +606,39 @@ const PettyCashTransactions = () => {
                 />
               </Grid>
 
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth required>
+                  <InputLabel>Currency</InputLabel>
+                  <Select
+                    name="currency"
+                    value={formData.currency}
+                    onChange={handleInputChange}
+                    label="Currency"
+                  >
+                    {CURRENCIES.map((curr) => (
+                      <MenuItem key={curr.code} value={curr.code}>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <Typography variant="body2" sx={{ mr: 1 }}>
+                            {curr.symbol}
+                          </Typography>
+                          <Typography variant="body2" fontWeight={500}>
+                            {curr.code}
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ ml: 1 }}
+                          >
+                            - {curr.name}
+                          </Typography>
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
                   label="Issue Date *"
