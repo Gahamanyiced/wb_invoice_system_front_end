@@ -16,6 +16,8 @@ import Profile from './pages/Profile';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import PettyCash from './pages/PettyCash';
+import ManageExpenses from './pages/ManageExpenses';
+import RequestPettyCash from './pages/RequestPettyCash';
 
 export const isAuthenticated = () => {
   try {
@@ -50,8 +52,16 @@ function App() {
             <Route path="/user" element={<User />} />
             <Route path="/department" element={<Department />} />
             <Route path="/section" element={<Section />} />
-            <Route path="signing-flow" element={<SigningFlow />} />           
+            <Route path="signing-flow" element={<SigningFlow />} />
             <Route path="/petty-cash" element={<PettyCash />} />
+            <Route
+              path="/manage-expenses/:transactionId"
+              element={<ManageExpenses />}
+            />
+            <Route
+              path="/request-petty-cash/:transactionId"
+              element={<RequestPettyCash />}
+            />
             <Route path="download-pdf" element={<DownloadPdf />} />
             <Route path="/profile" element={<Profile />} />
           </Route>
