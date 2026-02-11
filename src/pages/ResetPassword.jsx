@@ -16,48 +16,40 @@ import {
   Link,
   Alert,
 } from '@mui/material';
-import { Link as RouterLink, useNavigate, useParams, useLocation } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { supplierPasswordResetConfirm } from '../features/auth/authSlice';
 import Logo from '../assets/images/logo.jpg';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import CloudDownloadOutlinedIcon from '@mui/icons-material/CloudDownloadOutlined';
 
-const useQuery = () => {
-  return new URLSearchParams(useLocation().search);
-};
-
 const ResetPassword = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [validToken, setValidToken] = useState(true);
-  
+
   const navigate = useNavigate();
-  const { token } = useParams(); // If using route like /reset-password/:token
-  const query = useQuery();
-  const email = query.get('email');
-  
-  // Get token from URL params or query string
-  const resetToken = token || query.get('token');
+  const dispatch = useDispatch();
+  const { isLoading } = useSelector((state) => state.auth);
+  const { token } = useParams();
 
   useEffect(() => {
-    // Simulate token validation
-    if (!resetToken) {
+    if (!token) {
       setValidToken(false);
       setError('Invalid or missing password reset token.');
     }
-    // You could add more validation logic here if needed
-  }, [resetToken]);
+  }, [token]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Basic validation
+    setError('');
+
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
       return;
@@ -68,14 +60,19 @@ const ResetPassword = () => {
       return;
     }
 
-    setIsLoading(true);
-    setError('');
+    const result = await dispatch(
+      supplierPasswordResetConfirm({
+        token,
+        new_password: password,
+        confirm_password: confirmPassword,
+      }),
+    );
 
-    // Simulate API call
-    setTimeout(() => {
+    if (supplierPasswordResetConfirm.fulfilled.match(result)) {
       setResetSuccess(true);
-      setIsLoading(false);
-    }, 1500);
+    } else {
+      setError(result.payload || 'Something went wrong. Please try again.');
+    }
   };
 
   const handleTogglePasswordVisibility = () => {
@@ -185,7 +182,8 @@ const ResetPassword = () => {
                   Invalid Link
                 </Typography>
                 <Typography color="text.secondary" sx={{ mb: 3 }}>
-                  The password reset link is invalid or has expired. Please request a new password reset link.
+                  The password reset link is invalid or has expired. Please
+                  request a new password reset link.
                 </Typography>
                 <Button
                   variant="contained"
@@ -194,9 +192,7 @@ const ResetPassword = () => {
                     mt: 2,
                     mb: 2,
                     bgcolor: '#00529B',
-                    '&:hover': {
-                      bgcolor: '#003a6d',
-                    },
+                    '&:hover': { bgcolor: '#003a6d' },
                     borderRadius: '8px',
                     padding: '0.75rem',
                     fontWeight: 600,
@@ -216,7 +212,8 @@ const ResetPassword = () => {
                   Password Reset Successful
                 </Typography>
                 <Typography color="text.secondary" sx={{ mb: 3 }}>
-                  Your password has been reset successfully. You can now log in with your new password.
+                  Your password has been reset successfully. You can now log in
+                  with your new password.
                 </Typography>
                 <Button
                   variant="contained"
@@ -225,9 +222,7 @@ const ResetPassword = () => {
                     mt: 2,
                     mb: 2,
                     bgcolor: '#00529B',
-                    '&:hover': {
-                      bgcolor: '#003a6d',
-                    },
+                    '&:hover': { bgcolor: '#003a6d' },
                     borderRadius: '8px',
                     padding: '0.75rem',
                     fontWeight: 600,
@@ -243,7 +238,7 @@ const ResetPassword = () => {
                 <Box sx={{ textAlign: 'center', mb: 4 }}>
                   <Typography
                     variant="h5"
-                    component="h1" 
+                    component="h1"
                     sx={{ color: '#00529B', fontWeight: 600, mb: 1 }}
                   >
                     Reset Password
@@ -286,7 +281,11 @@ const ResetPassword = () => {
                             onClick={handleTogglePasswordVisibility}
                             edge="end"
                           >
-                            {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                            {showPassword ? (
+                              <VisibilityOffIcon />
+                            ) : (
+                              <VisibilityIcon />
+                            )}
                           </IconButton>
                         </InputAdornment>
                       ),
@@ -319,7 +318,11 @@ const ResetPassword = () => {
                             onClick={handleToggleConfirmPasswordVisibility}
                             edge="end"
                           >
-                            {showConfirmPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                            {showConfirmPassword ? (
+                              <VisibilityOffIcon />
+                            ) : (
+                              <VisibilityIcon />
+                            )}
                           </IconButton>
                         </InputAdornment>
                       ),
@@ -336,9 +339,7 @@ const ResetPassword = () => {
                       mt: 1,
                       mb: 2,
                       bgcolor: '#00529B',
-                      '&:hover': {
-                        bgcolor: '#003a6d',
-                      },
+                      '&:hover': { bgcolor: '#003a6d' },
                       borderRadius: '8px',
                       padding: '0.75rem',
                       fontWeight: 600,
@@ -359,9 +360,7 @@ const ResetPassword = () => {
                       sx={{
                         color: '#00529B',
                         textDecoration: 'none',
-                        '&:hover': {
-                          textDecoration: 'underline',
-                        },
+                        '&:hover': { textDecoration: 'underline' },
                         fontSize: '0.875rem',
                       }}
                     >
@@ -395,15 +394,27 @@ const ResetPassword = () => {
               gap: { xs: 1, sm: 0 },
             }}
           >
-            <Typography variant="body2" align="center" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+            <Typography
+              variant="body2"
+              align="center"
+              sx={{ color: 'rgba(255, 255, 255, 0.8)' }}
+            >
               Copyright © {new Date().getFullYear()} RwandAir. All rights
               reserved.
             </Typography>
             <Box sx={{ display: 'flex', gap: 2 }}>
-              <Link href="#" color="inherit" sx={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.875rem' }}>
+              <Link
+                href="#"
+                color="inherit"
+                sx={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.875rem' }}
+              >
                 Privacy Policy
               </Link>
-              <Link href="#" color="inherit" sx={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.875rem' }}>
+              <Link
+                href="#"
+                color="inherit"
+                sx={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.875rem' }}
+              >
                 Terms of Service
               </Link>
             </Box>

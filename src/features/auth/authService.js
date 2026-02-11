@@ -22,7 +22,6 @@ const externalLogin = async (userData) => {
     },
   });
 
-  // Store user data in localStorage if login successful
   if (response.data.user) {
     localStorage.setItem('user', JSON.stringify(response.data.user));
   }
@@ -36,11 +35,6 @@ const register = async (userData) => {
       'Content-Type': 'application/json',
     },
   });
-
-  // Store user data in localStorage if registration successful and user data is returned
-  // if (response.data.user) {
-  //   localStorage.setItem('user', JSON.stringify(response.data.user));
-  // }
 
   return response.data;
 };
@@ -71,11 +65,38 @@ const logout = () => {
   localStorage.removeItem('user');
   localStorage.removeItem('username');
 
-  // Clear cookies
   document.cookie =
     'access_token=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;';
   document.cookie =
     'refresh_token=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;';
+};
+
+// Request password reset - sends reset link to supplier email
+const supplierPasswordReset = async (data) => {
+  const response = await http.post(
+    '/auth/supplier/password-reset/',
+    data,
+    {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+  return response.data;
+};
+
+// Confirm password reset - submits token + new password
+const supplierPasswordResetConfirm = async (data) => {
+  const response = await http.post(
+    '/auth/supplier/password-reset/confirm/',
+    data,
+    {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+  return response.data;
 };
 
 const authService = {
@@ -84,6 +105,8 @@ const authService = {
   externalLogin,
   logout,
   VerifyOtp,
+  supplierPasswordReset,
+  supplierPasswordResetConfirm,
 };
 
 export default authService;

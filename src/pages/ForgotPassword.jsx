@@ -16,35 +16,37 @@ import {
   Alert,
 } from '@mui/material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { supplierPasswordReset } from '../features/auth/authSlice';
 import Logo from '../assets/images/logo.jpg';
 import EmailIcon from '@mui/icons-material/Email';
 import CloudDownloadOutlinedIcon from '@mui/icons-material/CloudDownloadOutlined';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [error, setError] = useState('');
+
+  const dispatch = useDispatch();
+  const { isLoading } = useSelector((state) => state.auth);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
     setError('');
 
-    // Simulate API call delay
-    setTimeout(() => {
-      // Basic email validation
-      if (!email || !email.includes('@')) {
-        setError('Please enter a valid email address');
-        setIsLoading(false);
-        return;
-      }
+    if (!email || !email.includes('@')) {
+      setError('Please enter a valid email address.');
+      return;
+    }
 
-      // Success - show success message
+    const result = await dispatch(supplierPasswordReset({ email }));
+
+    if (supplierPasswordReset.fulfilled.match(result)) {
       setEmailSent(true);
-      setIsLoading(false);
-    }, 1500);
+    } else {
+      setError(result.payload || 'Something went wrong. Please try again.');
+    }
   };
 
   const handleDownload = () => {
@@ -146,7 +148,9 @@ const ForgotPassword = () => {
                   Check Your Email
                 </Typography>
                 <Typography color="text.secondary" sx={{ mb: 3 }}>
-                  We've sent a password reset link to <strong>{email}</strong>. Please check your email and follow the instructions to reset your password.
+                  We've sent a password reset link to{' '}
+                  <strong>{email}</strong>. Please check your email and follow
+                  the instructions to reset your password.
                 </Typography>
                 <Button
                   variant="contained"
@@ -155,9 +159,7 @@ const ForgotPassword = () => {
                     mt: 2,
                     mb: 2,
                     bgcolor: '#00529B',
-                    '&:hover': {
-                      bgcolor: '#003a6d',
-                    },
+                    '&:hover': { bgcolor: '#003a6d' },
                     borderRadius: '8px',
                     padding: '0.75rem',
                     fontWeight: 600,
@@ -173,11 +175,9 @@ const ForgotPassword = () => {
                     variant="body2"
                     onClick={() => {
                       setEmailSent(false);
+                      setError('');
                     }}
-                    sx={{ 
-                      fontWeight: 500,
-                      color: '#00529B',
-                    }}
+                    sx={{ fontWeight: 500, color: '#00529B' }}
                   >
                     Try again
                   </Link>
@@ -195,7 +195,8 @@ const ForgotPassword = () => {
                     Forgot Password
                   </Typography>
                   <Typography color="text.secondary" sx={{ mb: 2 }}>
-                    Enter your email address and we'll send you a link to reset your password.
+                    Enter your email address and we'll send you a link to reset
+                    your password.
                   </Typography>
                   <Divider />
                 </Box>
@@ -238,9 +239,7 @@ const ForgotPassword = () => {
                       mt: 1,
                       mb: 2,
                       bgcolor: '#00529B',
-                      '&:hover': {
-                        bgcolor: '#003a6d',
-                      },
+                      '&:hover': { bgcolor: '#003a6d' },
                       borderRadius: '8px',
                       padding: '0.75rem',
                       fontWeight: 600,
@@ -261,9 +260,7 @@ const ForgotPassword = () => {
                       sx={{
                         color: '#00529B',
                         textDecoration: 'none',
-                        '&:hover': {
-                          textDecoration: 'underline',
-                        },
+                        '&:hover': { textDecoration: 'underline' },
                         fontSize: '0.875rem',
                       }}
                     >
@@ -297,15 +294,27 @@ const ForgotPassword = () => {
               gap: { xs: 1, sm: 0 },
             }}
           >
-            <Typography variant="body2" align="center" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+            <Typography
+              variant="body2"
+              align="center"
+              sx={{ color: 'rgba(255, 255, 255, 0.8)' }}
+            >
               Copyright © {new Date().getFullYear()} RwandAir. All rights
               reserved.
             </Typography>
             <Box sx={{ display: 'flex', gap: 2 }}>
-              <Link href="#" color="inherit" sx={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.875rem' }}>
+              <Link
+                href="#"
+                color="inherit"
+                sx={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.875rem' }}
+              >
                 Privacy Policy
               </Link>
-              <Link href="#" color="inherit" sx={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.875rem' }}>
+              <Link
+                href="#"
+                color="inherit"
+                sx={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.875rem' }}
+              >
                 Terms of Service
               </Link>
             </Box>
