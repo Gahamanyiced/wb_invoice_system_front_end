@@ -49,6 +49,15 @@ const deletePettyCash = async (id) => {
   return response.data;
 };
 
+// Rollback Petty Cash Issuance
+const rollbackPettyCash = async (id, data) => {
+  const response = await http.post(
+    `/invoice/petty-cash/${id}/rollback/`,
+    data
+  );
+  return response.data;
+};
+
 // 2. Petty Cash Acknowledgment
 
 // Acknowledge Petty Cash Receipt
@@ -145,6 +154,7 @@ const pettyCashService = {
   getPettyCashById,
   updatePettyCash,
   deletePettyCash,
+  rollbackPettyCash,
 
   // Acknowledgment
   acknowledgePettyCash,

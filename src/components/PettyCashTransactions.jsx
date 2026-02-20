@@ -4,6 +4,8 @@ import {
   issuePettyCash,
   getAllPettyCash,
   acknowledgePettyCash,
+  updatePettyCash,
+  deletePettyCash,
 } from '../features/pettyCash/pettyCashSlice';
 import { getAllSigners } from '../features/user/userSlice';
 import { toast } from 'react-toastify';
@@ -41,10 +43,15 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
+import UndoIcon from '@mui/icons-material/Undo';
+import { useNavigate } from 'react-router-dom';
 import ViewTransactionModal from './ViewTransactionModal';
 import AcknowledgeTransactionDialog from './AcknowledgeTransactionDialog';
 import EditTransactionModal from './EditTransactionModal';
 import DeleteTransactionDialog from './DeleteTransactionDialog';
+import RollbackTransactionDialog from './RollbackTransactionDialog';
 
 const styles = {
   header: {
@@ -90,11 +97,15 @@ const PettyCashTransactions = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [openViewModal, setOpenViewModal] = useState(false);
   const [openAcknowledgeDialog, setOpenAcknowledgeDialog] = useState(false);
+  const [openEditModal, setOpenEditModal] = useState(false);
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [openRollbackDialog, setOpenRollbackDialog] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { pettyCashList, isLoading } = useSelector((state) => state.pettyCash);
   const { users: signersData } = useSelector((state) => state.user);
 
@@ -211,8 +222,100 @@ const PettyCashTransactions = () => {
   };
 
   const handleAcknowledge = (transaction) => {
+    // Get logged-in user from localStorage
+    const userStr = localStorage.getItem('user');
+    if (!userStr) {
+      toast.error('User not found. Please log in again.');
+      return;
+    }
+
+    const loggedInUser = JSON.parse(userStr);
+
+    // Check if logged-in user is the holder
+    if (loggedInUser.id !== transaction.holder?.id) {
+      toast.error('Only the transaction holder can acknowledge receipt');
+      return;
+    }
+
+    // Check if already acknowledged
+    if (transaction.is_acknowledged) {
+      toast.warning('This transaction has already been acknowledged');
+      return;
+    }
+
+    // Check if status is pending_acknowledgment
+    if (transaction.status !== 'pending_acknowledgment') {
+      toast.error('This transaction is not pending acknowledgment');
+      return;
+    }
+
+    // All checks passed, open the dialog
     setSelectedTransaction(transaction);
     setOpenAcknowledgeDialog(true);
+  };
+
+  const handleEdit = (transaction) => {
+    setSelectedTransaction(transaction);
+    setOpenEditModal(true);
+  };
+
+  const handleDelete = (transaction) => {
+    setSelectedTransaction(transaction);
+    setOpenDeleteDialog(true);
+  };
+
+  const handleAddExpenses = (transaction) => {
+    // Navigate to the Manage Expenses page with transaction ID
+    navigate(`/manage-expenses/${transaction.id}`, {
+      state: { transaction },
+    });
+  };
+
+  const handleRequestPettyCash = (transaction) => {
+    // Navigate to the Request Petty Cash page with transaction ID
+    navigate(`/request-petty-cash/${transaction.id}`, {
+      state: { transaction },
+    });
+  };
+
+  const handleRollback = (transaction) => {
+    // Check if transaction can be rolled back
+    if (transaction.status === 'pending_acknowledgment') {
+      toast.error('Cannot rollback a transaction pending acknowledgment');
+      return;
+    }
+
+    if (transaction.status === 'exhausted') {
+      toast.error('Cannot rollback an exhausted transaction');
+      return;
+    }
+
+    // All checks passed, open the rollback dialog
+    setSelectedTransaction(transaction);
+    setOpenRollbackDialog(true);
+  };
+
+  const handleRollbackConfirm = async (id) => {
+    try {
+      // TODO: Implement rollback API call when backend is ready
+      // await dispatch(rollbackPettyCash(id)).unwrap();
+
+      // For now, show placeholder toast
+      toast.info('Rollback API will be implemented');
+
+      handleCloseRollbackDialog();
+
+      // Uncomment when API is ready:
+      // toast.success('Transaction rolled back successfully');
+      // dispatch(getAllPettyCash({ page: 1 }));
+    } catch (error) {
+      toast.error(error || 'Failed to rollback transaction');
+    }
+  };
+
+  const handleCloseRollbackDialog = () => {
+    setOpenRollbackDialog(false);
+    setSelectedTransaction(null);
   };
 
   const handleAcknowledgeSubmit = async (id, comment) => {
@@ -221,7 +324,7 @@ const PettyCashTransactions = () => {
         acknowledgePettyCash({
           id,
           formData: { acknowledgment_notes: comment },
-        })
+        }),
       ).unwrap();
       toast.success('Transaction acknowledged successfully');
       handleCloseAcknowledgeDialog();
@@ -232,6 +335,35 @@ const PettyCashTransactions = () => {
     }
   };
 
+  const handleEditSubmit = async (id, formData) => {
+    try {
+      await dispatch(
+        updatePettyCash({
+          id,
+          formData,
+        }),
+      ).unwrap();
+      toast.success('Transaction updated successfully');
+      handleCloseEditModal();
+      // Refresh the list
+      dispatch(getAllPettyCash({ page: 1 }));
+    } catch (error) {
+      toast.error(error || 'Failed to update transaction');
+    }
+  };
+
+  const handleDeleteConfirm = async (id) => {
+    try {
+      await dispatch(deletePettyCash(id)).unwrap();
+      toast.success('Transaction deleted successfully');
+      handleCloseDeleteDialog();
+      // Refresh the list
+      dispatch(getAllPettyCash({ page: 1 }));
+    } catch (error) {
+      toast.error(error || 'Failed to delete transaction');
+    }
+  };
+
   const handleCloseViewModal = () => {
     setOpenViewModal(false);
     setSelectedTransaction(null);
@@ -239,6 +371,16 @@ const PettyCashTransactions = () => {
 
   const handleCloseAcknowledgeDialog = () => {
     setOpenAcknowledgeDialog(false);
+    setSelectedTransaction(null);
+  };
+
+  const handleCloseEditModal = () => {
+    setOpenEditModal(false);
+    setSelectedTransaction(null);
+  };
+
+  const handleCloseDeleteDialog = () => {
+    setOpenDeleteDialog(false);
     setSelectedTransaction(null);
   };
 
@@ -302,20 +444,45 @@ const PettyCashTransactions = () => {
       </Box>
 
       {/* Table */}
-      <TableContainer component={Paper} elevation={2}>
-        <Table sx={styles.table}>
+      <TableContainer
+        component={Paper}
+        elevation={2}
+        sx={{ overflowX: 'auto' }}
+      >
+        <Table sx={{ ...styles.table, tableLayout: 'fixed', minWidth: 1200 }}>
           <TableHead>
             <TableRow sx={{ bgcolor: 'rgba(0, 82, 155, 0.05)' }}>
-              <TableCell sx={styles.headerCell}>#</TableCell>
-              <TableCell sx={styles.headerCell}>Holder</TableCell>
-              <TableCell sx={styles.headerCell}>Amount</TableCell>
-              <TableCell sx={styles.headerCell}>Currency</TableCell>
-              <TableCell sx={styles.headerCell}>Remaining</TableCell>
-              <TableCell sx={styles.headerCell}>Issue Date</TableCell>
-              <TableCell sx={styles.headerCell}>Created At</TableCell>
-              <TableCell sx={styles.headerCell}>Status</TableCell>
-              <TableCell sx={styles.headerCell}>Acknowledged</TableCell>
-              <TableCell sx={styles.headerCell} align="center">
+              <TableCell sx={{ ...styles.headerCell, width: '40px' }}>
+                #
+              </TableCell>
+              <TableCell sx={{ ...styles.headerCell, width: '120px' }}>
+                Holder
+              </TableCell>
+              <TableCell sx={{ ...styles.headerCell, width: '90px' }}>
+                Amount
+              </TableCell>
+              <TableCell sx={{ ...styles.headerCell, width: '80px' }}>
+                Currency
+              </TableCell>
+              <TableCell sx={{ ...styles.headerCell, width: '90px' }}>
+                Remaining
+              </TableCell>
+              <TableCell sx={{ ...styles.headerCell, width: '100px' }}>
+                Issue Date
+              </TableCell>
+              <TableCell sx={{ ...styles.headerCell, width: '130px' }}>
+                Created At
+              </TableCell>
+              <TableCell sx={{ ...styles.headerCell, width: '100px' }}>
+                Status
+              </TableCell>
+              <TableCell sx={{ ...styles.headerCell, width: '100px' }}>
+                Acknowledged
+              </TableCell>
+              <TableCell
+                sx={{ ...styles.headerCell, minWidth: '300px' }}
+                align="center"
+              >
                 Actions
               </TableCell>
             </TableRow>
@@ -344,13 +511,24 @@ const PettyCashTransactions = () => {
                     },
                   }}
                 >
-                  <TableCell>{page * rowsPerPage + index + 1}</TableCell>
-                  <TableCell>
+                  <TableCell sx={{ width: '40px' }}>
+                    {page * rowsPerPage + index + 1}
+                  </TableCell>
+                  <TableCell
+                    sx={{
+                      width: '120px',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
                     {transaction.holder?.firstname}{' '}
                     {transaction.holder?.lastname}
                   </TableCell>
-                  <TableCell>{formatAmount(transaction.amount)}</TableCell>
-                  <TableCell>
+                  <TableCell sx={{ width: '90px' }}>
+                    {formatAmount(transaction.amount)}
+                  </TableCell>
+                  <TableCell sx={{ width: '80px' }}>
                     <Chip
                       label={transaction.currency || 'USD'}
                       size="small"
@@ -362,11 +540,13 @@ const PettyCashTransactions = () => {
                       }}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ width: '90px' }}>
                     {formatAmount(transaction.remaining_amount)}
                   </TableCell>
-                  <TableCell>{transaction.issue_date}</TableCell>
-                  <TableCell>
+                  <TableCell sx={{ width: '100px' }}>
+                    {transaction.issue_date}
+                  </TableCell>
+                  <TableCell sx={{ width: '130px', fontSize: '0.85rem' }}>
                     {transaction.created_at
                       ? new Date(transaction.created_at).toLocaleString(
                           'en-US',
@@ -376,12 +556,14 @@ const PettyCashTransactions = () => {
                             day: 'numeric',
                             hour: '2-digit',
                             minute: '2-digit',
-                          }
+                          },
                         )
                       : 'N/A'}
                   </TableCell>
-                  <TableCell>{getStatusChip(transaction.status)}</TableCell>
-                  <TableCell>
+                  <TableCell sx={{ width: '100px' }}>
+                    {getStatusChip(transaction.status)}
+                  </TableCell>
+                  <TableCell sx={{ width: '100px' }}>
                     <Chip
                       label={transaction.is_acknowledged ? 'Yes' : 'No'}
                       size="small"
@@ -395,11 +577,17 @@ const PettyCashTransactions = () => {
                       }}
                     />
                   </TableCell>
-                  <TableCell align="center">
+                  <TableCell
+                    align="center"
+                    sx={{
+                      minWidth: '300px',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
                     <Box
                       sx={{
                         display: 'flex',
-                        gap: 1,
+                        gap: 0.5,
                         justifyContent: 'center',
                         alignItems: 'center',
                       }}
@@ -408,53 +596,92 @@ const PettyCashTransactions = () => {
                         <IconButton
                           size="small"
                           onClick={() => handleView(transaction)}
-                          sx={{ color: '#00529B' }}
+                          sx={{
+                            color: '#00529B',
+                            padding: '6px',
+                          }}
                         >
-                          <VisibilityOutlinedIcon fontSize="small" />
+                          <VisibilityOutlinedIcon sx={{ fontSize: '1.1rem' }} />
                         </IconButton>
                       </Tooltip>
-                      {(() => {
-                        // Get logged-in user from localStorage
-                        const userStr = localStorage.getItem('user');
-                        if (userStr) {
-                          const loggedInUser = JSON.parse(userStr);
-                          // Show acknowledge button only if logged-in user is the holder
-                          if (loggedInUser.id === transaction.holder?.id) {
-                            return (
-                              <Tooltip title="Acknowledge" arrow>
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleAcknowledge(transaction)}
-                                  sx={{ color: '#66BB6A' }}
-                                >
-                                  <CheckCircleOutlineIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            );
-                          }
-                        }
-                        return null;
-                      })()}
-                      {/* Edit and Delete buttons commented as requested
-                    <Tooltip title="Edit" arrow>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleEdit(transaction)}
-                        sx={{ color: '#FFA726' }}
-                      >
-                        <EditOutlinedIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Delete" arrow>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDelete(transaction)}
-                        sx={{ color: '#EF5350' }}
-                      >
-                        <DeleteOutlineIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    */}
+
+                      <Tooltip title="Acknowledge" arrow>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleAcknowledge(transaction)}
+                          sx={{
+                            color: '#66BB6A',
+                            padding: '6px',
+                          }}
+                        >
+                          <CheckCircleOutlineIcon sx={{ fontSize: '1.1rem' }} />
+                        </IconButton>
+                      </Tooltip>
+
+                      <Tooltip title="Edit" arrow>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleEdit(transaction)}
+                          sx={{
+                            color: '#FFA726',
+                            padding: '6px',
+                          }}
+                        >
+                          <EditOutlinedIcon sx={{ fontSize: '1.1rem' }} />
+                        </IconButton>
+                      </Tooltip>
+
+                      <Tooltip title="Add Expenses" arrow>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleAddExpenses(transaction)}
+                          sx={{
+                            color: '#42A5F5',
+                            padding: '6px',
+                          }}
+                        >
+                          <ReceiptLongIcon sx={{ fontSize: '1.1rem' }} />
+                        </IconButton>
+                      </Tooltip>
+
+                      <Tooltip title="Request Petty Cash" arrow>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleRequestPettyCash(transaction)}
+                          sx={{
+                            color: '#9C27B0',
+                            padding: '6px',
+                          }}
+                        >
+                          <RequestQuoteIcon sx={{ fontSize: '1.1rem' }} />
+                        </IconButton>
+                      </Tooltip>
+
+                      <Tooltip title="Rollback" arrow>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleRollback(transaction)}
+                          sx={{
+                            color: '#FF9800',
+                            padding: '6px',
+                          }}
+                        >
+                          <UndoIcon sx={{ fontSize: '1.1rem' }} />
+                        </IconButton>
+                      </Tooltip>
+
+                      <Tooltip title="Delete" arrow>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDelete(transaction)}
+                          sx={{
+                            color: '#EF5350',
+                            padding: '6px',
+                          }}
+                        >
+                          <DeleteOutlineIcon sx={{ fontSize: '1.1rem' }} />
+                        </IconButton>
+                      </Tooltip>
                     </Box>
                   </TableCell>
                 </TableRow>
@@ -789,6 +1016,38 @@ const PettyCashTransactions = () => {
           handleClose={handleCloseAcknowledgeDialog}
           transaction={selectedTransaction}
           onAcknowledge={handleAcknowledgeSubmit}
+        />
+      )}
+
+      {/* Edit Transaction Modal */}
+      {selectedTransaction && (
+        <EditTransactionModal
+          open={openEditModal}
+          handleClose={handleCloseEditModal}
+          transaction={selectedTransaction}
+          onUpdate={handleEditSubmit}
+          signers={signers}
+          currencies={CURRENCIES}
+        />
+      )}
+
+      {/* Delete Transaction Dialog */}
+      {selectedTransaction && (
+        <DeleteTransactionDialog
+          open={openDeleteDialog}
+          handleClose={handleCloseDeleteDialog}
+          transaction={selectedTransaction}
+          onDelete={handleDeleteConfirm}
+        />
+      )}
+
+      {/* Rollback Transaction Dialog */}
+      {selectedTransaction && (
+        <RollbackTransactionDialog
+          open={openRollbackDialog}
+          handleClose={handleCloseRollbackDialog}
+          transaction={selectedTransaction}
+          onRollback={handleRollbackConfirm}
         />
       )}
     </Box>
