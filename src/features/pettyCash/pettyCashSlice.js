@@ -6,16 +6,16 @@ const initialState = {
   // Petty Cash Issuance
   pettyCashList: [],
   pettyCash: null,
-  
+
   // Petty Cash Requests
   pettyCashRequests: [],
   pettyCashRequest: null,
   trackingData: null,
-  
+
   // Loading and Error states
   isLoading: false,
   error: null,
-  
+
   // Filters
   filters: {
     status: '',
@@ -36,7 +36,7 @@ export const issuePettyCash = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
 // Get All Petty Cash
@@ -48,7 +48,7 @@ export const getAllPettyCash = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
 // Get Petty Cash by ID
@@ -60,7 +60,7 @@ export const getPettyCashById = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
 // Update Petty Cash
@@ -72,7 +72,7 @@ export const updatePettyCash = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
 // Delete Petty Cash
@@ -84,7 +84,19 @@ export const deletePettyCash = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
+);
+
+// Rollback Petty Cash
+export const rollbackPettyCash = createAsyncThunk(
+  'pettyCash/rollbackPettyCash',
+  async (data, thunkAPI) => {
+    try {
+      return await pettyCashService.rollbackPettyCash(data.id, data.data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
 );
 
 // ==================== Petty Cash Acknowledgment ====================
@@ -96,12 +108,12 @@ export const acknowledgePettyCash = createAsyncThunk(
     try {
       return await pettyCashService.acknowledgePettyCash(
         data.id,
-        data.formData
+        data.formData,
       );
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
 // ==================== Petty Cash Requests ====================
@@ -115,7 +127,7 @@ export const createPettyCashRequest = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
 // Get All Petty Cash Requests
@@ -127,7 +139,7 @@ export const getAllPettyCashRequests = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
 // Get Petty Cash Request by ID
@@ -139,7 +151,7 @@ export const getPettyCashRequestById = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
 // Update Petty Cash Request
@@ -149,12 +161,12 @@ export const updatePettyCashRequest = createAsyncThunk(
     try {
       return await pettyCashService.updatePettyCashRequest(
         data.id,
-        data.formData
+        data.formData,
       );
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
 // Delete Petty Cash Request
@@ -166,7 +178,7 @@ export const deletePettyCashRequest = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
 // Track Petty Cash Request
@@ -178,7 +190,7 @@ export const trackPettyCashRequest = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
 // ==================== Sign Request ====================
@@ -188,14 +200,11 @@ export const signPettyCashRequest = createAsyncThunk(
   'pettyCash/signPettyCashRequest',
   async (data, thunkAPI) => {
     try {
-      return await pettyCashService.signPettyCashRequest(
-        data.id,
-        data.data
-      );
+      return await pettyCashService.signPettyCashRequest(data.id, data.data);
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
 // ==================== Slice ====================
@@ -298,6 +307,21 @@ export const pettyCashSlice = createSlice({
         state.error = null;
       })
       .addCase(deletePettyCash.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // ==================== Rollback Petty Cash ====================
+      .addCase(rollbackPettyCash.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(rollbackPettyCash.fulfilled, (state, action) => {
+        state.pettyCash = action.payload;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(rollbackPettyCash.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       })
