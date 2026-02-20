@@ -21,13 +21,10 @@ import RequestPettyCash from './pages/RequestPettyCash';
 
 export const isAuthenticated = () => {
   try {
-    // Only check if user data exists in localStorage
     const user = JSON.parse(localStorage.getItem('user'));
-
     if (!user) {
       return false;
     }
-
     return true;
   } catch (error) {
     console.error('Authentication check error:', error);
@@ -45,7 +42,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/verify-otp" element={<VerifyOtp />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/reset-password/:token" element={<ResetPassword />} />
           <Route element={<ProtectedRoute isLoggedIn={isAuthenticated} />}>
             <Route path="/" element={<Invoice />} />
             <Route path="dashboard" element={<Dashboard />} />

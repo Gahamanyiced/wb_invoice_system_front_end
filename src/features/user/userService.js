@@ -14,8 +14,8 @@ const getAllSigners = async (data = {}) => {
 
   // If there are query params, append them to the URL
   const url = queryParams 
-    ? `/auth/signer-list/?${queryParams}` 
-    : '/auth/signer-list/';
+    ? `/auth/signer-list-no-pagination/?${queryParams}` 
+    : '/auth/signer-list-no-pagination/';
 
   const response = await http.get(url);
   return response.data;
