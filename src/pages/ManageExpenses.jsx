@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
-  createPettyCashRequest,
-  getAllPettyCashRequests,
-  updatePettyCashRequest,
-  deletePettyCashRequest,
+  createPettyCashExpense,
+  updatePettyCashExpense,
+  deletePettyCashExpense,
+  getIssuancePettyCashExpenses,
+  trackPettyCashExpense,
+  approvePettyCashExpense,
 } from '../features/pettyCash/pettyCashSlice';
 import { getAllSigners } from '../features/user/userSlice';
 import { toast } from 'react-toastify';
@@ -36,6 +38,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  CircularProgress,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddIcon from '@mui/icons-material/Add';
@@ -53,7 +56,8 @@ import TrackAndSignPettyCashDialog from '../components/TrackAndSignPettyCashDial
 import EditExpenseModal from '../components/EditExpenseModal';
 import DeleteExpenseDialog from '../components/DeleteExpenseDialog';
 
-// Currency options
+// ── Constants ─────────────────────────────────────────────────────────────────
+
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },
   { code: 'EUR', name: 'Euro', symbol: '€' },
@@ -70,11 +74,6 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     mb: 3,
-  },
-  section: {
-    mb: 3,
-    p: 3,
-    borderRadius: 2,
   },
   expenseCard: {
     p: 2,
@@ -95,15 +94,14 @@ const styles = {
       borderColor: 'rgba(0, 82, 155, 0.5)',
     },
   },
-  table: {
-    minWidth: 650,
-  },
   headerCell: {
     color: '#00529B',
     fontSize: '14px',
     fontWeight: 600,
   },
 };
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 const ManageExpenses = () => {
   const { transactionId } = useParams();
@@ -112,11 +110,29 @@ const ManageExpenses = () => {
   const dispatch = useDispatch();
 
   const transaction = location.state?.transaction;
-  const { pettyCashRequests, isLoading } = useSelector(
-    (state) => state.pettyCash
+
+  const { issuancePettyCashExpenses, isLoading } = useSelector(
+    (state) => state.pettyCash,
   );
   const { users: signersData } = useSelector((state) => state.user);
 
+  const signers = signersData?.results || [];
+  const expenses = issuancePettyCashExpenses?.results || [];
+  const totalCount = issuancePettyCashExpenses?.count || 0;
+  const summary = issuancePettyCashExpenses?.summary || null;
+
+  // ── Local state ───────────────────────────────────────────────────────────────
+
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [selectedRequest, setSelectedRequest] = useState(null); // kept as selectedRequest to match child component props
+  const [openCreateDialog, setOpenCreateDialog] = useState(false);
+  const [openViewModal, setOpenViewModal] = useState(false);
+  const [openTrackSignDialog, setOpenTrackSignDialog] = useState(false);
+  const [openEditModal, setOpenEditModal] = useState(false);
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+
+  // Create form
   const [formData, setFormData] = useState({
     verifier_id: '',
     expenses: [
@@ -129,135 +145,38 @@ const ManageExpenses = () => {
       },
     ],
   });
-
   const [currencyError, setCurrencyError] = useState('');
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [selectedRequest, setSelectedRequest] = useState(null);
-  const [openCreateDialog, setOpenCreateDialog] = useState(false);
-  const [openViewModal, setOpenViewModal] = useState(false);
-  const [openTrackSignDialog, setOpenTrackSignDialog] = useState(false);
-  const [openEditModal, setOpenEditModal] = useState(false);
-  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
 
-  const signers = signersData?.results || [];
-  const requests = pettyCashRequests?.results || [];
-  const totalCount = pettyCashRequests?.count || 0;
+  // ── Data fetching ─────────────────────────────────────────────────────────────
 
-  // Pagination handlers
-  const handleChangePage = (event, newPage) => {
+  const refreshList = () => {
+    dispatch(getIssuancePettyCashExpenses(transactionId));
+  };
+
+  useEffect(() => {
+    dispatch(getAllSigners({ is_petty_cash_user: 'true' }));
+    refreshList();
+  }, [dispatch, transactionId]);
+
+  // ── Pagination ────────────────────────────────────────────────────────────────
+
+  const handleChangePage = (_, newPage) => {
     setPage(newPage);
-    dispatch(
-      getAllPettyCashRequests({
-        page: newPage + 1,
-        related_petty_cash_id: transactionId,
-      })
-    );
+    refreshList();
   };
 
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
-    dispatch(
-      getAllPettyCashRequests({
-        page: 1,
-        related_petty_cash_id: transactionId,
-      })
-    );
+    refreshList();
   };
 
-  // Fetch data on component mount
-  useEffect(() => {
-    dispatch(getAllSigners({ is_petty_cash_user: 'true' }));
-    dispatch(
-      getAllPettyCashRequests({
-        page: 1,
-        related_petty_cash_id: transactionId,
-      })
-    );
-  }, [dispatch, transactionId]);
+  // ── Create dialog ─────────────────────────────────────────────────────────────
 
-  // Form handlers
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
-  };
-
-  const handleExpenseChange = (index, field, value) => {
-    const newExpenses = [...formData.expenses];
-    newExpenses[index][field] = value;
-
-    // If currency is changed on the first expense, update all other expenses
-    if (index === 0 && field === 'currency') {
-      newExpenses.forEach((expense, i) => {
-        if (i !== 0) {
-          expense.currency = value;
-        }
-      });
-    }
-
-    setFormData({
-      ...formData,
-      expenses: newExpenses,
-    });
-  };
-
-  const handleExpenseFileChange = (index, file) => {
-    const newExpenses = [...formData.expenses];
-    newExpenses[index].supporting_document = file;
-    setFormData({
-      ...formData,
-      expenses: newExpenses,
-    });
-  };
-
-  const handleRemoveExpenseFile = (index) => {
-    const newExpenses = [...formData.expenses];
-    newExpenses[index].supporting_document = null;
-    setFormData({
-      ...formData,
-      expenses: newExpenses,
-    });
-  };
-
-  const handleAddExpense = () => {
-    setFormData({
-      ...formData,
-      expenses: [
-        ...formData.expenses,
-        {
-          date: '',
-          item_description: '',
-          amount: '',
-          currency: formData.expenses[0]?.currency || 'USD',
-          supporting_document: null,
-        },
-      ],
-    });
-  };
-
-  const handleRemoveExpense = (index) => {
-    if (formData.expenses.length === 1) {
-      toast.error('At least one expense is required');
-      return;
-    }
-    const newExpenses = formData.expenses.filter((_, i) => i !== index);
-    setFormData({
-      ...formData,
-      expenses: newExpenses,
-    });
-  };
-
-  const handleOpenCreateDialog = () => {
-    setOpenCreateDialog(true);
-  };
+  const handleOpenCreateDialog = () => setOpenCreateDialog(true);
 
   const handleCloseCreateDialog = () => {
     setOpenCreateDialog(false);
-    // Reset form
     setFormData({
       verifier_id: '',
       expenses: [
@@ -273,216 +192,263 @@ const ManageExpenses = () => {
     setCurrencyError('');
   };
 
-  // Validate currencies
-  const validateCurrencies = () => {
-    const currencies = formData.expenses.map((exp) => exp.currency);
-    const uniqueCurrencies = [...new Set(currencies)];
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
-    if (uniqueCurrencies.length > 1) {
-      const firstCurrency = formData.expenses[0].currency;
+  const handleExpenseChange = (index, field, value) => {
+    const updated = [...formData.expenses];
+    updated[index][field] = value;
+    // Propagate currency from first line to all lines
+    if (index === 0 && field === 'currency') {
+      updated.forEach((exp, i) => {
+        if (i !== 0) exp.currency = value;
+      });
+    }
+    setFormData((prev) => ({ ...prev, expenses: updated }));
+  };
+
+  const handleExpenseFileChange = (index, file) => {
+    const updated = [...formData.expenses];
+    updated[index].supporting_document = file;
+    setFormData((prev) => ({ ...prev, expenses: updated }));
+  };
+
+  const handleRemoveExpenseFile = (index) => {
+    const updated = [...formData.expenses];
+    updated[index].supporting_document = null;
+    setFormData((prev) => ({ ...prev, expenses: updated }));
+  };
+
+  const handleAddExpense = () => {
+    setFormData((prev) => ({
+      ...prev,
+      expenses: [
+        ...prev.expenses,
+        {
+          date: '',
+          item_description: '',
+          amount: '',
+          currency: prev.expenses[0]?.currency || 'USD',
+          supporting_document: null,
+        },
+      ],
+    }));
+  };
+
+  const handleRemoveExpense = (index) => {
+    if (formData.expenses.length === 1) {
+      toast.error('At least one expense is required');
+      return;
+    }
+    setFormData((prev) => ({
+      ...prev,
+      expenses: prev.expenses.filter((_, i) => i !== index),
+    }));
+  };
+
+  const validateCurrencies = () => {
+    const unique = [...new Set(formData.expenses.map((e) => e.currency))];
+    if (unique.length > 1) {
       setCurrencyError(
-        `All expenses must use the same currency. Please ensure all expenses use ${firstCurrency}.`
+        `All expenses must use the same currency. Please ensure all expenses use ${formData.expenses[0].currency}.`,
       );
       return false;
     }
-
     setCurrencyError('');
     return true;
   };
 
+  // ── Create submit → createPettyCashExpense ────────────────────────────────────
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validateCurrencies()) return;
 
-    // Validate currencies before submitting
-    if (!validateCurrencies()) {
-      return;
-    }
+    const payload = new FormData();
+    payload.append('petty_cash_id', transactionId);
+    payload.append('verifier_id', formData.verifier_id);
 
-    try {
-      const submitData = new FormData();
-      submitData.append('related_petty_cash_id', transactionId);
-      submitData.append('verifier_id', formData.verifier_id);
+    const expensesData = formData.expenses.map((exp) => ({
+      date: exp.date,
+      item_description: exp.item_description,
+      amount: exp.amount,
+      currency: exp.currency,
+    }));
+    payload.append('expenses', JSON.stringify(expensesData));
 
-      const expensesData = formData.expenses.map((expense) => ({
-        date: expense.date,
-        item_description: expense.item_description,
-        amount: expense.amount,
-        currency: expense.currency,
-      }));
+    formData.expenses.forEach((exp, i) => {
+      if (exp.supporting_document) {
+        payload.append(`expense_document_${i}`, exp.supporting_document);
+      }
+    });
 
-      submitData.append('expenses', JSON.stringify(expensesData));
+    const result = await dispatch(createPettyCashExpense(payload));
 
-      formData.expenses.forEach((expense, index) => {
-        if (expense.supporting_document) {
-          submitData.append(
-            `expense_document_${index}`,
-            expense.supporting_document
-          );
-        }
-      });
-
-      await dispatch(createPettyCashRequest(submitData)).unwrap();
-      toast.success('Petty cash request created successfully');
-
-      // Close dialog and reset form
+    if (createPettyCashExpense.fulfilled.match(result)) {
+      toast.success('Expense created successfully.');
       handleCloseCreateDialog();
-
-      // Refresh list
-      dispatch(
-        getAllPettyCashRequests({
-          page: 1,
-          related_petty_cash_id: transactionId,
-        })
-      );
-    } catch (error) {
-      toast.error(error || 'Failed to create petty cash request');
+      refreshList();
+    } else {
+      toast.error(result.payload || 'Failed to create expense.');
     }
   };
 
-  // Action handlers
-  const handleView = (request) => {
-    setSelectedRequest(request);
+  // ── Action handlers ───────────────────────────────────────────────────────────
+
+  const handleView = (expense) => {
+    setSelectedRequest(expense);
     setOpenViewModal(true);
   };
 
-  const handleTrackAndSign = (request) => {
-    setSelectedRequest(request);
+  const handleTrackAndSign = (expense) => {
+    setSelectedRequest(expense);
     setOpenTrackSignDialog(true);
+    // Pre-load tracking data
+    dispatch(trackPettyCashExpense(expense.id));
   };
 
-  const handleEdit = (request) => {
-    setSelectedRequest(request);
+  const handleEdit = (expense) => {
+    setSelectedRequest(expense);
     setOpenEditModal(true);
   };
 
-  const handleDelete = (request) => {
-    setSelectedRequest(request);
+  const handleDelete = (expense) => {
+    setSelectedRequest(expense);
     setOpenDeleteDialog(true);
   };
 
-  const handleEditSubmit = async (id, formData) => {
-    try {
-      await dispatch(
-        updatePettyCashRequest({
-          id,
-          formData,
-        })
-      ).unwrap();
-      toast.success('Request updated successfully');
+  // ── Edit submit → updatePettyCashExpense ──────────────────────────────────────
+
+  const handleEditSubmit = async (id, formDataPayload) => {
+    const result = await dispatch(
+      updatePettyCashExpense({ id, formData: formDataPayload }),
+    );
+
+    if (updatePettyCashExpense.fulfilled.match(result)) {
+      toast.success('Expense updated successfully.');
       handleCloseEditModal();
-      dispatch(
-        getAllPettyCashRequests({
-          page: 1,
-          related_petty_cash_id: transactionId,
-        })
-      );
-    } catch (error) {
-      toast.error(error || 'Failed to update request');
+      refreshList();
+    } else {
+      toast.error(result.payload || 'Failed to update expense.');
     }
   };
 
-  const handleDeleteConfirm = async (id) => {
-    try {
-      await dispatch(deletePettyCashRequest(id)).unwrap();
-      toast.success('Request deleted successfully');
+  // ── Delete confirm → deletePettyCashExpense ───────────────────────────────────
+
+  const handleDeleteConfirm = async (id, comment) => {
+    const result = await dispatch(deletePettyCashExpense({ id, comment }));
+
+    if (deletePettyCashExpense.fulfilled.match(result)) {
+      toast.success('Expense deleted successfully.');
       handleCloseDeleteDialog();
-      dispatch(
-        getAllPettyCashRequests({
-          page: 1,
-          related_petty_cash_id: transactionId,
-        })
-      );
-    } catch (error) {
-      toast.error(error || 'Failed to delete request');
+      refreshList();
+    } else {
+      toast.error(result.payload || 'Failed to delete expense.');
     }
   };
+
+  // ── Approve/Deny/Rollback → approvePettyCashExpense ───────────────────────────
+  // Called from TrackAndSignPettyCashDialog via a prop if needed
+
+  const handleApprove = async (expenseId, action, comment = '') => {
+    const result = await dispatch(
+      approvePettyCashExpense({ id: expenseId, data: { action, comment } }),
+    );
+
+    if (approvePettyCashExpense.fulfilled.match(result)) {
+      const labels = {
+        approve: 'approved',
+        deny: 'denied',
+        rollback: 'rolled back',
+      };
+      toast.success(`Expense ${labels[action] || action} successfully.`);
+      refreshList();
+    } else {
+      toast.error(result.payload || `Failed to ${action} expense.`);
+    }
+  };
+
+  // ── Close handlers ────────────────────────────────────────────────────────────
 
   const handleCloseViewModal = () => {
     setOpenViewModal(false);
     setSelectedRequest(null);
   };
-
   const handleCloseTrackSignDialog = () => {
     setOpenTrackSignDialog(false);
     setSelectedRequest(null);
   };
-
   const handleCloseEditModal = () => {
     setOpenEditModal(false);
     setSelectedRequest(null);
   };
-
   const handleCloseDeleteDialog = () => {
     setOpenDeleteDialog(false);
     setSelectedRequest(null);
   };
 
-  // CSV Export Handler
+  // ── CSV export ────────────────────────────────────────────────────────────────
+
   const handleExportCSV = () => {
-    if (!requests || requests.length === 0) {
+    if (!expenses || expenses.length === 0) {
       toast.error('No expense data to export');
       return;
     }
 
-    // Flatten all expenses from all requests
-    const allExpenses = [];
-    requests.forEach((request) => {
-      if (request.expenses && request.expenses.length > 0) {
-        request.expenses.forEach((expense) => {
-          allExpenses.push({
-            'Request ID': request.id,
-            'Requester': `${request.requester?.firstname || ''} ${request.requester?.lastname || ''}`.trim(),
-            'Verifier': `${request.verifier?.firstname || ''} ${request.verifier?.lastname || ''}`.trim(),
-            'Date': expense.date || '',
-            'Item Description': expense.item_description || '',
-            'Amount': parseFloat(expense.amount || 0).toFixed(2),
-            'Currency': expense.currency || 'USD',
-            'Request Status': request.status || '',
-            'Created At': request.created_at ? new Date(request.created_at).toLocaleDateString() : '',
-          });
-        });
-      }
-    });
+    // Response is a flat list of expense lines
+    const rows = expenses.map((expense) => ({
+      ID: expense.id,
+      Date: expense.date || '',
+      'Item Description': expense.item_description || '',
+      Amount: parseFloat(expense.amount || 0).toFixed(2),
+      Currency: expense.currency || '',
+      'Supporting Document': expense.supporting_document || '',
+      'Created At': expense.created_at
+        ? new Date(expense.created_at).toLocaleDateString()
+        : '',
+    }));
 
-    if (allExpenses.length === 0) {
+    if (rows.length === 0) {
       toast.error('No expenses found to export');
       return;
     }
 
-    // Convert to CSV
-    const headers = Object.keys(allExpenses[0]);
-    const csvContent = [
+    const headers = Object.keys(rows[0]);
+    const csv = [
       headers.join(','),
-      ...allExpenses.map((row) =>
-        headers.map((header) => {
-          const value = row[header];
-          // Escape commas and quotes in values
-          if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-            return `"${value.replace(/"/g, '""')}"`;
-          }
-          return value;
-        }).join(',')
+      ...rows.map((row) =>
+        headers
+          .map((h) => {
+            const val = String(row[h]);
+            return val.includes(',') || val.includes('"')
+              ? `"${val.replace(/"/g, '""')}"`
+              : val;
+          })
+          .join(','),
       ),
     ].join('\n');
 
-    // Create download link
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    
+    const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `expenses_transaction_${transactionId}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute(
+      'download',
+      `expenses_transaction_${transactionId}_${new Date().toISOString().split('T')[0]}.csv`,
+    );
     link.style.visibility = 'hidden';
-    
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-
     toast.success('CSV exported successfully');
   };
 
+  // ── Helpers ───────────────────────────────────────────────────────────────────
+
   const getStatusChip = (status) => {
-    const statusColors = {
+    const map = {
       pending: { bgcolor: '#FFA726', color: 'white' },
       approved: { bgcolor: '#66BB6A', color: 'white' },
       denied: { bgcolor: '#EF5350', color: 'white' },
@@ -491,20 +457,17 @@ const ManageExpenses = () => {
       'to verify': { bgcolor: '#42A5F5', color: 'white' },
       'to sign': { bgcolor: '#FF9800', color: 'white' },
     };
-
-    const displayStatus = status?.replace(/_/g, ' ') || 'N/A';
-
+    const display = (status || 'N/A')
+      .replace(/_/g, ' ')
+      .split(' ')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
     return (
       <Chip
-        label={
-          displayStatus
-            .split(' ')
-            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ')
-        }
+        label={display}
         size="small"
         sx={{
-          ...(statusColors[status?.toLowerCase()] || {
+          ...(map[status?.toLowerCase()] || {
             bgcolor: '#9E9E9E',
             color: 'white',
           }),
@@ -515,26 +478,25 @@ const ManageExpenses = () => {
     );
   };
 
-  const formatAmount = (amount) => {
-    return new Intl.NumberFormat('en-US', {
+  const formatAmount = (amount) =>
+    new Intl.NumberFormat('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(parseFloat(amount || 0));
-  };
+
+  // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
     <RootLayout>
       <Box>
-        {/* Header with Back Button and Create Button */}
+        {/* Page header */}
         <Box sx={styles.header}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <IconButton
               onClick={() => navigate('/petty-cash')}
               sx={{
                 bgcolor: 'rgba(0, 82, 155, 0.1)',
-                '&:hover': {
-                  bgcolor: 'rgba(0, 82, 155, 0.2)',
-                },
+                '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.2)' },
               }}
             >
               <ArrowBackIcon sx={{ color: '#00529B' }} />
@@ -545,13 +507,12 @@ const ManageExpenses = () => {
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 Transaction: {transaction?.holder?.firstname}{' '}
-                {transaction?.holder?.lastname} - $
+                {transaction?.holder?.lastname} —{' '}
                 {formatAmount(transaction?.amount)} {transaction?.currency}
               </Typography>
             </Box>
           </Box>
-          
-          {/* Action Buttons */}
+
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Button
               variant="outlined"
@@ -575,37 +536,160 @@ const ManageExpenses = () => {
               onClick={handleOpenCreateDialog}
               sx={{
                 bgcolor: '#00529B',
-                '&:hover': {
-                  bgcolor: '#003d73',
-                },
+                '&:hover': { bgcolor: '#003d73' },
                 textTransform: 'none',
                 px: 3,
               }}
             >
-              Create Expense Request
+              Add Expense
             </Button>
           </Box>
         </Box>
 
-        {/* Expense Requests List */}
+        {/* Summary Card */}
+        {summary && (
+          <Paper
+            elevation={0}
+            sx={{
+              mt: 3,
+              p: 2.5,
+              border: '1px solid rgba(0, 82, 155, 0.15)',
+              borderRadius: 2,
+              bgcolor: 'rgba(0, 82, 155, 0.02)',
+            }}
+          >
+            <Typography
+              variant="subtitle1"
+              fontWeight={600}
+              color="#00529B"
+              sx={{ mb: 2 }}
+            >
+              Transaction Summary
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={6} sm={3}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  display="block"
+                >
+                  Total Expenses
+                </Typography>
+                <Typography variant="h6" fontWeight={700} color="#d32f2f">
+                  {formatAmount(summary.total_expenses)}{' '}
+                  <Typography
+                    component="span"
+                    variant="body2"
+                    color="text.secondary"
+                  >
+                    {summary.currency}
+                  </Typography>
+                </Typography>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  display="block"
+                >
+                  Petty Cash Amount
+                </Typography>
+                <Typography variant="h6" fontWeight={700} color="#00529B">
+                  {formatAmount(summary.petty_cash_amount)}{' '}
+                  <Typography
+                    component="span"
+                    variant="body2"
+                    color="text.secondary"
+                  >
+                    {summary.currency}
+                  </Typography>
+                </Typography>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  display="block"
+                >
+                  Remaining Amount
+                </Typography>
+                <Typography
+                  variant="h6"
+                  fontWeight={700}
+                  color={
+                    parseFloat(summary.remaining_amount) <= 0
+                      ? '#d32f2f'
+                      : '#66BB6A'
+                  }
+                >
+                  {formatAmount(summary.remaining_amount)}{' '}
+                  <Typography
+                    component="span"
+                    variant="body2"
+                    color="text.secondary"
+                  >
+                    {summary.currency}
+                  </Typography>
+                </Typography>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  display="block"
+                >
+                  Utilization
+                </Typography>
+                <Typography variant="h6" fontWeight={700} color="#FF9800">
+                  {parseFloat(summary.petty_cash_amount) > 0
+                    ? (
+                        (parseFloat(summary.total_expenses) /
+                          parseFloat(summary.petty_cash_amount)) *
+                        100
+                      ).toFixed(1)
+                    : '0.0'}
+                  %
+                </Typography>
+              </Grid>
+            </Grid>
+          </Paper>
+        )}
+
+        {/* Expenses table */}
         <Paper elevation={2} sx={{ mt: 3 }}>
           <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0' }}>
             <Typography variant="h6" color="#00529B" fontWeight={600}>
-              Expense Requests for this Transaction
+              Expense Lines
             </Typography>
           </Box>
 
           <TableContainer>
-            <Table sx={styles.table}>
+            <Table sx={{ minWidth: 800 }}>
               <TableHead>
                 <TableRow sx={{ bgcolor: 'rgba(0, 82, 155, 0.05)' }}>
-                  <TableCell sx={styles.headerCell}>#</TableCell>
-                  <TableCell sx={styles.headerCell}>Requester</TableCell>
-                  <TableCell sx={styles.headerCell}>Verifier</TableCell>
-                  <TableCell sx={styles.headerCell}>Total Expenses</TableCell>
-                  <TableCell sx={styles.headerCell}>Status</TableCell>
-                  <TableCell sx={styles.headerCell}>Created At</TableCell>
-                  <TableCell sx={styles.headerCell} align="center">
+                  <TableCell sx={{ ...styles.headerCell, width: 50 }}>
+                    #
+                  </TableCell>
+                  <TableCell sx={{ ...styles.headerCell, width: 110 }}>
+                    Date
+                  </TableCell>
+                  <TableCell sx={styles.headerCell}>Item Description</TableCell>
+                  <TableCell sx={{ ...styles.headerCell, width: 120 }}>
+                    Amount
+                  </TableCell>
+                  <TableCell sx={{ ...styles.headerCell, width: 80 }}>
+                    Currency
+                  </TableCell>
+                  <TableCell sx={{ ...styles.headerCell, width: 90 }}>
+                    Document
+                  </TableCell>
+                  <TableCell sx={{ ...styles.headerCell, width: 150 }}>
+                    Created At
+                  </TableCell>
+                  <TableCell
+                    sx={{ ...styles.headerCell, width: 120 }}
+                    align="center"
+                  >
                     Actions
                   </TableCell>
                 </TableRow>
@@ -613,50 +697,122 @@ const ManageExpenses = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
-                      Loading...
+                    <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
+                      <CircularProgress size={24} sx={{ color: '#00529B' }} />
                     </TableCell>
                   </TableRow>
-                ) : requests.length === 0 ? (
+                ) : expenses.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
-                      No expense requests found for this transaction
+                    <TableCell
+                      colSpan={8}
+                      align="center"
+                      sx={{ py: 3, color: 'text.secondary' }}
+                    >
+                      No expenses found for this transaction
                     </TableCell>
                   </TableRow>
                 ) : (
-                  requests.map((request, index) => (
+                  expenses.map((expense, index) => (
                     <TableRow
-                      key={request.id}
+                      key={expense.id}
                       hover
-                      sx={{
-                        '&:hover': {
-                          bgcolor: 'rgba(0, 82, 155, 0.02)',
-                        },
-                      }}
+                      sx={{ '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.02)' } }}
                     >
                       <TableCell>{page * rowsPerPage + index + 1}</TableCell>
-                      <TableCell>
-                        {request.requester?.firstname}{' '}
-                        {request.requester?.lastname}
+
+                      {/* Date */}
+                      <TableCell>{expense.date || 'N/A'}</TableCell>
+
+                      {/* Item Description — truncate with tooltip */}
+                      <TableCell sx={{ maxWidth: 220 }}>
+                        <Tooltip
+                          title={expense.item_description || ''}
+                          arrow
+                          placement="top"
+                        >
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              maxWidth: 220,
+                            }}
+                          >
+                            {expense.item_description || 'N/A'}
+                          </Typography>
+                        </Tooltip>
                       </TableCell>
+
+                      {/* Amount */}
                       <TableCell>
-                        {request.verifier?.firstname}{' '}
-                        {request.verifier?.lastname}
+                        <Typography variant="body2" fontWeight={600}>
+                          {formatAmount(expense.amount)}
+                        </Typography>
                       </TableCell>
+
+                      {/* Currency */}
                       <TableCell>
-                        ${formatAmount(request.total_expenses)}
+                        <Chip
+                          label={expense.currency || 'N/A'}
+                          size="small"
+                          sx={{
+                            bgcolor: '#00529B',
+                            color: 'white',
+                            fontWeight: 500,
+                            minWidth: 50,
+                          }}
+                        />
                       </TableCell>
-                      <TableCell>{getStatusChip(request.status)}</TableCell>
+
+                      {/* Supporting Document */}
                       <TableCell>
-                        {request.created_at
-                          ? new Date(request.created_at).toLocaleString()
+                        {expense.supporting_document ? (
+                          <Tooltip title="View document" arrow>
+                            <IconButton
+                              size="small"
+                              onClick={() =>
+                                window.open(
+                                  expense.supporting_document,
+                                  '_blank',
+                                )
+                              }
+                              sx={{ color: '#00529B' }}
+                            >
+                              <AttachFileIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">
+                            —
+                          </Typography>
+                        )}
+                      </TableCell>
+
+                      {/* Created At */}
+                      <TableCell
+                        sx={{ fontSize: '0.82rem', color: 'text.secondary' }}
+                      >
+                        {expense.created_at
+                          ? new Date(expense.created_at).toLocaleString(
+                              'en-US',
+                              {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              },
+                            )
                           : 'N/A'}
                       </TableCell>
+
+                      {/* Actions */}
                       <TableCell align="center">
                         <Tooltip title="View" arrow>
                           <IconButton
                             size="small"
-                            onClick={() => handleView(request)}
+                            onClick={() => handleView(expense)}
                             sx={{ color: '#00529B' }}
                           >
                             <VisibilityOutlinedIcon fontSize="small" />
@@ -665,7 +821,7 @@ const ManageExpenses = () => {
                         <Tooltip title="Edit" arrow>
                           <IconButton
                             size="small"
-                            onClick={() => handleEdit(request)}
+                            onClick={() => handleEdit(expense)}
                             sx={{ color: '#FFA726' }}
                           >
                             <EditOutlinedIcon fontSize="small" />
@@ -674,7 +830,7 @@ const ManageExpenses = () => {
                         <Tooltip title="Track & Sign" arrow>
                           <IconButton
                             size="small"
-                            onClick={() => handleTrackAndSign(request)}
+                            onClick={() => handleTrackAndSign(expense)}
                             sx={{ color: '#42A5F5' }}
                           >
                             <TrackChangesIcon fontSize="small" />
@@ -683,7 +839,7 @@ const ManageExpenses = () => {
                         <Tooltip title="Delete" arrow>
                           <IconButton
                             size="small"
-                            onClick={() => handleDelete(request)}
+                            onClick={() => handleDelete(expense)}
                             sx={{ color: '#EF5350' }}
                           >
                             <DeleteOutlineIcon fontSize="small" />
@@ -695,6 +851,7 @@ const ManageExpenses = () => {
                 )}
               </TableBody>
             </Table>
+
             <TablePagination
               rowsPerPageOptions={[5, 10, 25, 50]}
               component="div"
@@ -705,12 +862,14 @@ const ManageExpenses = () => {
               onRowsPerPageChange={handleChangeRowsPerPage}
               sx={{
                 borderTop: '1px solid rgba(224, 224, 224, 1)',
+                '.MuiTablePagination-selectLabel, .MuiTablePagination-displayedRows':
+                  { mb: 0 },
               }}
             />
           </TableContainer>
         </Paper>
 
-        {/* Create Expense Request Dialog */}
+        {/* Create Expense Dialog */}
         <Dialog
           open={openCreateDialog}
           onClose={handleCloseCreateDialog}
@@ -727,12 +886,15 @@ const ManageExpenses = () => {
               alignItems: 'center',
             }}
           >
-            <Typography variant="h6">Create Expense Request</Typography>
+            <Typography variant="h6" fontWeight={600}>
+              Add Expense
+            </Typography>
             <IconButton
               edge="end"
               color="inherit"
               onClick={handleCloseCreateDialog}
               size="small"
+              disabled={isLoading}
             >
               <CloseIcon />
             </IconButton>
@@ -741,7 +903,7 @@ const ManageExpenses = () => {
           <form onSubmit={handleSubmit}>
             <DialogContent sx={{ mt: 2 }}>
               <Grid container spacing={3}>
-                {/* Verifier Selection - Prominent */}
+                {/* Verifier */}
                 <Grid item xs={12}>
                   <Box
                     sx={{
@@ -773,9 +935,10 @@ const ManageExpenses = () => {
                         label="Choose Verifier"
                         sx={{
                           fontSize: '1.1rem',
-                          '& .MuiSelect-select': {
-                            py: 2,
-                          },
+                          '& .MuiSelect-select': { py: 2 },
+                        }}
+                        MenuProps={{
+                          PaperProps: { style: { maxHeight: 400 } },
                         }}
                       >
                         <MenuItem value="" disabled>
@@ -783,7 +946,11 @@ const ManageExpenses = () => {
                         </MenuItem>
                         {signers.length > 0 ? (
                           signers.map((signer) => (
-                            <MenuItem key={signer.id} value={signer.id}>
+                            <MenuItem
+                              key={signer.id}
+                              value={signer.id}
+                              sx={{ py: 1.5 }}
+                            >
                               <Box>
                                 <Typography variant="body1" fontWeight={500}>
                                   {signer.firstname} {signer.lastname}
@@ -791,6 +958,7 @@ const ManageExpenses = () => {
                                 <Typography
                                   variant="caption"
                                   color="text.secondary"
+                                  sx={{ display: 'block' }}
                                 >
                                   {signer.position} • {signer.department}
                                 </Typography>
@@ -799,7 +967,7 @@ const ManageExpenses = () => {
                           ))
                         ) : (
                           <MenuItem value="" disabled>
-                            <em>No signers available</em>
+                            <em>Loading verifiers...</em>
                           </MenuItem>
                         )}
                       </Select>
@@ -807,9 +975,9 @@ const ManageExpenses = () => {
                   </Box>
                 </Grid>
 
-                {/* Expenses Section */}
+                {/* Expense lines */}
                 <Grid item xs={12}>
-                  <Divider sx={{ my: 2 }} />
+                  <Divider sx={{ mb: 2 }} />
                   <Box
                     sx={{
                       display: 'flex',
@@ -819,7 +987,7 @@ const ManageExpenses = () => {
                     }}
                   >
                     <Typography variant="h6" color="#00529B" fontWeight={600}>
-                      Expenses
+                      Expense Lines
                     </Typography>
                     <Button
                       variant="outlined"
@@ -835,18 +1003,16 @@ const ManageExpenses = () => {
                         },
                       }}
                     >
-                      Add Expense
+                      Add Line
                     </Button>
                   </Box>
 
-                  {/* Currency Error Alert */}
                   {currencyError && (
                     <Alert severity="error" sx={{ mb: 2 }}>
                       {currencyError}
                     </Alert>
                   )}
 
-                  {/* Expense Items */}
                   {formData.expenses.map((expense, index) => (
                     <Box key={index} sx={styles.expenseCard}>
                       <Box
@@ -858,7 +1024,7 @@ const ManageExpenses = () => {
                         }}
                       >
                         <Typography variant="subtitle2" fontWeight={600}>
-                          Expense #{index + 1}
+                          Line #{index + 1}
                         </Typography>
                         {formData.expenses.length > 1 && (
                           <IconButton
@@ -894,12 +1060,14 @@ const ManageExpenses = () => {
                             type="number"
                             value={expense.amount}
                             onChange={(e) =>
-                              handleExpenseChange(index, 'amount', e.target.value)
+                              handleExpenseChange(
+                                index,
+                                'amount',
+                                e.target.value,
+                              )
                             }
                             required
-                            InputProps={{
-                              inputProps: { min: 0, step: 0.01 },
-                            }}
+                            InputProps={{ inputProps: { min: 0, step: 0.01 } }}
                             size="small"
                           />
                         </Grid>
@@ -913,7 +1081,7 @@ const ManageExpenses = () => {
                                 handleExpenseChange(
                                   index,
                                   'currency',
-                                  e.target.value
+                                  e.target.value,
                                 )
                               }
                               label="Currency"
@@ -921,11 +1089,20 @@ const ManageExpenses = () => {
                             >
                               {CURRENCIES.map((curr) => (
                                 <MenuItem key={curr.code} value={curr.code}>
-                                  {curr.symbol} {curr.code} - {curr.name}
+                                  {curr.symbol} {curr.code} — {curr.name}
                                 </MenuItem>
                               ))}
                             </Select>
                           </FormControl>
+                          {index !== 0 && (
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              sx={{ mt: 0.5, display: 'block' }}
+                            >
+                              Currency is set from line #1
+                            </Typography>
+                          )}
                         </Grid>
 
                         <Grid item xs={12} sm={6}>
@@ -937,7 +1114,7 @@ const ManageExpenses = () => {
                               handleExpenseChange(
                                 index,
                                 'item_description',
-                                e.target.value
+                                e.target.value,
                               )
                             }
                             required
@@ -948,7 +1125,12 @@ const ManageExpenses = () => {
                         <Grid item xs={12}>
                           <Typography
                             variant="caption"
-                            sx={{ color: '#00529B', fontWeight: 600, mb: 1 }}
+                            sx={{
+                              color: '#00529B',
+                              fontWeight: 600,
+                              mb: 1,
+                              display: 'block',
+                            }}
                           >
                             Supporting Document (Optional)
                           </Typography>
@@ -959,7 +1141,10 @@ const ManageExpenses = () => {
                               id={`expense-file-${index}`}
                               type="file"
                               onChange={(e) =>
-                                handleExpenseFileChange(index, e.target.files[0])
+                                handleExpenseFileChange(
+                                  index,
+                                  e.target.files[0],
+                                )
                               }
                             />
                             <label htmlFor={`expense-file-${index}`}>
@@ -974,7 +1159,10 @@ const ManageExpenses = () => {
                                 <CloudUploadIcon
                                   sx={{ fontSize: 30, color: '#00529B', mb: 1 }}
                                 />
-                                <Typography variant="caption" color="textSecondary">
+                                <Typography
+                                  variant="caption"
+                                  color="textSecondary"
+                                >
                                   Click to upload receipt
                                 </Typography>
                               </Box>
@@ -993,7 +1181,9 @@ const ManageExpenses = () => {
                                 borderRadius: 1,
                               }}
                             >
-                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                              <Box
+                                sx={{ display: 'flex', alignItems: 'center' }}
+                              >
                                 <AttachFileIcon
                                   sx={{ mr: 1, color: '#00529B', fontSize: 18 }}
                                 />
@@ -1018,35 +1208,38 @@ const ManageExpenses = () => {
               </Grid>
             </DialogContent>
 
-            <DialogActions sx={{ px: 3, pb: 2 }}>
+            <DialogActions sx={{ px: 3, pb: 2, pt: 1 }}>
               <Button
                 onClick={handleCloseCreateDialog}
-                sx={{
-                  color: '#666',
-                  textTransform: 'none',
-                }}
+                disabled={isLoading}
+                sx={{ color: '#666', textTransform: 'none' }}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 variant="contained"
+                disabled={isLoading}
+                startIcon={
+                  isLoading ? (
+                    <CircularProgress size={18} sx={{ color: 'white' }} />
+                  ) : null
+                }
                 sx={{
                   bgcolor: '#00529B',
-                  '&:hover': {
-                    bgcolor: '#003d73',
-                  },
+                  '&:hover': { bgcolor: '#003d73' },
                   textTransform: 'none',
+                  minWidth: 150,
                   px: 4,
                 }}
               >
-                Submit Request
+                {isLoading ? 'Submitting...' : 'Submit Expense'}
               </Button>
             </DialogActions>
           </form>
         </Dialog>
 
-        {/* Modals */}
+        {/* Sub-component modals — original component names, expense data passed as request prop */}
         {selectedRequest && (
           <>
             <ViewPettyCashRequestModal
@@ -1058,6 +1251,7 @@ const ManageExpenses = () => {
               open={openTrackSignDialog}
               handleClose={handleCloseTrackSignDialog}
               request={selectedRequest}
+              onApprove={handleApprove}
             />
             <EditExpenseModal
               open={openEditModal}

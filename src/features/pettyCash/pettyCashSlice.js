@@ -12,6 +12,11 @@ const initialState = {
   pettyCashRequest: null,
   trackingData: null,
 
+  // Petty Cash Expenses
+  issuancePettyCashExpenses: [], // expenses scoped to a single petty cash issuance
+  pettyCashExpense: null,
+  expenseTrackingData: null,
+
   // Loading and Error states
   isLoading: false,
   error: null,
@@ -27,7 +32,6 @@ const initialState = {
 
 // ==================== Petty Cash Issuance ====================
 
-// Issue Petty Cash
 export const issuePettyCash = createAsyncThunk(
   'pettyCash/issuePettyCash',
   async (data, thunkAPI) => {
@@ -39,7 +43,6 @@ export const issuePettyCash = createAsyncThunk(
   },
 );
 
-// Get All Petty Cash
 export const getAllPettyCash = createAsyncThunk(
   'pettyCash/getAllPettyCash',
   async (data, thunkAPI) => {
@@ -51,7 +54,6 @@ export const getAllPettyCash = createAsyncThunk(
   },
 );
 
-// Get Petty Cash by ID
 export const getPettyCashById = createAsyncThunk(
   'pettyCash/getPettyCashById',
   async (id, thunkAPI) => {
@@ -63,7 +65,6 @@ export const getPettyCashById = createAsyncThunk(
   },
 );
 
-// Update Petty Cash
 export const updatePettyCash = createAsyncThunk(
   'pettyCash/updatePettyCash',
   async (data, thunkAPI) => {
@@ -75,19 +76,20 @@ export const updatePettyCash = createAsyncThunk(
   },
 );
 
-// Delete Petty Cash
+// data: { id: number, comment: string }
 export const deletePettyCash = createAsyncThunk(
   'pettyCash/deletePettyCash',
-  async (id, thunkAPI) => {
+  async (data, thunkAPI) => {
     try {
-      return await pettyCashService.deletePettyCash(id);
+      return await pettyCashService.deletePettyCash(data.id, {
+        comment: data.comment,
+      });
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
   },
 );
 
-// Rollback Petty Cash
 export const rollbackPettyCash = createAsyncThunk(
   'pettyCash/rollbackPettyCash',
   async (data, thunkAPI) => {
@@ -101,7 +103,6 @@ export const rollbackPettyCash = createAsyncThunk(
 
 // ==================== Petty Cash Acknowledgment ====================
 
-// Acknowledge Petty Cash
 export const acknowledgePettyCash = createAsyncThunk(
   'pettyCash/acknowledgePettyCash',
   async (data, thunkAPI) => {
@@ -118,7 +119,6 @@ export const acknowledgePettyCash = createAsyncThunk(
 
 // ==================== Petty Cash Requests ====================
 
-// Create Petty Cash Request
 export const createPettyCashRequest = createAsyncThunk(
   'pettyCash/createPettyCashRequest',
   async (data, thunkAPI) => {
@@ -130,7 +130,6 @@ export const createPettyCashRequest = createAsyncThunk(
   },
 );
 
-// Get All Petty Cash Requests
 export const getAllPettyCashRequests = createAsyncThunk(
   'pettyCash/getAllPettyCashRequests',
   async (data, thunkAPI) => {
@@ -142,7 +141,6 @@ export const getAllPettyCashRequests = createAsyncThunk(
   },
 );
 
-// Get Petty Cash Request by ID
 export const getPettyCashRequestById = createAsyncThunk(
   'pettyCash/getPettyCashRequestById',
   async (id, thunkAPI) => {
@@ -154,7 +152,6 @@ export const getPettyCashRequestById = createAsyncThunk(
   },
 );
 
-// Update Petty Cash Request
 export const updatePettyCashRequest = createAsyncThunk(
   'pettyCash/updatePettyCashRequest',
   async (data, thunkAPI) => {
@@ -169,7 +166,6 @@ export const updatePettyCashRequest = createAsyncThunk(
   },
 );
 
-// Delete Petty Cash Request
 export const deletePettyCashRequest = createAsyncThunk(
   'pettyCash/deletePettyCashRequest',
   async (id, thunkAPI) => {
@@ -181,7 +177,6 @@ export const deletePettyCashRequest = createAsyncThunk(
   },
 );
 
-// Track Petty Cash Request
 export const trackPettyCashRequest = createAsyncThunk(
   'pettyCash/trackPettyCashRequest',
   async (id, thunkAPI) => {
@@ -195,12 +190,90 @@ export const trackPettyCashRequest = createAsyncThunk(
 
 // ==================== Sign Request ====================
 
-// Sign Petty Cash Request (for Forward, Deny, Rollback)
 export const signPettyCashRequest = createAsyncThunk(
   'pettyCash/signPettyCashRequest',
   async (data, thunkAPI) => {
     try {
       return await pettyCashService.signPettyCashRequest(data.id, data.data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+// ==================== Petty Cash Expenses ====================
+
+// data: FormData with petty_cash_id, verifier_id, expenses (JSON string), expense_document_N
+export const createPettyCashExpense = createAsyncThunk(
+  'pettyCash/createPettyCashExpense',
+  async (data, thunkAPI) => {
+    try {
+      return await pettyCashService.createPettyCashExpense(data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+// data: { id, formData }
+export const updatePettyCashExpense = createAsyncThunk(
+  'pettyCash/updatePettyCashExpense',
+  async (data, thunkAPI) => {
+    try {
+      return await pettyCashService.updatePettyCashExpense(
+        data.id,
+        data.formData,
+      );
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+// data: { id, comment }
+export const deletePettyCashExpense = createAsyncThunk(
+  'pettyCash/deletePettyCashExpense',
+  async (data, thunkAPI) => {
+    try {
+      return await pettyCashService.deletePettyCashExpense(data.id, {
+        comment: data.comment,
+      });
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+// List all expenses for a specific petty cash issuance
+// pettyCashId: number | string  — plain ID, NOT an object
+export const getIssuancePettyCashExpenses = createAsyncThunk(
+  'pettyCash/getIssuancePettyCashExpenses',
+  async (pettyCashId, thunkAPI) => {
+    try {
+      return await pettyCashService.getIssuancePettyCashExpenses(pettyCashId);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+export const trackPettyCashExpense = createAsyncThunk(
+  'pettyCash/trackPettyCashExpense',
+  async (id, thunkAPI) => {
+    try {
+      return await pettyCashService.trackPettyCashExpense(id);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+// data: { id, data: { action: 'approve' | 'deny' | 'rollback', comment? } }
+export const approvePettyCashExpense = createAsyncThunk(
+  'pettyCash/approvePettyCashExpense',
+  async (data, thunkAPI) => {
+    try {
+      return await pettyCashService.approvePettyCashExpense(data.id, data.data);
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
@@ -217,12 +290,7 @@ export const pettyCashSlice = createSlice({
       state.filters = { ...state.filters, ...action.payload };
     },
     clearFilters: (state) => {
-      state.filters = {
-        status: '',
-        holder_id: '',
-        year: '',
-        page: 1,
-      };
+      state.filters = { status: '', holder_id: '', year: '', page: 1 };
     },
     clearPettyCash: (state) => {
       state.pettyCash = null;
@@ -232,6 +300,13 @@ export const pettyCashSlice = createSlice({
     },
     clearTrackingData: (state) => {
       state.trackingData = null;
+    },
+    clearIssuancePettyCashExpenses: (state) => {
+      state.issuancePettyCashExpenses = [];
+      state.pettyCashExpense = null;
+    },
+    clearExpenseTrackingData: (state) => {
+      state.expenseTrackingData = null;
     },
   },
   extraReducers: (builder) => {
@@ -301,8 +376,8 @@ export const pettyCashSlice = createSlice({
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(deletePettyCash.fulfilled, (state, action) => {
-        state.pettyCash = action.payload;
+      .addCase(deletePettyCash.fulfilled, (state) => {
+        state.pettyCash = null;
         state.isLoading = false;
         state.error = null;
       })
@@ -406,8 +481,8 @@ export const pettyCashSlice = createSlice({
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(deletePettyCashRequest.fulfilled, (state, action) => {
-        state.pettyCashRequest = action.payload;
+      .addCase(deletePettyCashRequest.fulfilled, (state) => {
+        state.pettyCashRequest = null;
         state.isLoading = false;
         state.error = null;
       })
@@ -444,6 +519,96 @@ export const pettyCashSlice = createSlice({
       .addCase(signPettyCashRequest.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
+      })
+
+      // ==================== Create Petty Cash Expense ====================
+      .addCase(createPettyCashExpense.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(createPettyCashExpense.fulfilled, (state, action) => {
+        state.pettyCashExpense = action.payload;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(createPettyCashExpense.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // ==================== Update Petty Cash Expense ====================
+      .addCase(updatePettyCashExpense.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(updatePettyCashExpense.fulfilled, (state, action) => {
+        state.pettyCashExpense = action.payload;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(updatePettyCashExpense.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // ==================== Delete Petty Cash Expense ====================
+      .addCase(deletePettyCashExpense.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(deletePettyCashExpense.fulfilled, (state) => {
+        state.pettyCashExpense = null;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(deletePettyCashExpense.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // ==================== Get Issuance Petty Cash Expenses ====================
+      .addCase(getIssuancePettyCashExpenses.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(getIssuancePettyCashExpenses.fulfilled, (state, action) => {
+        state.issuancePettyCashExpenses = action.payload;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(getIssuancePettyCashExpenses.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // ==================== Track Petty Cash Expense ====================
+      .addCase(trackPettyCashExpense.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(trackPettyCashExpense.fulfilled, (state, action) => {
+        state.expenseTrackingData = action.payload;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(trackPettyCashExpense.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // ==================== Approve Petty Cash Expense ====================
+      .addCase(approvePettyCashExpense.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(approvePettyCashExpense.fulfilled, (state, action) => {
+        state.pettyCashExpense = action.payload;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(approvePettyCashExpense.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
       });
   },
 });
@@ -454,6 +619,8 @@ export const {
   clearPettyCash,
   clearPettyCashRequest,
   clearTrackingData,
+  clearIssuancePettyCashExpenses,
+  clearExpenseTrackingData,
 } = pettyCashSlice.actions;
 
 export default pettyCashSlice.reducer;

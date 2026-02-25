@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Dialog,
   DialogTitle,
@@ -10,18 +12,55 @@ import {
   AlertTitle,
   Divider,
   Grid,
+  TextField,
+  CircularProgress,
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import UndoIcon from '@mui/icons-material/Undo';
+import { toast } from 'react-toastify';
+import { rollbackPettyCash } from '../features/pettyCash/pettyCashSlice';
 
 const RollbackTransactionDialog = ({
   open,
   handleClose,
   transaction,
-  onRollback,
+  onSuccess,
 }) => {
-  const handleConfirmRollback = () => {
-    onRollback(transaction.id);
+  const dispatch = useDispatch();
+  const { isLoading } = useSelector((state) => state.pettyCash);
+
+  const [comment, setComment] = useState('');
+  const [commentError, setCommentError] = useState('');
+
+  const handleConfirmRollback = async () => {
+    // Validate comment
+    if (!comment.trim()) {
+      setCommentError('A comment is required before rolling back.');
+      return;
+    }
+
+    const result = await dispatch(
+      rollbackPettyCash({
+        id: transaction.id,
+        data: { comment: comment.trim() },
+      })
+    );
+
+    if (rollbackPettyCash.fulfilled.match(result)) {
+      toast.success('Transaction rolled back successfully.');
+      setComment('');
+      setCommentError('');
+      handleClose();
+      if (onSuccess) onSuccess();
+    } else {
+      toast.error(result.payload || 'Failed to rollback transaction.');
+    }
+  };
+
+  const handleCancel = () => {
+    setComment('');
+    setCommentError('');
+    handleClose();
   };
 
   const formatAmount = (amount) => {
@@ -41,7 +80,7 @@ const RollbackTransactionDialog = ({
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={handleCancel} maxWidth="sm" fullWidth>
       <DialogTitle
         sx={{
           bgcolor: '#FF9800',
@@ -199,6 +238,35 @@ const RollbackTransactionDialog = ({
           </Box>
         </Box>
 
+        {/* Comment Section */}
+        <Box sx={{ mt: 2 }}>
+          <TextField
+            label="Reason for Rollback"
+            placeholder="Provide a reason or comment for this rollback..."
+            multiline
+            rows={3}
+            fullWidth
+            required
+            value={comment}
+            onChange={(e) => {
+              setComment(e.target.value);
+              if (e.target.value.trim()) setCommentError('');
+            }}
+            error={!!commentError}
+            helperText={commentError}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                '&.Mui-focused fieldset': {
+                  borderColor: '#FF9800',
+                },
+              },
+              '& .MuiInputLabel-root.Mui-focused': {
+                color: '#FF9800',
+              },
+            }}
+          />
+        </Box>
+
         {/* Confirmation Message */}
         <Box
           sx={{
@@ -217,8 +285,9 @@ const RollbackTransactionDialog = ({
 
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button
-          onClick={handleClose}
+          onClick={handleCancel}
           variant="outlined"
+          disabled={isLoading}
           sx={{
             color: '#666',
             borderColor: '#666',
@@ -234,16 +303,24 @@ const RollbackTransactionDialog = ({
         <Button
           onClick={handleConfirmRollback}
           variant="contained"
+          disabled={isLoading}
           sx={{
             bgcolor: '#FF9800',
             '&:hover': {
               bgcolor: '#F57C00',
             },
             textTransform: 'none',
+            minWidth: 160,
           }}
-          startIcon={<UndoIcon />}
+          startIcon={
+            isLoading ? (
+              <CircularProgress size={18} sx={{ color: 'white' }} />
+            ) : (
+              <UndoIcon />
+            )
+          }
         >
-          Rollback Transaction
+          {isLoading ? 'Rolling back...' : 'Rollback Transaction'}
         </Button>
       </DialogActions>
     </Dialog>

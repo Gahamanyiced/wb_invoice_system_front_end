@@ -6,6 +6,7 @@ import {
   acknowledgePettyCash,
   updatePettyCash,
   deletePettyCash,
+  rollbackPettyCash,
 } from '../features/pettyCash/pettyCashSlice';
 import { getAllSigners } from '../features/user/userSlice';
 import { toast } from 'react-toastify';
@@ -25,6 +26,7 @@ import {
   TableHead,
   TableRow,
   Paper,
+  Divider,
   IconButton,
   Chip,
   FormControl,
@@ -68,6 +70,22 @@ const styles = {
     fontSize: '14px',
     fontWeight: 600,
   },
+  // Shared with EditTransactionModal
+  section: {
+    mb: 3,
+    p: 2,
+    bgcolor: 'rgba(0, 82, 155, 0.02)',
+    borderRadius: 1,
+  },
+  fieldContainer: {
+    mb: 2,
+  },
+  fieldLabel: {
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: '#666',
+    mb: 0.5,
+  },
   uploadBox: {
     border: '2px dashed rgba(0, 82, 155, 0.3)',
     borderRadius: '8px',
@@ -82,7 +100,6 @@ const styles = {
   },
 };
 
-// Currency options
 const CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },
   { code: 'EUR', name: 'Euro', symbol: '€' },
@@ -110,12 +127,13 @@ const PettyCashTransactions = () => {
   const { users: signersData } = useSelector((state) => state.user);
 
   const [transactions, setTransactions] = useState([]);
-
-  // Extract signers from paginated response
   const signers = signersData?.results || [];
   const totalCount = pettyCashList?.count || 0;
 
-  // Pagination handlers
+  const refreshList = () => {
+    dispatch(getAllPettyCash({ page: page + 1 }));
+  };
+
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
     dispatch(getAllPettyCash({ page: newPage + 1 }));
@@ -127,13 +145,11 @@ const PettyCashTransactions = () => {
     dispatch(getAllPettyCash({ page: 1 }));
   };
 
-  // Fetch data on component mount
   useEffect(() => {
     dispatch(getAllPettyCash({ page: 1 }));
-    dispatch(getAllSigners({ is_petty_cash_user: 'true' })); // Fetch only petty cash users
+    dispatch(getAllSigners({ is_petty_cash_user: 'true' }));
   }, [dispatch]);
 
-  // Update local state when Redux state changes
   useEffect(() => {
     if (pettyCashList?.results) {
       setTransactions(pettyCashList.results);
@@ -142,20 +158,17 @@ const PettyCashTransactions = () => {
 
   const [formData, setFormData] = useState({
     amount: '',
-    currency: 'USD', // Default currency
+    currency: 'USD',
     holder_id: '',
     issue_date: '',
     notes: '',
     supporting_document: null,
   });
 
-  const handleOpenDialog = () => {
-    setOpenDialog(true);
-  };
+  const handleOpenDialog = () => setOpenDialog(true);
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
-    // Reset form
     setFormData({
       amount: '',
       currency: 'USD',
@@ -168,38 +181,27 @@ const PettyCashTransactions = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
-    setFormData({
-      ...formData,
-      supporting_document: file,
-    });
+    setFormData((prev) => ({ ...prev, supporting_document: file }));
   };
 
   const handleRemoveFile = () => {
-    setFormData({
-      ...formData,
-      supporting_document: null,
-    });
+    setFormData((prev) => ({ ...prev, supporting_document: null }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Create FormData for file upload
     const submitData = new FormData();
     submitData.append('holder_id', formData.holder_id);
     submitData.append('amount', formData.amount);
     submitData.append('currency', formData.currency);
     submitData.append('issue_date', formData.issue_date);
     submitData.append('notes', formData.notes);
-
     if (formData.supporting_document) {
       submitData.append('supporting_document', formData.supporting_document);
     }
@@ -208,48 +210,38 @@ const PettyCashTransactions = () => {
       await dispatch(issuePettyCash(submitData)).unwrap();
       toast.success('Petty cash issued successfully');
       handleCloseDialog();
-      // Refresh the list
-      dispatch(getAllPettyCash({ page: 1 }));
+      refreshList();
     } catch (error) {
       toast.error(error || 'Failed to issue petty cash');
     }
   };
 
-  // Handler functions for actions
+  // ── Action handlers ──────────────────────────────────────────
+
   const handleView = (transaction) => {
     setSelectedTransaction(transaction);
     setOpenViewModal(true);
   };
 
   const handleAcknowledge = (transaction) => {
-    // Get logged-in user from localStorage
     const userStr = localStorage.getItem('user');
     if (!userStr) {
       toast.error('User not found. Please log in again.');
       return;
     }
-
     const loggedInUser = JSON.parse(userStr);
-
-    // Check if logged-in user is the holder
     if (loggedInUser.id !== transaction.holder?.id) {
       toast.error('Only the transaction holder can acknowledge receipt');
       return;
     }
-
-    // Check if already acknowledged
     if (transaction.is_acknowledged) {
       toast.warning('This transaction has already been acknowledged');
       return;
     }
-
-    // Check if status is pending_acknowledgment
     if (transaction.status !== 'pending_acknowledgment') {
       toast.error('This transaction is not pending acknowledgment');
       return;
     }
-
-    // All checks passed, open the dialog
     setSelectedTransaction(transaction);
     setOpenAcknowledgeDialog(true);
   };
@@ -265,58 +257,29 @@ const PettyCashTransactions = () => {
   };
 
   const handleAddExpenses = (transaction) => {
-    // Navigate to the Manage Expenses page with transaction ID
-    navigate(`/manage-expenses/${transaction.id}`, {
-      state: { transaction },
-    });
+    navigate(`/manage-expenses/${transaction.id}`, { state: { transaction } });
   };
 
   const handleRequestPettyCash = (transaction) => {
-    // Navigate to the Request Petty Cash page with transaction ID
     navigate(`/request-petty-cash/${transaction.id}`, {
       state: { transaction },
     });
   };
 
   const handleRollback = (transaction) => {
-    // Check if transaction can be rolled back
     if (transaction.status === 'pending_acknowledgment') {
       toast.error('Cannot rollback a transaction pending acknowledgment');
       return;
     }
-
     if (transaction.status === 'exhausted') {
       toast.error('Cannot rollback an exhausted transaction');
       return;
     }
-
-    // All checks passed, open the rollback dialog
     setSelectedTransaction(transaction);
     setOpenRollbackDialog(true);
   };
 
-  const handleRollbackConfirm = async (id) => {
-    try {
-      // TODO: Implement rollback API call when backend is ready
-      // await dispatch(rollbackPettyCash(id)).unwrap();
-
-      // For now, show placeholder toast
-      toast.info('Rollback API will be implemented');
-
-      handleCloseRollbackDialog();
-
-      // Uncomment when API is ready:
-      // toast.success('Transaction rolled back successfully');
-      // dispatch(getAllPettyCash({ page: 1 }));
-    } catch (error) {
-      toast.error(error || 'Failed to rollback transaction');
-    }
-  };
-
-  const handleCloseRollbackDialog = () => {
-    setOpenRollbackDialog(false);
-    setSelectedTransaction(null);
-  };
+  // ── Submit handlers ──────────────────────────────────────────
 
   const handleAcknowledgeSubmit = async (id, comment) => {
     try {
@@ -328,27 +291,9 @@ const PettyCashTransactions = () => {
       ).unwrap();
       toast.success('Transaction acknowledged successfully');
       handleCloseAcknowledgeDialog();
-      // Refresh the list
-      dispatch(getAllPettyCash({ page: 1 }));
+      refreshList();
     } catch (error) {
       toast.error(error || 'Failed to acknowledge transaction');
-    }
-  };
-
-  const handleEditSubmit = async (id, formData) => {
-    try {
-      await dispatch(
-        updatePettyCash({
-          id,
-          formData,
-        }),
-      ).unwrap();
-      toast.success('Transaction updated successfully');
-      handleCloseEditModal();
-      // Refresh the list
-      dispatch(getAllPettyCash({ page: 1 }));
-    } catch (error) {
-      toast.error(error || 'Failed to update transaction');
     }
   };
 
@@ -357,32 +302,41 @@ const PettyCashTransactions = () => {
       await dispatch(deletePettyCash(id)).unwrap();
       toast.success('Transaction deleted successfully');
       handleCloseDeleteDialog();
-      // Refresh the list
-      dispatch(getAllPettyCash({ page: 1 }));
+      refreshList();
     } catch (error) {
       toast.error(error || 'Failed to delete transaction');
     }
   };
 
+  const handleRollbackSuccess = () => {
+    handleCloseRollbackDialog();
+    refreshList();
+  };
+
+  // ── Close handlers ───────────────────────────────────────────
+
   const handleCloseViewModal = () => {
     setOpenViewModal(false);
     setSelectedTransaction(null);
   };
-
   const handleCloseAcknowledgeDialog = () => {
     setOpenAcknowledgeDialog(false);
     setSelectedTransaction(null);
   };
-
   const handleCloseEditModal = () => {
     setOpenEditModal(false);
     setSelectedTransaction(null);
   };
-
   const handleCloseDeleteDialog = () => {
     setOpenDeleteDialog(false);
     setSelectedTransaction(null);
   };
+  const handleCloseRollbackDialog = () => {
+    setOpenRollbackDialog(false);
+    setSelectedTransaction(null);
+  };
+
+  // ── Helpers ──────────────────────────────────────────────────
 
   const getStatusChip = (status) => {
     const statusColors = {
@@ -391,14 +345,13 @@ const PettyCashTransactions = () => {
       pending: { bgcolor: '#FFA726', color: 'white' },
       pending_acknowledgment: { bgcolor: '#FF9800', color: 'white' },
     };
-
     return (
       <Chip
         label={
           status
             ? status
                 .split('_')
-                .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
                 .join(' ')
             : 'N/A'
         }
@@ -412,12 +365,13 @@ const PettyCashTransactions = () => {
     );
   };
 
-  const formatAmount = (amount) => {
-    return new Intl.NumberFormat('en-US', {
+  const formatAmount = (amount) =>
+    new Intl.NumberFormat('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(parseFloat(amount || 0));
-  };
+
+  // ── Render ───────────────────────────────────────────────────
 
   return (
     <Box>
@@ -432,9 +386,7 @@ const PettyCashTransactions = () => {
           onClick={handleOpenDialog}
           sx={{
             bgcolor: '#00529B',
-            '&:hover': {
-              bgcolor: '#003d73',
-            },
+            '&:hover': { bgcolor: '#003d73' },
             textTransform: 'none',
             px: 3,
           }}
@@ -505,11 +457,7 @@ const PettyCashTransactions = () => {
                 <TableRow
                   key={transaction.id}
                   hover
-                  sx={{
-                    '&:hover': {
-                      bgcolor: 'rgba(0, 82, 155, 0.02)',
-                    },
-                  }}
+                  sx={{ '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.02)' } }}
                 >
                   <TableCell sx={{ width: '40px' }}>
                     {page * rowsPerPage + index + 1}
@@ -579,10 +527,7 @@ const PettyCashTransactions = () => {
                   </TableCell>
                   <TableCell
                     align="center"
-                    sx={{
-                      minWidth: '300px',
-                      whiteSpace: 'nowrap',
-                    }}
+                    sx={{ minWidth: '300px', whiteSpace: 'nowrap' }}
                   >
                     <Box
                       sx={{
@@ -596,88 +541,61 @@ const PettyCashTransactions = () => {
                         <IconButton
                           size="small"
                           onClick={() => handleView(transaction)}
-                          sx={{
-                            color: '#00529B',
-                            padding: '6px',
-                          }}
+                          sx={{ color: '#00529B', padding: '6px' }}
                         >
                           <VisibilityOutlinedIcon sx={{ fontSize: '1.1rem' }} />
                         </IconButton>
                       </Tooltip>
-
                       <Tooltip title="Acknowledge" arrow>
                         <IconButton
                           size="small"
                           onClick={() => handleAcknowledge(transaction)}
-                          sx={{
-                            color: '#66BB6A',
-                            padding: '6px',
-                          }}
+                          sx={{ color: '#66BB6A', padding: '6px' }}
                         >
                           <CheckCircleOutlineIcon sx={{ fontSize: '1.1rem' }} />
                         </IconButton>
                       </Tooltip>
-
                       <Tooltip title="Edit" arrow>
                         <IconButton
                           size="small"
                           onClick={() => handleEdit(transaction)}
-                          sx={{
-                            color: '#FFA726',
-                            padding: '6px',
-                          }}
+                          sx={{ color: '#FFA726', padding: '6px' }}
                         >
                           <EditOutlinedIcon sx={{ fontSize: '1.1rem' }} />
                         </IconButton>
                       </Tooltip>
-
                       <Tooltip title="Add Expenses" arrow>
                         <IconButton
                           size="small"
                           onClick={() => handleAddExpenses(transaction)}
-                          sx={{
-                            color: '#42A5F5',
-                            padding: '6px',
-                          }}
+                          sx={{ color: '#42A5F5', padding: '6px' }}
                         >
                           <ReceiptLongIcon sx={{ fontSize: '1.1rem' }} />
                         </IconButton>
                       </Tooltip>
-
                       <Tooltip title="Request Petty Cash" arrow>
                         <IconButton
                           size="small"
                           onClick={() => handleRequestPettyCash(transaction)}
-                          sx={{
-                            color: '#9C27B0',
-                            padding: '6px',
-                          }}
+                          sx={{ color: '#9C27B0', padding: '6px' }}
                         >
                           <RequestQuoteIcon sx={{ fontSize: '1.1rem' }} />
                         </IconButton>
                       </Tooltip>
-
                       <Tooltip title="Rollback" arrow>
                         <IconButton
                           size="small"
                           onClick={() => handleRollback(transaction)}
-                          sx={{
-                            color: '#FF9800',
-                            padding: '6px',
-                          }}
+                          sx={{ color: '#FF9800', padding: '6px' }}
                         >
                           <UndoIcon sx={{ fontSize: '1.1rem' }} />
                         </IconButton>
                       </Tooltip>
-
                       <Tooltip title="Delete" arrow>
                         <IconButton
                           size="small"
                           onClick={() => handleDelete(transaction)}
-                          sx={{
-                            color: '#EF5350',
-                            padding: '6px',
-                          }}
+                          sx={{ color: '#EF5350', padding: '6px' }}
                         >
                           <DeleteOutlineIcon sx={{ fontSize: '1.1rem' }} />
                         </IconButton>
@@ -700,14 +618,12 @@ const PettyCashTransactions = () => {
           sx={{
             borderTop: '1px solid rgba(224, 224, 224, 1)',
             '.MuiTablePagination-selectLabel, .MuiTablePagination-displayedRows':
-              {
-                mb: 0,
-              },
+              { mb: 0 },
           }}
         />
       </TableContainer>
 
-      {/* Create Transaction Dialog */}
+      {/* ── Create Transaction Dialog ── */}
       <Dialog
         open={openDialog}
         onClose={handleCloseDialog}
@@ -723,7 +639,9 @@ const PettyCashTransactions = () => {
             alignItems: 'center',
           }}
         >
-          <Typography variant="h6">Create Transaction</Typography>
+          <Typography variant="h6" fontWeight={600}>
+            Create Transaction
+          </Typography>
           <IconButton
             edge="end"
             color="inherit"
@@ -735,266 +653,289 @@ const PettyCashTransactions = () => {
         </DialogTitle>
 
         <form onSubmit={handleSubmit}>
-          <DialogContent sx={{ mt: 2 }}>
-            <Grid container spacing={3}>
-              {/* Select Holder - Prominently displayed at the top with larger size */}
-              <Grid item xs={12}>
-                <Box
+          <DialogContent sx={{ pt: 3 }}>
+            {/* Holder Section */}
+            <Paper elevation={0} sx={styles.section}>
+              <Typography
+                variant="subtitle1"
+                fontWeight={600}
+                color="#00529B"
+                gutterBottom
+              >
+                Petty Cash Holder
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+
+              <Box
+                sx={{
+                  p: 2,
+                  bgcolor: 'rgba(0, 82, 155, 0.03)',
+                  borderRadius: 2,
+                  border: '2px solid rgba(0, 82, 155, 0.1)',
+                }}
+              >
+                <Typography
+                  variant="subtitle2"
                   sx={{
-                    p: 2,
-                    bgcolor: 'rgba(0, 82, 155, 0.03)',
-                    borderRadius: 2,
-                    border: '2px solid rgba(0, 82, 155, 0.1)',
+                    color: '#00529B',
+                    fontWeight: 600,
+                    mb: 1.5,
+                    fontSize: '1rem',
                   }}
                 >
-                  <Typography
-                    variant="subtitle1"
+                  Select Petty Cash Holder *
+                </Typography>
+                <FormControl fullWidth required size="large">
+                  <InputLabel sx={{ fontSize: '1.1rem' }}>
+                    Choose Holder
+                  </InputLabel>
+                  <Select
+                    name="holder_id"
+                    value={formData.holder_id}
+                    onChange={handleInputChange}
+                    label="Choose Holder"
                     sx={{
-                      color: '#00529B',
-                      fontWeight: 600,
-                      mb: 1.5,
-                      fontSize: '1rem',
+                      fontSize: '1.1rem',
+                      '& .MuiSelect-select': { py: 2 },
                     }}
+                    MenuProps={{ PaperProps: { style: { maxHeight: 400 } } }}
                   >
-                    Select Petty Cash Holder *
-                  </Typography>
-                  <FormControl fullWidth required size="large">
-                    <InputLabel sx={{ fontSize: '1.1rem' }}>
-                      Choose Holder
-                    </InputLabel>
-                    <Select
-                      name="holder_id"
-                      value={formData.holder_id}
-                      onChange={handleInputChange}
-                      label="Choose Holder"
-                      sx={{
-                        fontSize: '1.1rem',
-                        '& .MuiSelect-select': {
-                          py: 2,
-                        },
-                      }}
-                      MenuProps={{
-                        PaperProps: {
-                          style: {
-                            maxHeight: 400,
-                          },
-                        },
-                      }}
-                    >
+                    <MenuItem value="" disabled>
+                      <em>Select a holder from the list</em>
+                    </MenuItem>
+                    {signers.length > 0 ? (
+                      signers.map((signer) => (
+                        <MenuItem
+                          key={signer.id}
+                          value={signer.id}
+                          sx={{ py: 1.5 }}
+                        >
+                          <Box>
+                            <Typography variant="body1" fontWeight={500}>
+                              {signer.firstname} {signer.lastname}
+                            </Typography>
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              sx={{ display: 'block' }}
+                            >
+                              {signer.position} • {signer.department} •{' '}
+                              {signer.section}
+                            </Typography>
+                          </Box>
+                        </MenuItem>
+                      ))
+                    ) : (
                       <MenuItem value="" disabled>
-                        <em>Select a holder from the list</em>
+                        <em>Loading holders...</em>
                       </MenuItem>
-                      {signers && signers.length > 0 ? (
-                        signers.map((signer) => (
-                          <MenuItem
-                            key={signer.id}
-                            value={signer.id}
-                            sx={{ py: 1.5 }}
-                          >
-                            <Box>
-                              <Typography variant="body1" fontWeight={500}>
-                                {signer.firstname} {signer.lastname}
+                    )}
+                  </Select>
+                </FormControl>
+              </Box>
+            </Paper>
+
+            {/* Transaction Details Section */}
+            <Paper elevation={0} sx={styles.section}>
+              <Typography
+                variant="subtitle1"
+                fontWeight={600}
+                color="#00529B"
+                gutterBottom
+              >
+                Transaction Details
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+
+              <Grid container spacing={3}>
+                {/* Amount */}
+                <Grid item xs={12} md={4}>
+                  <Box sx={styles.fieldContainer}>
+                    <Typography sx={styles.fieldLabel}>Amount *</Typography>
+                    <TextField
+                      fullWidth
+                      name="amount"
+                      type="number"
+                      value={formData.amount}
+                      onChange={handleInputChange}
+                      required
+                      InputProps={{ inputProps: { min: 0, step: 0.01 } }}
+                      placeholder="e.g., 500.00"
+                    />
+                  </Box>
+                </Grid>
+
+                {/* Currency */}
+                <Grid item xs={12} md={4}>
+                  <Box sx={styles.fieldContainer}>
+                    <Typography sx={styles.fieldLabel}>Currency *</Typography>
+                    <FormControl fullWidth required>
+                      <InputLabel>Currency</InputLabel>
+                      <Select
+                        name="currency"
+                        value={formData.currency}
+                        onChange={handleInputChange}
+                        label="Currency"
+                      >
+                        {CURRENCIES.map((curr) => (
+                          <MenuItem key={curr.code} value={curr.code}>
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                              <Typography variant="body2" sx={{ mr: 1 }}>
+                                {curr.symbol}
+                              </Typography>
+                              <Typography variant="body2" fontWeight={500}>
+                                {curr.code}
                               </Typography>
                               <Typography
                                 variant="caption"
                                 color="text.secondary"
-                                sx={{ display: 'block' }}
+                                sx={{ ml: 1 }}
                               >
-                                {signer.position} • {signer.department} •{' '}
-                                {signer.section}
+                                - {curr.name}
                               </Typography>
                             </Box>
                           </MenuItem>
-                        ))
-                      ) : (
-                        <MenuItem value="" disabled>
-                          <em>Loading signers...</em>
-                        </MenuItem>
-                      )}
-                    </Select>
-                  </FormControl>
-                </Box>
-              </Grid>
-
-              {/* Amount, Currency and Issue Date */}
-              <Grid item xs={12} md={4}>
-                <TextField
-                  fullWidth
-                  label="Amount *"
-                  name="amount"
-                  type="number"
-                  value={formData.amount}
-                  onChange={handleInputChange}
-                  required
-                  InputProps={{
-                    inputProps: { min: 0, step: 0.01 },
-                  }}
-                  placeholder="e.g., 500.00"
-                />
-              </Grid>
-
-              <Grid item xs={12} md={4}>
-                <FormControl fullWidth required>
-                  <InputLabel>Currency</InputLabel>
-                  <Select
-                    name="currency"
-                    value={formData.currency}
-                    onChange={handleInputChange}
-                    label="Currency"
-                  >
-                    {CURRENCIES.map((curr) => (
-                      <MenuItem key={curr.code} value={curr.code}>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <Typography variant="body2" sx={{ mr: 1 }}>
-                            {curr.symbol}
-                          </Typography>
-                          <Typography variant="body2" fontWeight={500}>
-                            {curr.code}
-                          </Typography>
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            sx={{ ml: 1 }}
-                          >
-                            - {curr.name}
-                          </Typography>
-                        </Box>
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              <Grid item xs={12} md={4}>
-                <TextField
-                  fullWidth
-                  label="Issue Date *"
-                  name="issue_date"
-                  type="date"
-                  value={formData.issue_date}
-                  onChange={handleInputChange}
-                  required
-                  InputLabelProps={{
-                    shrink: true,
-                  }}
-                />
-              </Grid>
-
-              {/* Notes */}
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Notes / Purpose"
-                  name="notes"
-                  value={formData.notes}
-                  onChange={handleInputChange}
-                  multiline
-                  rows={4}
-                  placeholder="Describe the purpose of this petty cash issuance..."
-                />
-              </Grid>
-
-              {/* Supporting Document */}
-              <Grid item xs={12}>
-                <Typography
-                  variant="subtitle2"
-                  gutterBottom
-                  sx={{ color: '#00529B', fontWeight: 600 }}
-                >
-                  Supporting Document (Optional)
-                </Typography>
-                <Box sx={styles.uploadBox}>
-                  <input
-                    accept="*/*"
-                    style={{ display: 'none' }}
-                    id="transaction-file-upload"
-                    type="file"
-                    onChange={handleFileUpload}
-                  />
-                  <label htmlFor="transaction-file-upload">
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <CloudUploadIcon
-                        sx={{ fontSize: 40, color: '#00529B', mb: 1 }}
-                      />
-                      <Typography variant="body2" color="textSecondary">
-                        Click to upload supporting document
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        color="textSecondary"
-                        sx={{ mt: 0.5 }}
-                      >
-                        PDF, DOC, DOCX, or image files
-                      </Typography>
-                    </Box>
-                  </label>
-                </Box>
-
-                {/* Display uploaded file */}
-                {formData.supporting_document && (
-                  <Box sx={{ mt: 2 }}>
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        p: 1.5,
-                        bgcolor: 'rgba(0, 82, 155, 0.05)',
-                        borderRadius: 1,
-                        border: '1px solid rgba(0, 82, 155, 0.2)',
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        <AttachFileIcon
-                          sx={{ mr: 1, color: '#00529B', fontSize: 20 }}
-                        />
-                        <Typography variant="body2">
-                          {formData.supporting_document.name}
-                        </Typography>
-                      </Box>
-                      <IconButton
-                        size="small"
-                        onClick={handleRemoveFile}
-                        sx={{ color: '#d32f2f' }}
-                      >
-                        <CloseIcon fontSize="small" />
-                      </IconButton>
-                    </Box>
+                        ))}
+                      </Select>
+                    </FormControl>
                   </Box>
-                )}
+                </Grid>
+
+                {/* Issue Date */}
+                <Grid item xs={12} md={4}>
+                  <Box sx={styles.fieldContainer}>
+                    <Typography sx={styles.fieldLabel}>Issue Date *</Typography>
+                    <TextField
+                      fullWidth
+                      name="issue_date"
+                      type="date"
+                      value={formData.issue_date}
+                      onChange={handleInputChange}
+                      required
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Box>
+                </Grid>
+
+                {/* Notes */}
+                <Grid item xs={12}>
+                  <Box sx={styles.fieldContainer}>
+                    <Typography sx={styles.fieldLabel}>
+                      Notes / Purpose
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      name="notes"
+                      value={formData.notes}
+                      onChange={handleInputChange}
+                      multiline
+                      rows={4}
+                      placeholder="Describe the purpose of this petty cash issuance..."
+                    />
+                  </Box>
+                </Grid>
               </Grid>
-            </Grid>
+            </Paper>
+
+            {/* Supporting Document Section */}
+            <Paper elevation={0} sx={{ ...styles.section, mb: 0 }}>
+              <Typography
+                variant="subtitle1"
+                fontWeight={600}
+                color="#00529B"
+                gutterBottom
+              >
+                Supporting Document
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+
+              <Box sx={styles.uploadBox}>
+                <input
+                  accept="*/*"
+                  style={{ display: 'none' }}
+                  id="transaction-file-upload"
+                  type="file"
+                  onChange={handleFileUpload}
+                />
+                <label htmlFor="transaction-file-upload">
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <CloudUploadIcon
+                      sx={{ fontSize: 40, color: '#00529B', mb: 1 }}
+                    />
+                    <Typography variant="body2" color="textSecondary">
+                      Click to upload supporting document
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      color="textSecondary"
+                      sx={{ mt: 0.5 }}
+                    >
+                      PDF, DOC, DOCX, or image files
+                    </Typography>
+                  </Box>
+                </label>
+              </Box>
+
+              {formData.supporting_document && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    p: 1.5,
+                    mt: 2,
+                    bgcolor: 'rgba(0, 82, 155, 0.05)',
+                    borderRadius: 1,
+                    border: '1px solid rgba(0, 82, 155, 0.2)',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <AttachFileIcon
+                      sx={{ mr: 1, color: '#00529B', fontSize: 20 }}
+                    />
+                    <Typography variant="body2">
+                      {formData.supporting_document.name}
+                    </Typography>
+                  </Box>
+                  <IconButton
+                    size="small"
+                    onClick={handleRemoveFile}
+                    sx={{ color: '#d32f2f' }}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              )}
+            </Paper>
           </DialogContent>
 
-          <DialogActions sx={{ px: 3, pb: 2 }}>
+          <DialogActions sx={{ px: 3, pb: 2, pt: 2 }}>
             <Button
               onClick={handleCloseDialog}
-              sx={{
-                color: '#666',
-                textTransform: 'none',
-              }}
+              disabled={isLoading}
+              sx={{ color: '#666', textTransform: 'none' }}
             >
               Cancel
             </Button>
             <Button
               type="submit"
               variant="contained"
+              disabled={isLoading}
               sx={{
                 bgcolor: '#00529B',
-                '&:hover': {
-                  bgcolor: '#003d73',
-                },
+                '&:hover': { bgcolor: '#003d73' },
                 textTransform: 'none',
+                minWidth: 150,
               }}
             >
-              Create Transaction
+              {isLoading ? 'Creating...' : 'Create Transaction'}
             </Button>
           </DialogActions>
         </form>
@@ -1025,9 +966,11 @@ const PettyCashTransactions = () => {
           open={openEditModal}
           handleClose={handleCloseEditModal}
           transaction={selectedTransaction}
-          onUpdate={handleEditSubmit}
+          onSuccess={() => {
+            handleCloseEditModal();
+            refreshList();
+          }}
           signers={signers}
-          currencies={CURRENCIES}
         />
       )}
 
@@ -1047,7 +990,7 @@ const PettyCashTransactions = () => {
           open={openRollbackDialog}
           handleClose={handleCloseRollbackDialog}
           transaction={selectedTransaction}
-          onRollback={handleRollbackConfirm}
+          onSuccess={handleRollbackSuccess}
         />
       )}
     </Box>
