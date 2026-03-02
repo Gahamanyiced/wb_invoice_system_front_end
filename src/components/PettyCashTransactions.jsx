@@ -287,6 +287,10 @@ const PettyCashTransactions = () => {
   };
 
   const handleRollback = (transaction) => {
+    // ── Permission guard ─────────────────────────────────────────
+    // Only the transaction holder or a user with admin / signer_admin role
+    // may open the rollback dialog. All other users get a toast and the
+    // dialog never opens.
     const userStr = localStorage.getItem('user');
     if (!userStr) {
       toast.error('User not found. Please log in again.');
@@ -695,7 +699,6 @@ const PettyCashTransactions = () => {
                 Petty Cash Holder
               </Typography>
               <Divider sx={{ mb: 2 }} />
-
               <Box
                 sx={{
                   p: 2,
@@ -776,9 +779,7 @@ const PettyCashTransactions = () => {
                 Transaction Details
               </Typography>
               <Divider sx={{ mb: 2 }} />
-
               <Grid container spacing={3}>
-                {/* Amount */}
                 <Grid item xs={12} md={4}>
                   <Box sx={styles.fieldContainer}>
                     <Typography sx={styles.fieldLabel}>Amount *</Typography>
@@ -794,8 +795,6 @@ const PettyCashTransactions = () => {
                     />
                   </Box>
                 </Grid>
-
-                {/* Currency */}
                 <Grid item xs={12} md={4}>
                   <Box sx={styles.fieldContainer}>
                     <Typography sx={styles.fieldLabel}>Currency *</Typography>
@@ -830,8 +829,6 @@ const PettyCashTransactions = () => {
                     </FormControl>
                   </Box>
                 </Grid>
-
-                {/* Issue Date */}
                 <Grid item xs={12} md={4}>
                   <Box sx={styles.fieldContainer}>
                     <Typography sx={styles.fieldLabel}>Issue Date *</Typography>
@@ -847,8 +844,7 @@ const PettyCashTransactions = () => {
                   </Box>
                 </Grid>
               </Grid>
-
-              {/* Notes — full width, outside the 3-column grid so it matches Supporting Document width */}
+              {/* Notes — full width, outside the 3-column grid */}
               <Box sx={{ ...styles.fieldContainer, mt: 2 }}>
                 <Typography sx={styles.fieldLabel}>Notes / Purpose</Typography>
                 <TextField
@@ -874,7 +870,6 @@ const PettyCashTransactions = () => {
                 Supporting Document
               </Typography>
               <Divider sx={{ mb: 2 }} />
-
               <Box sx={styles.uploadBox}>
                 <input
                   accept="*/*"
@@ -908,7 +903,6 @@ const PettyCashTransactions = () => {
                   </Box>
                 </label>
               </Box>
-
               {formData.supporting_document && (
                 <Box
                   sx={{

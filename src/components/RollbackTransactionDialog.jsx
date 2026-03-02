@@ -22,9 +22,12 @@ import BlockIcon from '@mui/icons-material/Block';
 import { toast } from 'react-toastify';
 import { rollbackPettyCash } from '../features/pettyCash/pettyCashSlice';
 
-// ── Statuses that cannot be rolled back ───────────────────────────────────────
-// Note: pending_acknowledgment is intentionally allowed — rollback during that
-// state is valid and should reset the transaction back to its previous step.
+// ── Statuses that block rollback ──────────────────────────────────────────────
+// Note: 'pending_acknowledgment' is intentionally NOT blocked — rollback
+// during that state is valid and resets the transaction to its previous step.
+// Permission validation (holder / admin check) is handled upstream in
+// PettyCashTransactions.handleRollback, so this dialog only opens for
+// authorised users.
 const BLOCKED_STATUSES = {
   exhausted: {
     title: 'Cannot Rollback — Transaction Exhausted',
@@ -45,7 +48,7 @@ const RollbackTransactionDialog = ({
   const [comment, setComment] = useState('');
   const [commentError, setCommentError] = useState('');
 
-  // Determine if this transaction is blocked from rollback
+  // Determine if this transaction's current status blocks rollback
   const blockedInfo = BLOCKED_STATUSES[transaction?.status];
   const isBlocked = !!blockedInfo;
 
@@ -112,7 +115,7 @@ const RollbackTransactionDialog = ({
       </DialogTitle>
 
       <DialogContent sx={{ mt: 2 }}>
-        {/* ── BLOCKED STATE ── */}
+        {/* ── BLOCKED BY STATUS ── */}
         {isBlocked ? (
           <>
             <Alert
@@ -126,7 +129,7 @@ const RollbackTransactionDialog = ({
               {blockedInfo.message}
             </Alert>
 
-            {/* Still show transaction details for context */}
+            {/* Transaction details for context */}
             <Box
               sx={{
                 p: 2,
@@ -400,7 +403,7 @@ const RollbackTransactionDialog = ({
           {isBlocked ? 'Close' : 'Cancel'}
         </Button>
 
-        {/* Only render Rollback button when action is allowed */}
+        {/* Only render Rollback button when status allows it */}
         {!isBlocked && (
           <Button
             onClick={handleConfirmRollback}
