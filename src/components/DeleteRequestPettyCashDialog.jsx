@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { useSelector } from 'react-redux';
 import {
   Dialog,
   DialogTitle,
@@ -10,9 +12,14 @@ import {
   AlertTitle,
   Divider,
   Grid,
+  TextField,
+  CircularProgress,
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+
+// Props:
+//   open, handleClose, request (full request object), onDelete(id, comment)
 
 const DeleteRequestPettyCashDialog = ({
   open,
@@ -20,19 +27,35 @@ const DeleteRequestPettyCashDialog = ({
   request,
   onDelete,
 }) => {
-  const handleConfirmDelete = () => {
-    onDelete(request.id);
-  };
+  const { isLoading } = useSelector((state) => state.pettyCash);
 
-  const formatAmount = (amount) => {
-    return new Intl.NumberFormat('en-US', {
+  const [comment, setComment] = useState('');
+  const [commentError, setCommentError] = useState('');
+
+  const formatAmount = (a) =>
+    new Intl.NumberFormat('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    }).format(parseFloat(amount || 0));
+    }).format(parseFloat(a || 0));
+
+  const handleConfirm = () => {
+    if (!comment.trim()) {
+      setCommentError('Please provide a reason for deletion');
+      return;
+    }
+    onDelete(request.id, comment.trim());
   };
 
+  const handleClose_ = () => {
+    setComment('');
+    setCommentError('');
+    handleClose();
+  };
+
+  if (!request) return null;
+
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={handleClose_} maxWidth="sm" fullWidth>
       <DialogTitle
         sx={{
           bgcolor: '#EF5350',
@@ -40,155 +63,261 @@ const DeleteRequestPettyCashDialog = ({
           display: 'flex',
           alignItems: 'center',
           gap: 1,
+          py: 1.5,
         }}
       >
         <DeleteOutlineIcon />
-        <Typography variant="h6">Delete Petty Cash Request</Typography>
+        <Box>
+          <Typography variant="h6" fontWeight={600}>
+            Delete Request
+          </Typography>
+          <Typography variant="caption" sx={{ opacity: 0.9 }}>
+            ID #{request.id}
+          </Typography>
+        </Box>
       </DialogTitle>
 
       <DialogContent sx={{ mt: 2 }}>
-        {/* Warning Alert */}
+        {/* Warning */}
         <Alert severity="error" sx={{ mb: 3 }}>
-          <AlertTitle sx={{ fontWeight: 600 }}>Warning</AlertTitle>
-          This action cannot be undone. The request will be permanently deleted
-          from the system.
+          <AlertTitle sx={{ fontWeight: 600 }}>
+            This cannot be undone
+          </AlertTitle>
+          The request and all its associated expense items will be permanently
+          deleted.
         </Alert>
 
-        {/* Request Details */}
+        {/* Request summary */}
         <Box
           sx={{
             p: 2,
-            bgcolor: 'rgba(239, 83, 80, 0.05)',
+            bgcolor: 'rgba(239, 83, 80, 0.04)',
             borderRadius: 2,
             border: '1px solid rgba(239, 83, 80, 0.2)',
           }}
         >
           <Typography
-            variant="subtitle1"
-            sx={{ fontWeight: 600, mb: 2, color: '#EF5350' }}
+            variant="subtitle2"
+            sx={{ fontWeight: 600, mb: 1.5, color: '#EF5350' }}
           >
-            Request to be deleted:
+            Request to be deleted
           </Typography>
-
           <Divider sx={{ mb: 2 }} />
 
-          <Grid container spacing={2}>
+          <Grid container spacing={1.5}>
             <Grid item xs={6}>
-              <Typography variant="caption" color="text.secondary">
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                display="block"
+              >
                 Requester
               </Typography>
               <Typography variant="body2" fontWeight={500}>
-                {request?.requester?.firstname} {request?.requester?.lastname}
+                {request.requester?.firstname} {request.requester?.lastname}
               </Typography>
             </Grid>
 
             <Grid item xs={6}>
-              <Typography variant="caption" color="text.secondary">
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                display="block"
+              >
                 Verifier
               </Typography>
               <Typography variant="body2" fontWeight={500}>
-                {request?.verifier?.firstname} {request?.verifier?.lastname}
+                {request.verifier?.firstname} {request.verifier?.lastname}
               </Typography>
             </Grid>
 
             <Grid item xs={6}>
-              <Typography variant="caption" color="text.secondary">
-                Amount
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                display="block"
+              >
+                Total Amount
+              </Typography>
+              <Typography variant="body2" fontWeight={700} color="#EF5350">
+                {formatAmount(request.total_expenses)}
+              </Typography>
+            </Grid>
+
+            <Grid item xs={6}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                display="block"
+              >
+                Expenses
               </Typography>
               <Typography variant="body2" fontWeight={500}>
-                ${formatAmount(request?.total_expenses)}
+                {request.expenses?.length || 0} item(s)
               </Typography>
             </Grid>
 
             <Grid item xs={6}>
-              <Typography variant="caption" color="text.secondary">
-                Description
-              </Typography>
-              <Typography variant="body2" fontWeight={500}>
-                {request?.expenses?.[0]?.item_description || 'N/A'}
-              </Typography>
-            </Grid>
-
-            <Grid item xs={6}>
-              <Typography variant="caption" color="text.secondary">
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                display="block"
+              >
                 Status
               </Typography>
               <Typography variant="body2" fontWeight={500}>
-                {request?.status
-                  ? request.status
-                      .replace(/_/g, ' ')
-                      .split(' ')
-                      .map(
-                        (word) => word.charAt(0).toUpperCase() + word.slice(1),
-                      )
-                      .join(' ')
-                  : 'N/A'}
+                {request.status
+                  ?.replace(/_/g, ' ')
+                  .replace(/\b\w/g, (c) => c.toUpperCase()) || 'N/A'}
               </Typography>
             </Grid>
 
             <Grid item xs={6}>
-              <Typography variant="caption" color="text.secondary">
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                display="block"
+              >
                 Created At
               </Typography>
               <Typography variant="body2" fontWeight={500}>
-                {request?.created_at
+                {request.created_at
                   ? new Date(request.created_at).toLocaleDateString()
                   : 'N/A'}
               </Typography>
             </Grid>
+
+            {/* Expense items preview */}
+            {request.expenses?.length > 0 && (
+              <Grid item xs={12}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  display="block"
+                >
+                  Expense Items
+                </Typography>
+                <Box
+                  sx={{
+                    mt: 0.75,
+                    p: 1,
+                    bgcolor: 'white',
+                    borderRadius: 1,
+                    maxHeight: 120,
+                    overflowY: 'auto',
+                    border: '1px solid rgba(239, 83, 80, 0.1)',
+                  }}
+                >
+                  {request.expenses.map((expense, i) => (
+                    <Typography
+                      key={expense.id || i}
+                      variant="caption"
+                      sx={{ display: 'block', mb: 0.4 }}
+                    >
+                      {i + 1}. {expense.item_description} —{' '}
+                      {formatAmount(expense.amount)} {expense.currency}
+                    </Typography>
+                  ))}
+                </Box>
+              </Grid>
+            )}
           </Grid>
         </Box>
 
-        {/* Additional Warning */}
+        {/* Secondary warning */}
         <Box
           sx={{
             mt: 2,
-            p: 2,
-            bgcolor: 'rgba(255, 152, 0, 0.05)',
+            p: 1.5,
             borderRadius: 1,
+            bgcolor: 'rgba(255, 152, 0, 0.05)',
             border: '1px solid rgba(255, 152, 0, 0.2)',
             display: 'flex',
             alignItems: 'flex-start',
             gap: 1,
           }}
         >
-          <WarningAmberIcon sx={{ color: '#FF9800', fontSize: 20 }} />
-          <Typography variant="body2" color="text.secondary">
-            This will remove the petty cash request and its associated
-            documentation.
+          <WarningAmberIcon sx={{ color: '#FF9800', fontSize: 18, mt: 0.2 }} />
+          <Typography variant="caption" color="text.secondary">
+            Deleting this request may affect the remaining balance of the
+            related petty cash transaction.
           </Typography>
+        </Box>
+
+        {/* Mandatory comment */}
+        <Box
+          sx={{
+            mt: 2.5,
+            p: 2,
+            borderRadius: 2,
+            bgcolor: 'rgba(239, 83, 80, 0.03)',
+            border: '1px solid rgba(239, 83, 80, 0.2)',
+          }}
+        >
+          <Typography
+            variant="subtitle2"
+            sx={{ fontWeight: 600, color: '#EF5350', mb: 1 }}
+          >
+            Reason for Deletion{' '}
+            <Typography component="span" color="error">
+              *
+            </Typography>
+          </Typography>
+          <TextField
+            fullWidth
+            multiline
+            rows={3}
+            placeholder="Describe why this request is being deleted..."
+            value={comment}
+            onChange={(e) => {
+              setComment(e.target.value);
+              setCommentError('');
+            }}
+            error={!!commentError}
+            helperText={commentError}
+            size="small"
+            sx={{
+              '& .MuiOutlinedInput-root.Mui-focused fieldset': {
+                borderColor: '#EF5350',
+              },
+            }}
+          />
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 2 }}>
+      <DialogActions sx={{ px: 3, pb: 2.5 }}>
         <Button
-          onClick={handleClose}
+          onClick={handleClose_}
+          disabled={isLoading}
           variant="outlined"
           sx={{
             color: '#666',
-            borderColor: '#666',
+            borderColor: '#ccc',
             textTransform: 'none',
-            '&:hover': {
-              borderColor: '#333',
-              bgcolor: 'rgba(0, 0, 0, 0.04)',
-            },
+            '&:hover': { borderColor: '#999' },
           }}
         >
           Cancel
         </Button>
         <Button
-          onClick={handleConfirmDelete}
+          onClick={handleConfirm}
           variant="contained"
+          disabled={isLoading}
+          startIcon={
+            isLoading ? (
+              <CircularProgress size={18} sx={{ color: 'white' }} />
+            ) : (
+              <DeleteOutlineIcon />
+            )
+          }
           sx={{
             bgcolor: '#EF5350',
-            '&:hover': {
-              bgcolor: '#d32f2f',
-            },
+            '&:hover': { bgcolor: '#d32f2f' },
             textTransform: 'none',
+            minWidth: 140,
           }}
-          startIcon={<DeleteOutlineIcon />}
         >
-          Delete Request
+          {isLoading ? 'Deleting...' : 'Delete Request'}
         </Button>
       </DialogActions>
     </Dialog>

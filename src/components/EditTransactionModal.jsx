@@ -161,6 +161,18 @@ const EditTransactionModal = ({
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Permission check — only the issuer can edit
+    const userStr = localStorage.getItem('user');
+    if (!userStr) {
+      toast.error('User not found. Please log in again.');
+      return;
+    }
+    const loggedInUser = JSON.parse(userStr);
+    if (loggedInUser.id !== transaction?.issued_by?.id) {
+      toast.error('Only the person who issued this transaction can edit it.');
+      return;
+    }
+
     // Validate comment
     if (!formData.comment.trim()) {
       setCommentError('A comment is required to save changes.');
@@ -383,23 +395,21 @@ const EditTransactionModal = ({
                   />
                 </Box>
               </Grid>
-
-              {/* Notes */}
-              <Grid item xs={12}>
-                <Box sx={style.fieldContainer}>
-                  <Typography sx={style.fieldLabel}>Notes / Purpose</Typography>
-                  <TextField
-                    fullWidth
-                    name="notes"
-                    value={formData.notes}
-                    onChange={handleInputChange}
-                    multiline
-                    rows={3}
-                    placeholder="Describe the purpose of this petty cash issuance..."
-                  />
-                </Box>
-              </Grid>
             </Grid>
+
+            {/* Notes — full width, outside the 3-column grid so it matches Supporting Document width */}
+            <Box sx={{ ...style.fieldContainer, mt: 2 }}>
+              <Typography sx={style.fieldLabel}>Notes / Purpose</Typography>
+              <TextField
+                fullWidth
+                name="notes"
+                value={formData.notes}
+                onChange={handleInputChange}
+                multiline
+                rows={4}
+                placeholder="Describe the purpose of this petty cash issuance..."
+              />
+            </Box>
           </Paper>
 
           {/* ── Supporting Document Section ── */}

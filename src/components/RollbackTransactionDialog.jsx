@@ -14,11 +14,24 @@ import {
   Grid,
   TextField,
   CircularProgress,
+  Chip,
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import UndoIcon from '@mui/icons-material/Undo';
+import BlockIcon from '@mui/icons-material/Block';
 import { toast } from 'react-toastify';
 import { rollbackPettyCash } from '../features/pettyCash/pettyCashSlice';
+
+// ── Statuses that cannot be rolled back ───────────────────────────────────────
+// Note: pending_acknowledgment is intentionally allowed — rollback during that
+// state is valid and should reset the transaction back to its previous step.
+const BLOCKED_STATUSES = {
+  exhausted: {
+    title: 'Cannot Rollback — Transaction Exhausted',
+    message:
+      'This transaction has been fully exhausted. Rollback is not permitted on exhausted transactions.',
+  },
+};
 
 const RollbackTransactionDialog = ({
   open,
@@ -32,8 +45,13 @@ const RollbackTransactionDialog = ({
   const [comment, setComment] = useState('');
   const [commentError, setCommentError] = useState('');
 
+  // Determine if this transaction is blocked from rollback
+  const blockedInfo = BLOCKED_STATUSES[transaction?.status];
+  const isBlocked = !!blockedInfo;
+
   const handleConfirmRollback = async () => {
-    // Validate comment
+    if (isBlocked) return;
+
     if (!comment.trim()) {
       setCommentError('A comment is required before rolling back.');
       return;
@@ -43,7 +61,7 @@ const RollbackTransactionDialog = ({
       rollbackPettyCash({
         id: transaction.id,
         data: { comment: comment.trim() },
-      })
+      }),
     );
 
     if (rollbackPettyCash.fulfilled.match(result)) {
@@ -63,12 +81,11 @@ const RollbackTransactionDialog = ({
     handleClose();
   };
 
-  const formatAmount = (amount) => {
-    return new Intl.NumberFormat('en-US', {
+  const formatAmount = (amount) =>
+    new Intl.NumberFormat('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(parseFloat(amount || 0));
-  };
 
   const formatStatus = (status) => {
     if (!status) return 'N/A';
@@ -83,204 +100,289 @@ const RollbackTransactionDialog = ({
     <Dialog open={open} onClose={handleCancel} maxWidth="sm" fullWidth>
       <DialogTitle
         sx={{
-          bgcolor: '#FF9800',
+          bgcolor: isBlocked ? '#9E9E9E' : '#FF9800',
           color: 'white',
           display: 'flex',
           alignItems: 'center',
           gap: 1,
         }}
       >
-        <UndoIcon />
+        {isBlocked ? <BlockIcon /> : <UndoIcon />}
         <Typography variant="h6">Rollback Transaction</Typography>
       </DialogTitle>
 
       <DialogContent sx={{ mt: 2 }}>
-        {/* Warning Alert */}
-        <Alert severity="warning" sx={{ mb: 3 }}>
-          <AlertTitle sx={{ fontWeight: 600 }}>Caution</AlertTitle>
-          This action will reset the transaction to its initial state. Any
-          related requests and changes will be affected.
-        </Alert>
+        {/* ── BLOCKED STATE ── */}
+        {isBlocked ? (
+          <>
+            <Alert
+              severity="error"
+              icon={<BlockIcon />}
+              sx={{ mb: 3, '& .MuiAlert-message': { width: '100%' } }}
+            >
+              <AlertTitle sx={{ fontWeight: 700 }}>
+                {blockedInfo.title}
+              </AlertTitle>
+              {blockedInfo.message}
+            </Alert>
 
-        {/* Transaction Details */}
-        <Box
-          sx={{
-            p: 2,
-            bgcolor: 'rgba(255, 152, 0, 0.05)',
-            borderRadius: 2,
-            border: '1px solid rgba(255, 152, 0, 0.2)',
-          }}
-        >
-          <Typography
-            variant="subtitle1"
-            sx={{ fontWeight: 600, mb: 2, color: '#FF9800' }}
-          >
-            Transaction to be rolled back:
-          </Typography>
-
-          <Divider sx={{ mb: 2 }} />
-
-          <Grid container spacing={2}>
-            <Grid item xs={6}>
-              <Typography variant="caption" color="text.secondary">
-                Holder
+            {/* Still show transaction details for context */}
+            <Box
+              sx={{
+                p: 2,
+                bgcolor: 'rgba(0,0,0,0.03)',
+                borderRadius: 2,
+                border: '1px solid rgba(0,0,0,0.1)',
+              }}
+            >
+              <Typography
+                variant="subtitle2"
+                fontWeight={600}
+                color="text.secondary"
+                gutterBottom
+              >
+                Transaction details:
               </Typography>
-              <Typography variant="body2" fontWeight={500}>
-                {transaction?.holder?.firstname}{' '}
-                {transaction?.holder?.lastname}
-              </Typography>
-            </Grid>
-
-            <Grid item xs={6}>
-              <Typography variant="caption" color="text.secondary">
-                Position
-              </Typography>
-              <Typography variant="body2" fontWeight={500}>
-                {transaction?.holder?.position || 'N/A'}
-              </Typography>
-            </Grid>
-
-            <Grid item xs={6}>
-              <Typography variant="caption" color="text.secondary">
-                Amount Issued
-              </Typography>
-              <Typography variant="body2" fontWeight={500}>
-                ${formatAmount(transaction?.amount)} {transaction?.currency}
-              </Typography>
-            </Grid>
-
-            <Grid item xs={6}>
-              <Typography variant="caption" color="text.secondary">
-                Remaining Amount
-              </Typography>
-              <Typography variant="body2" fontWeight={500}>
-                ${formatAmount(transaction?.remaining_amount)}{' '}
-                {transaction?.currency}
-              </Typography>
-            </Grid>
-
-            <Grid item xs={6}>
-              <Typography variant="caption" color="text.secondary">
-                Issue Date
-              </Typography>
-              <Typography variant="body2" fontWeight={500}>
-                {transaction?.issue_date || 'N/A'}
-              </Typography>
-            </Grid>
-
-            <Grid item xs={6}>
-              <Typography variant="caption" color="text.secondary">
-                Status
-              </Typography>
-              <Typography variant="body2" fontWeight={500}>
-                {formatStatus(transaction?.status)}
-              </Typography>
-            </Grid>
-
-            <Grid item xs={6}>
-              <Typography variant="caption" color="text.secondary">
-                Acknowledged
-              </Typography>
-              <Typography variant="body2" fontWeight={500}>
-                {transaction?.is_acknowledged ? 'Yes' : 'No'}
-              </Typography>
-            </Grid>
-
-            <Grid item xs={6}>
-              <Typography variant="caption" color="text.secondary">
-                Created At
-              </Typography>
-              <Typography variant="body2" fontWeight={500}>
-                {transaction?.created_at
-                  ? new Date(transaction.created_at).toLocaleDateString()
-                  : 'N/A'}
-              </Typography>
-            </Grid>
-
-            {transaction?.notes && (
-              <Grid item xs={12}>
-                <Typography variant="caption" color="text.secondary">
-                  Notes
-                </Typography>
-                <Typography variant="body2" fontWeight={500}>
-                  {transaction.notes}
-                </Typography>
+              <Divider sx={{ mb: 1.5 }} />
+              <Grid container spacing={1.5}>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">
+                    Holder
+                  </Typography>
+                  <Typography variant="body2" fontWeight={500}>
+                    {transaction?.holder?.firstname}{' '}
+                    {transaction?.holder?.lastname}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">
+                    Status
+                  </Typography>
+                  <Box sx={{ mt: 0.25 }}>
+                    <Chip
+                      label={formatStatus(transaction?.status)}
+                      size="small"
+                      sx={{
+                        bgcolor: '#9E9E9E',
+                        color: 'white',
+                        fontWeight: 600,
+                      }}
+                    />
+                  </Box>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">
+                    Amount
+                  </Typography>
+                  <Typography variant="body2" fontWeight={500}>
+                    {formatAmount(transaction?.amount)} {transaction?.currency}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">
+                    Remaining
+                  </Typography>
+                  <Typography variant="body2" fontWeight={500}>
+                    {formatAmount(transaction?.remaining_amount)}{' '}
+                    {transaction?.currency}
+                  </Typography>
+                </Grid>
               </Grid>
-            )}
-          </Grid>
-        </Box>
+            </Box>
+          </>
+        ) : (
+          <>
+            {/* ── ALLOWED STATE ── */}
 
-        {/* Impact Warning */}
-        <Box
-          sx={{
-            mt: 2,
-            p: 2,
-            bgcolor: 'rgba(239, 83, 80, 0.05)',
-            borderRadius: 1,
-            border: '1px solid rgba(239, 83, 80, 0.2)',
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 1,
-          }}
-        >
-          <WarningAmberIcon sx={{ color: '#EF5350', fontSize: 20, mt: 0.5 }} />
-          <Box>
-            <Typography variant="body2" fontWeight={600} color="#EF5350" gutterBottom>
-              Impact of Rollback:
-            </Typography>
-            <Typography variant="body2" color="text.secondary" component="ul" sx={{ pl: 2, m: 0 }}>
-              <li>Transaction status will be reset to initial state</li>
-              <li>Acknowledgment will be cleared (if applicable)</li>
-              <li>Related expense requests may be affected</li>
-              <li>Transaction history will be preserved</li>
-              <li>This action can only be undone by recreating the transaction</li>
-            </Typography>
-          </Box>
-        </Box>
+            {/* Caution alert */}
+            <Alert severity="warning" sx={{ mb: 3 }}>
+              <AlertTitle sx={{ fontWeight: 600 }}>Caution</AlertTitle>
+              This action will reset the transaction to its initial state. Any
+              related requests and changes will be affected.
+            </Alert>
 
-        {/* Comment Section */}
-        <Box sx={{ mt: 2 }}>
-          <TextField
-            label="Reason for Rollback"
-            placeholder="Provide a reason or comment for this rollback..."
-            multiline
-            rows={3}
-            fullWidth
-            required
-            value={comment}
-            onChange={(e) => {
-              setComment(e.target.value);
-              if (e.target.value.trim()) setCommentError('');
-            }}
-            error={!!commentError}
-            helperText={commentError}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                '&.Mui-focused fieldset': {
-                  borderColor: '#FF9800',
-                },
-              },
-              '& .MuiInputLabel-root.Mui-focused': {
-                color: '#FF9800',
-              },
-            }}
-          />
-        </Box>
+            {/* Transaction Details */}
+            <Box
+              sx={{
+                p: 2,
+                bgcolor: 'rgba(255, 152, 0, 0.05)',
+                borderRadius: 2,
+                border: '1px solid rgba(255, 152, 0, 0.2)',
+              }}
+            >
+              <Typography
+                variant="subtitle1"
+                sx={{ fontWeight: 600, mb: 2, color: '#FF9800' }}
+              >
+                Transaction to be rolled back:
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
 
-        {/* Confirmation Message */}
-        <Box
-          sx={{
-            mt: 2,
-            p: 1.5,
-            bgcolor: 'rgba(0, 0, 0, 0.03)',
-            borderRadius: 1,
-            textAlign: 'center',
-          }}
-        >
-          <Typography variant="body2" fontWeight={600}>
-            Are you sure you want to proceed with the rollback?
-          </Typography>
-        </Box>
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">
+                    Holder
+                  </Typography>
+                  <Typography variant="body2" fontWeight={500}>
+                    {transaction?.holder?.firstname}{' '}
+                    {transaction?.holder?.lastname}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">
+                    Position
+                  </Typography>
+                  <Typography variant="body2" fontWeight={500}>
+                    {transaction?.holder?.position || 'N/A'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">
+                    Amount Issued
+                  </Typography>
+                  <Typography variant="body2" fontWeight={500}>
+                    {formatAmount(transaction?.amount)} {transaction?.currency}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">
+                    Remaining Amount
+                  </Typography>
+                  <Typography variant="body2" fontWeight={500}>
+                    {formatAmount(transaction?.remaining_amount)}{' '}
+                    {transaction?.currency}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">
+                    Issue Date
+                  </Typography>
+                  <Typography variant="body2" fontWeight={500}>
+                    {transaction?.issue_date || 'N/A'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">
+                    Status
+                  </Typography>
+                  <Typography variant="body2" fontWeight={500}>
+                    {formatStatus(transaction?.status)}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">
+                    Acknowledged
+                  </Typography>
+                  <Typography variant="body2" fontWeight={500}>
+                    {transaction?.is_acknowledged ? 'Yes' : 'No'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">
+                    Created At
+                  </Typography>
+                  <Typography variant="body2" fontWeight={500}>
+                    {transaction?.created_at
+                      ? new Date(transaction.created_at).toLocaleDateString()
+                      : 'N/A'}
+                  </Typography>
+                </Grid>
+                {transaction?.notes && (
+                  <Grid item xs={12}>
+                    <Typography variant="caption" color="text.secondary">
+                      Notes
+                    </Typography>
+                    <Typography variant="body2" fontWeight={500}>
+                      {transaction.notes}
+                    </Typography>
+                  </Grid>
+                )}
+              </Grid>
+            </Box>
+
+            {/* Impact Warning */}
+            <Box
+              sx={{
+                mt: 2,
+                p: 2,
+                bgcolor: 'rgba(239, 83, 80, 0.05)',
+                borderRadius: 1,
+                border: '1px solid rgba(239, 83, 80, 0.2)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 1,
+              }}
+            >
+              <WarningAmberIcon
+                sx={{ color: '#EF5350', fontSize: 20, mt: 0.5 }}
+              />
+              <Box>
+                <Typography
+                  variant="body2"
+                  fontWeight={600}
+                  color="#EF5350"
+                  gutterBottom
+                >
+                  Impact of Rollback:
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  component="ul"
+                  sx={{ pl: 2, m: 0 }}
+                >
+                  <li>Transaction status will be reset to initial state</li>
+                  <li>Acknowledgment will be cleared (if applicable)</li>
+                  <li>Related expense requests may be affected</li>
+                  <li>Transaction history will be preserved</li>
+                  <li>
+                    This action can only be undone by recreating the transaction
+                  </li>
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* Comment */}
+            <Box sx={{ mt: 2 }}>
+              <TextField
+                label="Reason for Rollback"
+                placeholder="Provide a reason or comment for this rollback..."
+                multiline
+                rows={3}
+                fullWidth
+                required
+                value={comment}
+                onChange={(e) => {
+                  setComment(e.target.value);
+                  if (e.target.value.trim()) setCommentError('');
+                }}
+                error={!!commentError}
+                helperText={commentError}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '&.Mui-focused fieldset': { borderColor: '#FF9800' },
+                  },
+                  '& .MuiInputLabel-root.Mui-focused': { color: '#FF9800' },
+                }}
+              />
+            </Box>
+
+            {/* Confirmation */}
+            <Box
+              sx={{
+                mt: 2,
+                p: 1.5,
+                bgcolor: 'rgba(0, 0, 0, 0.03)',
+                borderRadius: 1,
+                textAlign: 'center',
+              }}
+            >
+              <Typography variant="body2" fontWeight={600}>
+                Are you sure you want to proceed with the rollback?
+              </Typography>
+            </Box>
+          </>
+        )}
       </DialogContent>
 
       <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -292,36 +394,35 @@ const RollbackTransactionDialog = ({
             color: '#666',
             borderColor: '#666',
             textTransform: 'none',
-            '&:hover': {
-              borderColor: '#333',
-              bgcolor: 'rgba(0, 0, 0, 0.04)',
-            },
+            '&:hover': { borderColor: '#333', bgcolor: 'rgba(0,0,0,0.04)' },
           }}
         >
-          Cancel
+          {isBlocked ? 'Close' : 'Cancel'}
         </Button>
-        <Button
-          onClick={handleConfirmRollback}
-          variant="contained"
-          disabled={isLoading}
-          sx={{
-            bgcolor: '#FF9800',
-            '&:hover': {
-              bgcolor: '#F57C00',
-            },
-            textTransform: 'none',
-            minWidth: 160,
-          }}
-          startIcon={
-            isLoading ? (
-              <CircularProgress size={18} sx={{ color: 'white' }} />
-            ) : (
-              <UndoIcon />
-            )
-          }
-        >
-          {isLoading ? 'Rolling back...' : 'Rollback Transaction'}
-        </Button>
+
+        {/* Only render Rollback button when action is allowed */}
+        {!isBlocked && (
+          <Button
+            onClick={handleConfirmRollback}
+            variant="contained"
+            disabled={isLoading}
+            startIcon={
+              isLoading ? (
+                <CircularProgress size={18} sx={{ color: 'white' }} />
+              ) : (
+                <UndoIcon />
+              )
+            }
+            sx={{
+              bgcolor: '#FF9800',
+              '&:hover': { bgcolor: '#F57C00' },
+              textTransform: 'none',
+              minWidth: 160,
+            }}
+          >
+            {isLoading ? 'Rolling back...' : 'Rollback Transaction'}
+          </Button>
+        )}
       </DialogActions>
     </Dialog>
   );

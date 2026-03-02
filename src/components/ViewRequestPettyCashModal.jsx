@@ -45,26 +45,31 @@ const style = {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const formatAmount = (a) =>
-  new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    .format(parseFloat(a || 0));
+  new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(parseFloat(a || 0));
 
 const formatDate = (d) => {
   if (!d) return 'N/A';
   return new Date(d).toLocaleString('en-US', {
-    year: 'numeric', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   });
 };
 
 const StatusChip = ({ status }) => {
   const map = {
-    pending:     '#FFA726',
-    approved:    '#66BB6A',
-    denied:      '#EF5350',
-    verified:    '#42A5F5',
+    pending: '#FFA726',
+    approved: '#66BB6A',
+    denied: '#EF5350',
+    verified: '#42A5F5',
     rolled_back: '#9E9E9E',
-    to_sign:     '#FF9800',
-    to_verify:   '#42A5F5',
+    to_sign: '#FF9800',
+    to_verify: '#42A5F5',
   };
   const key = status?.toLowerCase().replace(/ /g, '_');
   const label = (status || 'N/A').replace(/_/g, ' ');
@@ -100,27 +105,49 @@ const ViewRequestPettyCashModal = ({ open, handleClose, request }) => {
       {/* Header */}
       <Box
         sx={{
-          bgcolor: '#00529B', color: 'white', p: 2,
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          bgcolor: '#00529B',
+          color: 'white',
+          p: 2,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <ReceiptLongIcon />
           <Box>
-            <Typography variant="h6" fontWeight={600}>Petty Cash Request</Typography>
-            <Typography variant="caption" sx={{ opacity: 0.85 }}>ID #{request.id}</Typography>
+            <Typography variant="h6" fontWeight={600}>
+              Petty Cash Request
+            </Typography>
+            <Typography variant="caption" sx={{ opacity: 0.85 }}>
+              ID #{request.id}
+            </Typography>
           </Box>
         </Box>
-        <IconButton edge="end" color="inherit" onClick={handleClose} size="small">
+        <IconButton
+          edge="end"
+          color="inherit"
+          onClick={handleClose}
+          size="small"
+        >
           <CloseIcon />
         </IconButton>
       </Box>
 
       <DialogContent sx={{ p: 3 }}>
-
         {/* Status + Amount */}
-        <Paper elevation={0} sx={{ ...style.section, textAlign: 'center', py: 3 }}>
-          <Typography sx={{ fontSize: '2rem', fontWeight: 700, color: '#00529B', lineHeight: 1 }}>
+        <Paper
+          elevation={0}
+          sx={{ ...style.section, textAlign: 'center', py: 3 }}
+        >
+          <Typography
+            sx={{
+              fontSize: '2rem',
+              fontWeight: 700,
+              color: '#00529B',
+              lineHeight: 1,
+            }}
+          >
             {formatAmount(request.total_expenses)}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
@@ -131,21 +158,34 @@ const ViewRequestPettyCashModal = ({ open, handleClose, request }) => {
 
         {/* People */}
         <Paper elevation={0} sx={style.section}>
-          <Typography variant="subtitle2" fontWeight={600} color="#00529B" gutterBottom>
+          <Typography
+            variant="subtitle2"
+            fontWeight={600}
+            color="#00529B"
+            gutterBottom
+          >
             People
           </Typography>
           <Divider sx={{ mb: 2 }} />
           <Grid container spacing={2}>
             {request.requester && (
               <Grid item xs={12} sm={6}>
-                <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
-                  <AccountCircleIcon sx={{ color: '#00529B', fontSize: 22, mt: 0.2 }} />
+                <Box
+                  sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}
+                >
+                  <AccountCircleIcon
+                    sx={{ color: '#00529B', fontSize: 22, mt: 0.2 }}
+                  />
                   <Box>
                     <Typography sx={style.fieldLabel}>Requester</Typography>
                     <Typography sx={style.fieldValue} fontWeight={500}>
                       {request.requester.firstname} {request.requester.lastname}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary" display="block">
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      display="block"
+                    >
                       {request.requester.position}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
@@ -157,14 +197,22 @@ const ViewRequestPettyCashModal = ({ open, handleClose, request }) => {
             )}
             {request.verifier && (
               <Grid item xs={12} sm={6}>
-                <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
-                  <VerifiedUserIcon sx={{ color: '#42A5F5', fontSize: 22, mt: 0.2 }} />
+                <Box
+                  sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}
+                >
+                  <VerifiedUserIcon
+                    sx={{ color: '#42A5F5', fontSize: 22, mt: 0.2 }}
+                  />
                   <Box>
                     <Typography sx={style.fieldLabel}>Verifier</Typography>
                     <Typography sx={style.fieldValue} fontWeight={500}>
                       {request.verifier.firstname} {request.verifier.lastname}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary" display="block">
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      display="block"
+                    >
                       {request.verifier.position}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
@@ -179,7 +227,12 @@ const ViewRequestPettyCashModal = ({ open, handleClose, request }) => {
 
         {/* Request Details */}
         <Paper elevation={0} sx={style.section}>
-          <Typography variant="subtitle2" fontWeight={600} color="#00529B" gutterBottom>
+          <Typography
+            variant="subtitle2"
+            fontWeight={600}
+            color="#00529B"
+            gutterBottom
+          >
             Request Details
           </Typography>
           <Divider sx={{ mb: 2 }} />
@@ -202,7 +255,12 @@ const ViewRequestPettyCashModal = ({ open, handleClose, request }) => {
         {/* Expense Items */}
         {request.expenses?.length > 0 && (
           <Paper elevation={0} sx={style.section}>
-            <Typography variant="subtitle2" fontWeight={600} color="#00529B" gutterBottom>
+            <Typography
+              variant="subtitle2"
+              fontWeight={600}
+              color="#00529B"
+              gutterBottom
+            >
               Expense Items
             </Typography>
             <Divider sx={{ mb: 1.5 }} />
@@ -210,8 +268,14 @@ const ViewRequestPettyCashModal = ({ open, handleClose, request }) => {
               <Box
                 key={expense.id || i}
                 sx={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  py: 1, borderBottom: i < request.expenses.length - 1 ? '1px solid rgba(0,82,155,0.07)' : 'none',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  py: 1,
+                  borderBottom:
+                    i < request.expenses.length - 1
+                      ? '1px solid rgba(0,82,155,0.07)'
+                      : 'none',
                 }}
               >
                 <Box>
@@ -220,7 +284,11 @@ const ViewRequestPettyCashModal = ({ open, handleClose, request }) => {
                   </Typography>
                   {expense.date && (
                     <Typography variant="caption" color="text.secondary">
-                      {new Date(expense.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {new Date(expense.date).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
                     </Typography>
                   )}
                 </Box>
@@ -228,7 +296,9 @@ const ViewRequestPettyCashModal = ({ open, handleClose, request }) => {
                   <Typography variant="body2" fontWeight={700} color="#00529B">
                     {formatAmount(expense.amount)}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary">{expense.currency}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {expense.currency}
+                  </Typography>
                 </Box>
               </Box>
             ))}
@@ -236,11 +306,17 @@ const ViewRequestPettyCashModal = ({ open, handleClose, request }) => {
             {/* Total row */}
             <Box
               sx={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                pt: 1.5, mt: 0.5, borderTop: '2px solid rgba(0, 82, 155, 0.15)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                pt: 1.5,
+                mt: 0.5,
+                borderTop: '2px solid rgba(0, 82, 155, 0.15)',
               }}
             >
-              <Typography variant="body2" fontWeight={700}>Total</Typography>
+              <Typography variant="body2" fontWeight={700}>
+                Total
+              </Typography>
               <Typography variant="body1" fontWeight={700} color="#00529B">
                 {formatAmount(request.total_expenses)}
               </Typography>
@@ -251,7 +327,12 @@ const ViewRequestPettyCashModal = ({ open, handleClose, request }) => {
         {/* Supporting Documents */}
         {request.expenses?.some((e) => e.supporting_document) && (
           <Paper elevation={0} sx={style.section}>
-            <Typography variant="subtitle2" fontWeight={600} color="#00529B" gutterBottom>
+            <Typography
+              variant="subtitle2"
+              fontWeight={600}
+              color="#00529B"
+              gutterBottom
+            >
               Supporting Documents
             </Typography>
             <Divider sx={{ mb: 1.5 }} />
@@ -260,26 +341,37 @@ const ViewRequestPettyCashModal = ({ open, handleClose, request }) => {
               .map((expense, i) => (
                 <Box
                   key={i}
-                  onClick={() => window.open(expense.supporting_document, '_blank')}
+                  onClick={() =>
+                    window.open(expense.supporting_document, '_blank')
+                  }
                   sx={{
-                    display: 'flex', alignItems: 'center', p: 1.25, mb: 1,
-                    bgcolor: 'rgba(0, 82, 155, 0.05)', borderRadius: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    p: 1.25,
+                    mb: 1,
+                    bgcolor: 'rgba(0, 82, 155, 0.05)',
+                    borderRadius: 1,
                     border: '1px solid rgba(0, 82, 155, 0.15)',
-                    cursor: 'pointer', '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.1)' },
+                    cursor: 'pointer',
+                    '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.1)' },
                   }}
                 >
-                  <AttachFileIcon sx={{ mr: 1, color: '#00529B', fontSize: 18 }} />
+                  <AttachFileIcon
+                    sx={{ mr: 1, color: '#00529B', fontSize: 18 }}
+                  />
                   <Typography variant="body2" sx={{ flex: 1 }}>
                     {expense.supporting_document.split('/').pop()}
                   </Typography>
-                  <Typography variant="caption" sx={{ color: '#00529B', fontWeight: 600 }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: '#00529B', fontWeight: 600 }}
+                  >
                     View
                   </Typography>
                 </Box>
               ))}
           </Paper>
         )}
-
       </DialogContent>
 
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'rgba(0, 82, 155, 0.02)' }}>
@@ -287,9 +379,14 @@ const ViewRequestPettyCashModal = ({ open, handleClose, request }) => {
           onClick={handleClose}
           variant="outlined"
           sx={{
-            borderColor: '#00529B', color: '#00529B',
-            '&:hover': { borderColor: '#003d73', bgcolor: 'rgba(0, 82, 155, 0.05)' },
-            textTransform: 'none', px: 4,
+            borderColor: '#00529B',
+            color: '#00529B',
+            '&:hover': {
+              borderColor: '#003d73',
+              bgcolor: 'rgba(0, 82, 155, 0.05)',
+            },
+            textTransform: 'none',
+            px: 4,
           }}
         >
           Close

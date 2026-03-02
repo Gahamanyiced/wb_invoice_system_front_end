@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Modal,
   Box,
@@ -7,9 +9,19 @@ import {
   Paper,
   Divider,
   Chip,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  CircularProgress,
+  Avatar,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import CommentIcon from '@mui/icons-material/Comment';
+import EditNoteIcon from '@mui/icons-material/EditNote';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import { getPettyCashIssueComments } from '../features/pettyCash/pettyCashSlice';
 
 const style = {
   modal: {
@@ -61,6 +73,16 @@ const style = {
 };
 
 const ViewTransactionModal = ({ open, handleClose, transaction }) => {
+  const dispatch = useDispatch();
+  const { issueComments, isLoading } = useSelector((state) => state.pettyCash);
+  const [commentsExpanded, setCommentsExpanded] = useState(false);
+
+  useEffect(() => {
+    if (open && transaction?.id) {
+      dispatch(getPettyCashIssueComments(transaction.id));
+    }
+  }, [open, transaction?.id, dispatch]);
+
   const getStatusChip = (status) => {
     const statusColors = {
       active: { bgcolor: '#66BB6A', color: 'white' },
@@ -105,6 +127,42 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
       maximumFractionDigits: 2,
     }).format(parseFloat(amount || 0));
   };
+
+  const getActionChip = (action_type) => {
+    const map = {
+      update: {
+        bgcolor: '#1976D2',
+        icon: <EditNoteIcon sx={{ fontSize: 13 }} />,
+        label: 'Update',
+      },
+      delete: {
+        bgcolor: '#EF5350',
+        icon: <DeleteOutlineIcon sx={{ fontSize: 13 }} />,
+        label: 'Delete',
+      },
+      create: { bgcolor: '#66BB6A', icon: null, label: 'Create' },
+    };
+    const cfg = map[action_type?.toLowerCase()] || {
+      bgcolor: '#9E9E9E',
+      icon: null,
+      label: action_type || 'N/A',
+    };
+    return (
+      <Chip
+        icon={cfg.icon}
+        label={cfg.label}
+        size="small"
+        sx={{
+          bgcolor: cfg.bgcolor,
+          color: 'white',
+          fontWeight: 600,
+          fontSize: '0.7rem',
+        }}
+      />
+    );
+  };
+
+  const comments = issueComments?.results || [];
 
   return (
     <Modal open={open} onClose={handleClose}>
@@ -202,12 +260,32 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
                 </Box>
               </Grid>
 
+              {/* Notes — scrollable box handles long / unbroken content */}
               <Grid item xs={12}>
                 <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>Notes</Typography>
-                  <Typography sx={style.fieldValue}>
-                    {transaction?.notes || 'No notes provided'}
-                  </Typography>
+                  <Box
+                    sx={{
+                      mt: 0.5,
+                      p: 1.5,
+                      bgcolor: 'rgba(0, 82, 155, 0.03)',
+                      borderRadius: 1,
+                      border: '1px solid rgba(0, 82, 155, 0.08)',
+                      maxHeight: 160,
+                      overflowY: 'auto',
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        ...style.fieldValue,
+                        wordBreak: 'break-word',
+                        whiteSpace: 'pre-wrap',
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      {transaction?.notes || 'No notes provided'}
+                    </Typography>
+                  </Box>
                 </Box>
               </Grid>
             </Grid>
@@ -431,6 +509,145 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
               </Box>
             </Paper>
           )}
+          {/* ── Issue Comments ── */}
+          <Accordion
+            expanded={commentsExpanded}
+            onChange={() => setCommentsExpanded((p) => !p)}
+            elevation={0}
+            sx={{
+              border: '1px solid rgba(0, 82, 155, 0.12)',
+              borderRadius: '8px !important',
+              mb: 2,
+              '&:before': { display: 'none' },
+              bgcolor: 'rgba(0, 82, 155, 0.02)',
+            }}
+          >
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon sx={{ color: '#00529B' }} />}
+              sx={{ borderRadius: 2 }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CommentIcon sx={{ color: '#00529B', fontSize: 20 }} />
+                <Typography fontWeight={600} color="#00529B">
+                  Issue Comments
+                </Typography>
+                <Chip
+                  label={issueComments?.count ?? comments.length}
+                  size="small"
+                  sx={{
+                    bgcolor: '#00529B',
+                    color: 'white',
+                    fontWeight: 600,
+                    fontSize: '0.7rem',
+                    height: 20,
+                  }}
+                />
+              </Box>
+            </AccordionSummary>
+
+            <AccordionDetails sx={{ pt: 0 }}>
+              <Divider sx={{ mb: 2 }} />
+
+              {isLoading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+                  <CircularProgress size={24} sx={{ color: '#00529B' }} />
+                </Box>
+              ) : comments.length === 0 ? (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ textAlign: 'center', py: 2 }}
+                >
+                  No comments yet.
+                </Typography>
+              ) : (
+                <Box
+                  sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}
+                >
+                  {comments.map((c) => (
+                    <Box
+                      key={c.id}
+                      sx={{
+                        p: 1.75,
+                        bgcolor: 'white',
+                        borderRadius: 1.5,
+                        border: '1px solid rgba(0, 82, 155, 0.1)',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                      }}
+                    >
+                      {/* Top row: avatar + name + action chip + date */}
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          mb: 1,
+                        }}
+                      >
+                        <Box
+                          sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                        >
+                          <Avatar
+                            sx={{
+                              width: 30,
+                              height: 30,
+                              bgcolor: '#00529B',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                            }}
+                          >
+                            {c.commented_by_name
+                              ?.split(' ')
+                              .map((n) => n[0])
+                              .join('')
+                              .slice(0, 2)}
+                          </Avatar>
+                          <Box>
+                            <Typography
+                              variant="body2"
+                              fontWeight={600}
+                              sx={{ lineHeight: 1.2 }}
+                            >
+                              {c.commented_by_name}
+                            </Typography>
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              sx={{ lineHeight: 1 }}
+                            >
+                              {c.commented_by_email}
+                            </Typography>
+                          </Box>
+                        </Box>
+                        <Box
+                          sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                        >
+                          {getActionChip(c.action_type)}
+                          <Typography variant="caption" color="text.secondary">
+                            {formatDate(c.created_at)}
+                          </Typography>
+                        </Box>
+                      </Box>
+
+                      {/* Comment content */}
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          pl: 0.5,
+                          color: '#444',
+                          wordBreak: 'break-word',
+                          whiteSpace: 'pre-wrap',
+                          lineHeight: 1.55,
+                        }}
+                      >
+                        {c.content}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
+              )}
+            </AccordionDetails>
+          </Accordion>
         </Box>
       </Box>
     </Modal>

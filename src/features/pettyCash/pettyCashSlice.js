@@ -17,6 +17,13 @@ const initialState = {
   pettyCashExpense: null,
   expenseTrackingData: null,
 
+  // Petty Cash Issue Comments
+  issueComments: [],
+
+  // Petty Cash Replenishment Requests
+  pettyCashReplenishRequest: null,
+  replenishRequestTrackingData: null,
+
   // Loading and Error states
   isLoading: false,
   error: null,
@@ -188,19 +195,6 @@ export const trackPettyCashRequest = createAsyncThunk(
   },
 );
 
-// ==================== Sign Request ====================
-
-export const signPettyCashRequest = createAsyncThunk(
-  'pettyCash/signPettyCashRequest',
-  async (data, thunkAPI) => {
-    try {
-      return await pettyCashService.signPettyCashRequest(data.id, data.data);
-    } catch (err) {
-      return thunkAPI.rejectWithValue(extractErrorMessage(err));
-    }
-  },
-);
-
 // ==================== Petty Cash Expenses ====================
 
 // data: FormData with petty_cash_id, verifier_id, expenses (JSON string), expense_document_N
@@ -274,6 +268,91 @@ export const approvePettyCashExpense = createAsyncThunk(
   async (data, thunkAPI) => {
     try {
       return await pettyCashService.approvePettyCashExpense(data.id, data.data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+// ── Petty Cash Replenishment Requests ─────────────────────────────────────────
+
+export const createPettyCashReplenishRequest = createAsyncThunk(
+  'pettyCash/createPettyCashReplenishRequest',
+  async (data, thunkAPI) => {
+    try {
+      return await pettyCashService.createPettyCashRequest(data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+export const updatePettyCashReplenishRequest = createAsyncThunk(
+  'pettyCash/updatePettyCashReplenishRequest',
+  async (data, thunkAPI) => {
+    try {
+      return await pettyCashService.updatePettyCashRequest(
+        data.id,
+        data.formData,
+      );
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+export const deletePettyCashReplenishRequest = createAsyncThunk(
+  'pettyCash/deletePettyCashReplenishRequest',
+  async (data, thunkAPI) => {
+    try {
+      return await pettyCashService.deletePettyCashRequest(data.id, {
+        comment: data.comment,
+      });
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+export const trackPettyCashReplenishRequest = createAsyncThunk(
+  'pettyCash/trackPettyCashReplenishRequest',
+  async (id, thunkAPI) => {
+    try {
+      return await pettyCashService.trackPettyCashRequest(id);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+export const approvePettyCashReplenishRequest = createAsyncThunk(
+  'pettyCash/approvePettyCashReplenishRequest',
+  async (data, thunkAPI) => {
+    try {
+      return await pettyCashService.approvePettyCashRequest(data.id, data.data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+export const approvePettyCashRequest = createAsyncThunk(
+  'pettyCash/approvePettyCashRequest',
+  async (data, thunkAPI) => {
+    try {
+      return await pettyCashService.approvePettyCashRequest(data.id, data.data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+// id: number | string — the petty cash issuance ID
+export const getPettyCashIssueComments = createAsyncThunk(
+  'pettyCash/getPettyCashIssueComments',
+  async (id, thunkAPI) => {
+    try {
+      return await pettyCashService.getPettyCashIssueComments(id);
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
@@ -506,21 +585,6 @@ export const pettyCashSlice = createSlice({
         state.error = action.payload;
       })
 
-      // ==================== Sign Petty Cash Request ====================
-      .addCase(signPettyCashRequest.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
-      })
-      .addCase(signPettyCashRequest.fulfilled, (state, action) => {
-        state.pettyCashRequest = action.payload;
-        state.isLoading = false;
-        state.error = null;
-      })
-      .addCase(signPettyCashRequest.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload;
-      })
-
       // ==================== Create Petty Cash Expense ====================
       .addCase(createPettyCashExpense.pending, (state) => {
         state.isLoading = true;
@@ -607,6 +671,111 @@ export const pettyCashSlice = createSlice({
         state.error = null;
       })
       .addCase(approvePettyCashExpense.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // ==================== Create Petty Cash Replenishment Request ====================
+      .addCase(createPettyCashReplenishRequest.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(createPettyCashReplenishRequest.fulfilled, (state, action) => {
+        state.pettyCashReplenishRequest = action.payload;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(createPettyCashReplenishRequest.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // ==================== Update Petty Cash Replenishment Request ====================
+      .addCase(updatePettyCashReplenishRequest.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(updatePettyCashReplenishRequest.fulfilled, (state, action) => {
+        state.pettyCashReplenishRequest = action.payload;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(updatePettyCashReplenishRequest.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // ==================== Delete Petty Cash Replenishment Request ====================
+      .addCase(deletePettyCashReplenishRequest.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(deletePettyCashReplenishRequest.fulfilled, (state) => {
+        state.pettyCashReplenishRequest = null;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(deletePettyCashReplenishRequest.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // ==================== Track Petty Cash Replenishment Request ====================
+      .addCase(trackPettyCashReplenishRequest.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(trackPettyCashReplenishRequest.fulfilled, (state, action) => {
+        state.replenishRequestTrackingData = action.payload;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(trackPettyCashReplenishRequest.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // ==================== Approve/Deny/Rollback Petty Cash Replenishment Request ====================
+      .addCase(approvePettyCashReplenishRequest.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(approvePettyCashReplenishRequest.fulfilled, (state, action) => {
+        state.pettyCashReplenishRequest = action.payload;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(approvePettyCashReplenishRequest.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // ==================== Approve/Deny/Rollback Petty Cash Request ====================
+      .addCase(approvePettyCashRequest.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(approvePettyCashRequest.fulfilled, (state, action) => {
+        state.pettyCashReplenishRequest = action.payload;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(approvePettyCashRequest.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // ==================== Get Petty Cash Issue Comments ====================
+      .addCase(getPettyCashIssueComments.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(getPettyCashIssueComments.fulfilled, (state, action) => {
+        state.issueComments = action.payload;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(getPettyCashIssueComments.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       });

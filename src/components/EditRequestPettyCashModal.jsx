@@ -1,36 +1,35 @@
 import { useState, useEffect } from 'react';
 import {
   Dialog,
-  DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
   Button,
-  Grid,
   Box,
   Typography,
-  IconButton,
+  TextField,
+  Grid,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
+  IconButton,
+  Divider,
+  CircularProgress,
 } from '@mui/material';
+import { useSelector } from 'react-redux';
 import CloseIcon from '@mui/icons-material/Close';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import AttachFileIcon from '@mui/icons-material/AttachFile';
+import EditIcon from '@mui/icons-material/Edit';
 
-const styles = {
-  uploadBox: {
-    border: '2px dashed rgba(0, 82, 155, 0.3)',
-    borderRadius: '8px',
+// Props:
+//   open, handleClose, request (full request object), onUpdate(id, FormData), signers[]
+
+const style = {
+  section: {
+    mb: 2.5,
     p: 2,
-    textAlign: 'center',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-    '&:hover': {
-      backgroundColor: 'rgba(0, 82, 155, 0.05)',
-      borderColor: 'rgba(0, 82, 155, 0.5)',
-    },
+    bgcolor: 'rgba(255, 152, 0, 0.03)',
+    border: '1px solid rgba(255, 152, 0, 0.15)',
+    borderRadius: 2,
   },
 };
 
@@ -39,292 +38,220 @@ const EditRequestPettyCashModal = ({
   handleClose,
   request,
   onUpdate,
-  signers,
+  signers = [],
 }) => {
-  const [formData, setFormData] = useState({
-    verifier_id: '',
-    expenses_csv: null,
-    amount: '',
-    description: '',
-    comment: '',
-  });
+  const { isLoading } = useSelector((state) => state.pettyCash);
 
+  const [verifierId, setVerifierId] = useState('');
+  const [description, setDescription] = useState('');
+  const [amount, setAmount] = useState('');
+  const [comment, setComment] = useState('');
+  const [commentError, setCommentError] = useState('');
+
+  // Populate on open
   useEffect(() => {
-    if (request) {
-      const expense = request.expenses?.[0] || {};
-      setFormData({
-        verifier_id: request.verifier?.id || '',
-        expenses_csv: null,
-        amount: expense.amount || '',
-        description: expense.item_description || 'Replenishment',
-        comment: request.comment || '',
-      });
+    if (open && request) {
+      setVerifierId(request.verifier?.id || '');
+      setDescription(request.expenses?.[0]?.item_description || '');
+      setAmount(request.total_expenses || '');
+      setComment('');
+      setCommentError('');
     }
-  }, [request]);
+  }, [open, request]);
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
-  };
-
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const csvText = event.target.result;
-        const lines = csvText.split('\n').filter(line => line.trim());
-        
-        let total = 0;
-        for (let i = 1; i < lines.length; i++) {
-          const columns = lines[i].split(',');
-          const amount = parseFloat(columns[5]) || 0;
-          total += amount;
-        }
-
-        setFormData({
-          ...formData,
-          expenses_csv: file,
-          amount: total.toFixed(2),
-        });
-      };
-      reader.readAsText(file);
-    }
-  };
-
-  const handleRemoveFile = () => {
-    setFormData({
-      ...formData,
-      expenses_csv: null,
-    });
+  const handleClose_ = () => {
+    setComment('');
+    setCommentError('');
+    handleClose();
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    const submitData = new FormData();
-    submitData.append('related_petty_cash_id', request.related_petty_cash?.id);
-    submitData.append('verifier_id', formData.verifier_id);
-    
-    const expensesData = [{
-      ...(request.expenses?.[0]?.id && { id: request.expenses[0].id }),
-      date: new Date().toISOString().split('T')[0],
-      item_description: formData.description,
-      amount: formData.amount,
-      currency: 'USD',
-    }];
-
-    submitData.append('expenses', JSON.stringify(expensesData));
-    submitData.append('comment', formData.comment);
-
-    if (formData.expenses_csv) {
-      submitData.append('expense_document_0', formData.expenses_csv);
+    if (!comment.trim()) {
+      setCommentError('Please provide a reason for this update');
+      return;
     }
 
-    onUpdate(request.id, submitData);
+    const formData = new FormData();
+    formData.append('verifier_id', verifierId);
+    formData.append('comment', comment.trim());
+
+    // Update first expense description + amount if changed
+    if (description) formData.append('description', description);
+    if (amount) formData.append('amount', amount);
+
+    await onUpdate(request.id, formData);
   };
 
+  if (!request) return null;
+
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle
+    <Dialog
+      open={open}
+      onClose={handleClose_}
+      maxWidth="sm"
+      fullWidth
+      PaperProps={{ sx: { borderRadius: 2 } }}
+    >
+      {/* Header — amber to distinguish from create/view */}
+      <Box
         sx={{
-          bgcolor: '#00529B',
+          bgcolor: '#FFA726',
           color: 'white',
+          p: 2,
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
         }}
       >
-        <Typography variant="h6">Edit Petty Cash Request</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <EditIcon />
+          <Box>
+            <Typography variant="h6" fontWeight={600}>
+              Edit Request
+            </Typography>
+            <Typography variant="caption" sx={{ opacity: 0.9 }}>
+              ID #{request.id}
+            </Typography>
+          </Box>
+        </Box>
         <IconButton
           edge="end"
           color="inherit"
-          onClick={handleClose}
+          onClick={handleClose_}
           size="small"
         >
           <CloseIcon />
         </IconButton>
-      </DialogTitle>
+      </Box>
 
       <form onSubmit={handleSubmit}>
-        <DialogContent sx={{ mt: 2 }}>
-          <Grid container spacing={3}>
-            {/* Verifier Selection */}
+        <DialogContent sx={{ p: 3 }}>
+          <Grid container spacing={2.5}>
+            {/* Verifier */}
             <Grid item xs={12}>
-              <Box
-                sx={{
-                  p: 2,
-                  bgcolor: 'rgba(0, 82, 155, 0.03)',
-                  borderRadius: 2,
-                  border: '2px solid rgba(0, 82, 155, 0.1)',
-                }}
-              >
-                <Typography
-                  variant="subtitle1"
-                  sx={{
-                    color: '#00529B',
-                    fontWeight: 600,
-                    mb: 1.5,
-                  }}
+              <FormControl fullWidth required>
+                <InputLabel>Verifier *</InputLabel>
+                <Select
+                  value={verifierId}
+                  onChange={(e) => setVerifierId(e.target.value)}
+                  label="Verifier *"
+                  MenuProps={{ PaperProps: { style: { maxHeight: 300 } } }}
                 >
-                  Select Verifier *
-                </Typography>
-                <FormControl fullWidth required>
-                  <InputLabel>Choose Verifier</InputLabel>
-                  <Select
-                    name="verifier_id"
-                    value={formData.verifier_id}
-                    onChange={handleInputChange}
-                    label="Choose Verifier"
-                  >
-                    <MenuItem value="" disabled>
-                      <em>Select a verifier</em>
+                  <MenuItem value="" disabled>
+                    <em>Select verifier</em>
+                  </MenuItem>
+                  {signers.map((s) => (
+                    <MenuItem key={s.id} value={s.id} sx={{ py: 1.25 }}>
+                      <Box>
+                        <Typography variant="body2" fontWeight={500}>
+                          {s.firstname} {s.lastname}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          display="block"
+                        >
+                          {s.position} • {s.department}
+                        </Typography>
+                      </Box>
                     </MenuItem>
-                    {signers.map((signer) => (
-                      <MenuItem key={signer.id} value={signer.id}>
-                        {signer.firstname} {signer.lastname} - {signer.position}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Box>
-            </Grid>
-
-            {/* CSV Upload */}
-            <Grid item xs={12}>
-              <Typography
-                variant="subtitle2"
-                sx={{ color: '#00529B', fontWeight: 600, mb: 1 }}
-              >
-                Upload New Expenses CSV (Optional)
-              </Typography>
-              <Box sx={styles.uploadBox}>
-                <input
-                  accept=".csv"
-                  style={{ display: 'none' }}
-                  id="edit-csv-upload"
-                  type="file"
-                  onChange={handleFileUpload}
-                />
-                <label htmlFor="edit-csv-upload">
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <CloudUploadIcon
-                      sx={{ fontSize: 40, color: '#00529B', mb: 1 }}
-                    />
-                    <Typography variant="body2" color="textSecondary">
-                      Click to upload new CSV
-                    </Typography>
-                  </Box>
-                </label>
-              </Box>
-
-              {formData.expenses_csv && (
-                <Box
-                  sx={{
-                    mt: 2,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    p: 1.5,
-                    bgcolor: 'rgba(0, 82, 155, 0.05)',
-                    borderRadius: 1,
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <AttachFileIcon
-                      sx={{ mr: 1, color: '#00529B', fontSize: 20 }}
-                    />
-                    <Typography variant="body2">
-                      {formData.expenses_csv.name}
-                    </Typography>
-                  </Box>
-                  <IconButton
-                    size="small"
-                    onClick={handleRemoveFile}
-                    sx={{ color: '#d32f2f' }}
-                  >
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-              )}
-            </Grid>
-
-            {/* Amount */}
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Total Amount *"
-                name="amount"
-                type="number"
-                value={formData.amount}
-                onChange={handleInputChange}
-                required
-                InputProps={{
-                  inputProps: { min: 0, step: 0.01 },
-                  startAdornment: <Typography sx={{ mr: 1 }}>$</Typography>,
-                }}
-              />
+                  ))}
+                </Select>
+              </FormControl>
             </Grid>
 
             {/* Description */}
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                label="Description *"
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                required
+                label="Description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="e.g. Replenishment"
               />
             </Grid>
 
-            {/* Comment */}
+            {/* Amount (informational — read-only, comes from expenses) */}
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                label="Comment"
-                name="comment"
-                value={formData.comment}
-                onChange={handleInputChange}
-                multiline
-                rows={3}
+                label="Total Amount"
+                value={amount}
+                InputProps={{ readOnly: true }}
+                helperText="Calculated from expense items"
               />
+            </Grid>
+
+            <Grid item xs={12}>
+              <Divider />
+            </Grid>
+
+            {/* Mandatory comment */}
+            <Grid item xs={12}>
+              <Box sx={style.section}>
+                <Typography
+                  variant="subtitle2"
+                  fontWeight={600}
+                  color="#FFA726"
+                  gutterBottom
+                >
+                  Reason for Update{' '}
+                  <Typography component="span" color="error">
+                    *
+                  </Typography>
+                </Typography>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={3}
+                  placeholder="Describe why this request is being updated..."
+                  value={comment}
+                  onChange={(e) => {
+                    setComment(e.target.value);
+                    setCommentError('');
+                  }}
+                  error={!!commentError}
+                  helperText={commentError}
+                  size="small"
+                  sx={{
+                    '& .MuiOutlinedInput-root.Mui-focused fieldset': {
+                      borderColor: '#FFA726',
+                    },
+                  }}
+                />
+              </Box>
             </Grid>
           </Grid>
         </DialogContent>
 
-        <DialogActions sx={{ px: 3, pb: 2 }}>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
           <Button
-            onClick={handleClose}
-            sx={{
-              color: '#666',
-              textTransform: 'none',
-            }}
+            onClick={handleClose_}
+            disabled={isLoading}
+            sx={{ color: '#666', textTransform: 'none' }}
           >
             Cancel
           </Button>
           <Button
             type="submit"
             variant="contained"
+            disabled={isLoading}
+            startIcon={
+              isLoading ? (
+                <CircularProgress size={18} sx={{ color: 'white' }} />
+              ) : (
+                <EditIcon />
+              )
+            }
             sx={{
-              bgcolor: '#00529B',
-              '&:hover': {
-                bgcolor: '#003d73',
-              },
+              bgcolor: '#FFA726',
+              '&:hover': { bgcolor: '#F57C00' },
               textTransform: 'none',
+              minWidth: 140,
             }}
           >
-            Update Request
+            {isLoading ? 'Saving...' : 'Save Changes'}
           </Button>
         </DialogActions>
       </form>

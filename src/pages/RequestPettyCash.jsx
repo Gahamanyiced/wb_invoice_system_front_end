@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
-  createPettyCashRequest,
+  createPettyCashReplenishRequest,
   getAllPettyCashRequests,
-  updatePettyCashRequest,
-  deletePettyCashRequest,
+  updatePettyCashReplenishRequest,
+  deletePettyCashReplenishRequest,
+  trackPettyCashReplenishRequest,
+  approvePettyCashRequest,
 } from '../features/pettyCash/pettyCashSlice';
 import { getAllSigners } from '../features/user/userSlice';
 import { toast } from 'react-toastify';
@@ -46,7 +48,8 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import RootLayout from '../layouts/RootLayout';
-import ViewPettyCashRequestModal from '../components/ViewPettyCashRequestModal';
+// ── renamed: ViewPettyCashRequestModal → ViewRequestPettyCashModal ──
+import ViewRequestPettyCashModal from '../components/ViewRequestPettyCashModal';
 import TrackAndSignPettyCashDialog from '../components/TrackAndSignPettyCashDialog';
 import EditRequestPettyCashModal from '../components/EditRequestPettyCashModal';
 import DeleteRequestPettyCashDialog from '../components/DeleteRequestPettyCashDialog';
@@ -88,7 +91,7 @@ const RequestPettyCash = () => {
 
   const transaction = location.state?.transaction;
   const { pettyCashRequests, isLoading } = useSelector(
-    (state) => state.pettyCash
+    (state) => state.pettyCash,
   );
   const { users: signersData } = useSelector((state) => state.user);
 
@@ -113,104 +116,77 @@ const RequestPettyCash = () => {
   const requests = pettyCashRequests?.results || [];
   const totalCount = pettyCashRequests?.count || 0;
 
+  const refreshList = (p = 1) => {
+    dispatch(
+      getAllPettyCashRequests({
+        page: p,
+        related_petty_cash_id: transactionId,
+      }),
+    );
+  };
+
   // Pagination handlers
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
-    dispatch(
-      getAllPettyCashRequests({
-        page: newPage + 1,
-        related_petty_cash_id: transactionId,
-      })
-    );
+    refreshList(newPage + 1);
   };
 
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
-    dispatch(
-      getAllPettyCashRequests({
-        page: 1,
-        related_petty_cash_id: transactionId,
-      })
-    );
+    refreshList(1);
   };
 
   // Fetch data on component mount
   useEffect(() => {
     dispatch(getAllSigners({ is_petty_cash_user: 'true' }));
-    dispatch(
-      getAllPettyCashRequests({
-        page: 1,
-        related_petty_cash_id: transactionId,
-      })
-    );
+    refreshList(1);
   }, [dispatch, transactionId]);
 
   // Form handlers
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
+    setFormData({ ...formData, [name]: value });
   };
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Validate file type
       if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
         toast.error('Please upload a valid CSV file');
         return;
       }
-
-      // Parse CSV to calculate total amount
       const reader = new FileReader();
       reader.onload = (event) => {
         const csvText = event.target.result;
-        const lines = csvText.split('\n').filter(line => line.trim());
-        
+        const lines = csvText.split('\n').filter((line) => line.trim());
         if (lines.length <= 1) {
           toast.error('CSV file is empty or invalid');
           return;
         }
-
-        // Calculate total from Amount column (assuming it's the 6th column based on export format)
         let total = 0;
         for (let i = 1; i < lines.length; i++) {
           const columns = lines[i].split(',');
-          const amount = parseFloat(columns[5]) || 0; // Amount is 6th column (index 5)
+          const amount = parseFloat(columns[5]) || 0;
           total += amount;
         }
-
         setFormData({
           ...formData,
           expenses_csv: file,
           amount: total.toFixed(2),
         });
-
         toast.success(`CSV uploaded. Total amount: $${total.toFixed(2)}`);
       };
-
-      reader.onerror = () => {
-        toast.error('Error reading CSV file');
-      };
-
+      reader.onerror = () => toast.error('Error reading CSV file');
       reader.readAsText(file);
     }
   };
 
   const handleRemoveFile = () => {
-    setFormData({
-      ...formData,
-      expenses_csv: null,
-      amount: '',
-    });
+    setFormData({ ...formData, expenses_csv: null, amount: '' });
   };
 
-  const handleOpenCreateDialog = () => {
-    setOpenCreateDialog(true);
-  };
+  const handleOpenCreateDialog = () => setOpenCreateDialog(true);
 
   const handleCloseCreateDialog = () => {
     setOpenCreateDialog(false);
@@ -225,40 +201,29 @@ const RequestPettyCash = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     try {
       const submitData = new FormData();
       submitData.append('related_petty_cash_id', transactionId);
       submitData.append('verifier_id', formData.verifier_id);
-      
-      // Create single expense object for replenishment
-      const expensesData = [{
-        date: new Date().toISOString().split('T')[0],
-        item_description: formData.description,
-        amount: formData.amount,
-        currency: 'USD',
-      }];
-
+      const expensesData = [
+        {
+          date: new Date().toISOString().split('T')[0],
+          item_description: formData.description,
+          amount: formData.amount,
+          currency: 'USD',
+        },
+      ];
       submitData.append('expenses', JSON.stringify(expensesData));
       submitData.append('comment', formData.comment);
-
-      // Attach CSV file as supporting document
       if (formData.expenses_csv) {
         submitData.append('expense_document_0', formData.expenses_csv);
       }
 
-      await dispatch(createPettyCashRequest(submitData)).unwrap();
+      // ── uses createPettyCashReplenishRequest ──
+      await dispatch(createPettyCashReplenishRequest(submitData)).unwrap();
       toast.success('Petty cash request created successfully');
-
       handleCloseCreateDialog();
-
-      // Refresh list
-      dispatch(
-        getAllPettyCashRequests({
-          page: 1,
-          related_petty_cash_id: transactionId,
-        })
-      );
+      refreshList(1);
     } catch (error) {
       toast.error(error || 'Failed to create petty cash request');
     }
@@ -270,8 +235,10 @@ const RequestPettyCash = () => {
     setOpenViewModal(true);
   };
 
-  const handleTrackAndSign = (request) => {
+  const handleTrackAndSign = async (request) => {
     setSelectedRequest(request);
+    // ── dispatch track before opening dialog ──
+    await dispatch(trackPettyCashReplenishRequest(request.id));
     setOpenTrackSignDialog(true);
   };
 
@@ -285,40 +252,43 @@ const RequestPettyCash = () => {
     setOpenDeleteDialog(true);
   };
 
-  const handleEditSubmit = async (id, formData) => {
+  const handleEditSubmit = async (id, updatedFormData) => {
     try {
+      // ── uses updatePettyCashReplenishRequest ──
       await dispatch(
-        updatePettyCashRequest({
-          id,
-          formData,
-        })
+        updatePettyCashReplenishRequest({ id, formData: updatedFormData }),
       ).unwrap();
       toast.success('Request updated successfully');
-      handleCloseEditModal();
-      dispatch(
-        getAllPettyCashRequests({
-          page: 1,
-          related_petty_cash_id: transactionId,
-        })
-      );
+      setOpenEditModal(false);
+      setSelectedRequest(null);
+      refreshList(1);
     } catch (error) {
       toast.error(error || 'Failed to update request');
     }
   };
 
-  const handleDeleteConfirm = async (id) => {
+  // ── onDelete now receives (id, comment) from DeleteRequestPettyCashDialog ──
+  const handleDeleteConfirm = async (id, comment) => {
     try {
-      await dispatch(deletePettyCashRequest(id)).unwrap();
+      await dispatch(deletePettyCashReplenishRequest({ id, comment })).unwrap();
       toast.success('Request deleted successfully');
-      handleCloseDeleteDialog();
-      dispatch(
-        getAllPettyCashRequests({
-          page: 1,
-          related_petty_cash_id: transactionId,
-        })
-      );
+      setOpenDeleteDialog(false);
+      setSelectedRequest(null);
+      refreshList(1);
     } catch (error) {
       toast.error(error || 'Failed to delete request');
+    }
+  };
+
+  // ── onApprove callback from TrackAndSignPettyCashDialog ──
+  const handleApprove = async (id, action, notes) => {
+    try {
+      await dispatch(
+        approvePettyCashRequest({ id, data: { action, notes } }),
+      ).unwrap();
+      refreshList(1);
+    } catch (error) {
+      toast.error(error || 'Failed to process approval');
     }
   };
 
@@ -326,17 +296,14 @@ const RequestPettyCash = () => {
     setOpenViewModal(false);
     setSelectedRequest(null);
   };
-
   const handleCloseTrackSignDialog = () => {
     setOpenTrackSignDialog(false);
     setSelectedRequest(null);
   };
-
   const handleCloseEditModal = () => {
     setOpenEditModal(false);
     setSelectedRequest(null);
   };
-
   const handleCloseDeleteDialog = () => {
     setOpenDeleteDialog(false);
     setSelectedRequest(null);
@@ -352,17 +319,13 @@ const RequestPettyCash = () => {
       'to verify': { bgcolor: '#42A5F5', color: 'white' },
       'to sign': { bgcolor: '#FF9800', color: 'white' },
     };
-
     const displayStatus = status?.replace(/_/g, ' ') || 'N/A';
-
     return (
       <Chip
-        label={
-          displayStatus
-            .split(' ')
-            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ')
-        }
+        label={displayStatus
+          .split(' ')
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ')}
         size="small"
         sx={{
           ...(statusColors[status?.toLowerCase()] || {
@@ -393,9 +356,7 @@ const RequestPettyCash = () => {
               onClick={() => navigate('/petty-cash')}
               sx={{
                 bgcolor: 'rgba(0, 82, 155, 0.1)',
-                '&:hover': {
-                  bgcolor: 'rgba(0, 82, 155, 0.2)',
-                },
+                '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.2)' },
               }}
             >
               <ArrowBackIcon sx={{ color: '#00529B' }} />
@@ -412,16 +373,13 @@ const RequestPettyCash = () => {
             </Box>
           </Box>
 
-          {/* Create Request Button */}
           <Button
             variant="contained"
             startIcon={<AddIcon />}
             onClick={handleOpenCreateDialog}
             sx={{
               bgcolor: '#00529B',
-              '&:hover': {
-                bgcolor: '#003d73',
-              },
+              '&:hover': { bgcolor: '#003d73' },
               textTransform: 'none',
               px: 3,
             }}
@@ -472,11 +430,7 @@ const RequestPettyCash = () => {
                     <TableRow
                       key={request.id}
                       hover
-                      sx={{
-                        '&:hover': {
-                          bgcolor: 'rgba(0, 82, 155, 0.02)',
-                        },
-                      }}
+                      sx={{ '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.02)' } }}
                     >
                       <TableCell>{page * rowsPerPage + index + 1}</TableCell>
                       <TableCell>
@@ -550,9 +504,7 @@ const RequestPettyCash = () => {
               page={page}
               onPageChange={handleChangePage}
               onRowsPerPageChange={handleChangeRowsPerPage}
-              sx={{
-                borderTop: '1px solid rgba(224, 224, 224, 1)',
-              }}
+              sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)' }}
             />
           </TableContainer>
         </Paper>
@@ -599,11 +551,7 @@ const RequestPettyCash = () => {
                   >
                     <Typography
                       variant="subtitle1"
-                      sx={{
-                        color: '#00529B',
-                        fontWeight: 600,
-                        mb: 1.5,
-                      }}
+                      sx={{ color: '#00529B', fontWeight: 600, mb: 1.5 }}
                     >
                       Select Verifier *
                     </Typography>
@@ -620,7 +568,7 @@ const RequestPettyCash = () => {
                         </MenuItem>
                         {signers.map((signer) => (
                           <MenuItem key={signer.id} value={signer.id}>
-                            {signer.firstname} {signer.lastname} -{' '}
+                            {signer.firstname} {signer.lastname} —{' '}
                             {signer.position}
                           </MenuItem>
                         ))}
@@ -671,7 +619,6 @@ const RequestPettyCash = () => {
                       </Box>
                     </label>
                   </Box>
-
                   {formData.expenses_csv && (
                     <Box
                       sx={{
@@ -750,25 +697,21 @@ const RequestPettyCash = () => {
             <DialogActions sx={{ px: 3, pb: 2 }}>
               <Button
                 onClick={handleCloseCreateDialog}
-                sx={{
-                  color: '#666',
-                  textTransform: 'none',
-                }}
+                sx={{ color: '#666', textTransform: 'none' }}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 variant="contained"
+                disabled={isLoading}
                 sx={{
                   bgcolor: '#00529B',
-                  '&:hover': {
-                    bgcolor: '#003d73',
-                  },
+                  '&:hover': { bgcolor: '#003d73' },
                   textTransform: 'none',
                 }}
               >
-                Submit Request
+                {isLoading ? 'Submitting...' : 'Submit Request'}
               </Button>
             </DialogActions>
           </form>
@@ -777,7 +720,8 @@ const RequestPettyCash = () => {
         {/* Modals */}
         {selectedRequest && (
           <>
-            <ViewPettyCashRequestModal
+            {/* ── ViewRequestPettyCashModal (new component, request-aware) ── */}
+            <ViewRequestPettyCashModal
               open={openViewModal}
               handleClose={handleCloseViewModal}
               request={selectedRequest}
@@ -786,6 +730,10 @@ const RequestPettyCash = () => {
               open={openTrackSignDialog}
               handleClose={handleCloseTrackSignDialog}
               request={selectedRequest}
+              onApprove={handleApprove}
+              trackThunk={trackPettyCashReplenishRequest}
+              approveThunk={approvePettyCashRequest}
+              trackingStateKey="replenishRequestTrackingData"
             />
             <EditRequestPettyCashModal
               open={openEditModal}

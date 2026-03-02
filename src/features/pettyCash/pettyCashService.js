@@ -120,8 +120,10 @@ const trackPettyCashRequest = async (id) => {
 
 // 4. Sign Request (Verification & Approval)
 
-const signPettyCashRequest = async (id, data) => {
-  const response = await http.put(
+// POST /invoice/petty-cash-request/sign/{id}/
+// Payload: { action, notes, next_approver_id?, final_approval? }
+const approvePettyCashRequest = async (id, data) => {
+  const response = await http.post(
     `/invoice/petty-cash-request/sign/${id}/`,
     data,
   );
@@ -163,10 +165,14 @@ const deletePettyCashExpense = async (id, data) => {
 
 // List all expenses for a specific petty cash issuance
 // GET /invoice/petty-cash/{pettyCashId}/expenses/
-const getIssuancePettyCashExpenses = async (pettyCashId) => {
-  const response = await http.get(
-    `/invoice/petty-cash/${pettyCashId}/expenses/`,
-  );
+const getIssuancePettyCashExpenses = async (pettyCashId, params = {}) => {
+  const queryParams = new URLSearchParams(
+    Object.fromEntries(
+      Object.entries(params).filter(([_, v]) => v != null && v !== ''),
+    ),
+  ).toString();
+  const url = `/invoice/petty-cash/${pettyCashId}/expenses/${queryParams ? `?${queryParams}` : ''}`;
+  const response = await http.get(url);
   return response.data;
 };
 
@@ -183,6 +189,13 @@ const approvePettyCashExpense = async (id, data) => {
     `/invoice/petty-cash-expense/${id}/approve/`,
     data,
   );
+  return response.data;
+};
+
+// Get Issue Comments for a Petty Cash issuance
+// GET /invoice/petty-cash/{id}/issue-comments/
+const getPettyCashIssueComments = async (id) => {
+  const response = await http.get(`/invoice/petty-cash/${id}/issue-comments/`);
   return response.data;
 };
 
@@ -207,7 +220,10 @@ const pettyCashService = {
   trackPettyCashRequest,
 
   // Signing
-  signPettyCashRequest,
+  approvePettyCashRequest,
+
+  // Petty Cash Issue Comments
+  getPettyCashIssueComments,
 
   // Petty Cash Expenses
   createPettyCashExpense,

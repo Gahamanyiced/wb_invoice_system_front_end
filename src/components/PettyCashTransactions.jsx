@@ -247,11 +247,31 @@ const PettyCashTransactions = () => {
   };
 
   const handleEdit = (transaction) => {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) {
+      toast.error('User not found. Please log in again.');
+      return;
+    }
+    const loggedInUser = JSON.parse(userStr);
+    if (loggedInUser.id !== transaction.issued_by?.id) {
+      toast.error('Only the person who issued this transaction can edit it.');
+      return;
+    }
     setSelectedTransaction(transaction);
     setOpenEditModal(true);
   };
 
   const handleDelete = (transaction) => {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) {
+      toast.error('User not found. Please log in again.');
+      return;
+    }
+    const loggedInUser = JSON.parse(userStr);
+    if (loggedInUser.id !== transaction.issued_by?.id) {
+      toast.error('Only the person who issued this transaction can delete it.');
+      return;
+    }
     setSelectedTransaction(transaction);
     setOpenDeleteDialog(true);
   };
@@ -267,14 +287,23 @@ const PettyCashTransactions = () => {
   };
 
   const handleRollback = (transaction) => {
-    if (transaction.status === 'pending_acknowledgment') {
-      toast.error('Cannot rollback a transaction pending acknowledgment');
+    const userStr = localStorage.getItem('user');
+    if (!userStr) {
+      toast.error('User not found. Please log in again.');
       return;
     }
-    if (transaction.status === 'exhausted') {
-      toast.error('Cannot rollback an exhausted transaction');
+    const loggedInUser = JSON.parse(userStr);
+    const isHolder = loggedInUser.id === transaction.holder?.id;
+    const isAdmin =
+      loggedInUser.role === 'admin' || loggedInUser.role === 'signer_admin';
+
+    if (!isHolder && !isAdmin) {
+      toast.error(
+        'Only the transaction holder or an admin can perform a rollback.',
+      );
       return;
     }
+
     setSelectedTransaction(transaction);
     setOpenRollbackDialog(true);
   };
@@ -297,12 +326,13 @@ const PettyCashTransactions = () => {
     }
   };
 
-  const handleDeleteConfirm = async (id) => {
+  const handleDeleteConfirm = async (id, comment) => {
     try {
-      await dispatch(deletePettyCash(id)).unwrap();
+      await dispatch(deletePettyCash({ id, comment })).unwrap();
       toast.success('Transaction deleted successfully');
+      // Optimistically remove from local state — no page refresh needed
+      setTransactions((prev) => prev.filter((t) => t.id !== id));
       handleCloseDeleteDialog();
-      refreshList();
     } catch (error) {
       toast.error(error || 'Failed to delete transaction');
     }
@@ -816,25 +846,21 @@ const PettyCashTransactions = () => {
                     />
                   </Box>
                 </Grid>
-
-                {/* Notes */}
-                <Grid item xs={12}>
-                  <Box sx={styles.fieldContainer}>
-                    <Typography sx={styles.fieldLabel}>
-                      Notes / Purpose
-                    </Typography>
-                    <TextField
-                      fullWidth
-                      name="notes"
-                      value={formData.notes}
-                      onChange={handleInputChange}
-                      multiline
-                      rows={4}
-                      placeholder="Describe the purpose of this petty cash issuance..."
-                    />
-                  </Box>
-                </Grid>
               </Grid>
+
+              {/* Notes — full width, outside the 3-column grid so it matches Supporting Document width */}
+              <Box sx={{ ...styles.fieldContainer, mt: 2 }}>
+                <Typography sx={styles.fieldLabel}>Notes / Purpose</Typography>
+                <TextField
+                  fullWidth
+                  name="notes"
+                  value={formData.notes}
+                  onChange={handleInputChange}
+                  multiline
+                  rows={4}
+                  placeholder="Describe the purpose of this petty cash issuance..."
+                />
+              </Box>
             </Paper>
 
             {/* Supporting Document Section */}
