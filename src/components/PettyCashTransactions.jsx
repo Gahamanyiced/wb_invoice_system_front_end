@@ -70,7 +70,6 @@ const styles = {
     fontSize: '14px',
     fontWeight: 600,
   },
-  // Shared with EditTransactionModal
   section: {
     mb: 3,
     p: 2,
@@ -287,10 +286,6 @@ const PettyCashTransactions = () => {
   };
 
   const handleRollback = (transaction) => {
-    // ── Permission guard ─────────────────────────────────────────
-    // Only the transaction holder or a user with admin / signer_admin role
-    // may open the rollback dialog. All other users get a toast and the
-    // dialog never opens.
     const userStr = localStorage.getItem('user');
     if (!userStr) {
       toast.error('User not found. Please log in again.');
@@ -314,12 +309,15 @@ const PettyCashTransactions = () => {
 
   // ── Submit handlers ──────────────────────────────────────────
 
-  const handleAcknowledgeSubmit = async (id, comment) => {
+  const handleAcknowledgeSubmit = async (id, comment, expenseCreatorId) => {
     try {
       await dispatch(
         acknowledgePettyCash({
           id,
-          formData: { acknowledgment_notes: comment },
+          formData: {
+            acknowledgment_notes: comment,
+            expense_creator_id: expenseCreatorId,
+          },
         }),
       ).unwrap();
       toast.success('Transaction acknowledged successfully');
@@ -334,7 +332,6 @@ const PettyCashTransactions = () => {
     try {
       await dispatch(deletePettyCash({ id, comment })).unwrap();
       toast.success('Transaction deleted successfully');
-      // Optimistically remove from local state — no page refresh needed
       setTransactions((prev) => prev.filter((t) => t.id !== id));
       handleCloseDeleteDialog();
     } catch (error) {
@@ -571,6 +568,7 @@ const PettyCashTransactions = () => {
                         alignItems: 'center',
                       }}
                     >
+                      {/* View */}
                       <Tooltip title="View" arrow>
                         <IconButton
                           size="small"
@@ -580,6 +578,8 @@ const PettyCashTransactions = () => {
                           <VisibilityOutlinedIcon sx={{ fontSize: '1.1rem' }} />
                         </IconButton>
                       </Tooltip>
+
+                      {/* Acknowledge */}
                       <Tooltip title="Acknowledge" arrow>
                         <IconButton
                           size="small"
@@ -589,6 +589,8 @@ const PettyCashTransactions = () => {
                           <CheckCircleOutlineIcon sx={{ fontSize: '1.1rem' }} />
                         </IconButton>
                       </Tooltip>
+
+                      {/* Edit */}
                       <Tooltip title="Edit" arrow>
                         <IconButton
                           size="small"
@@ -598,6 +600,8 @@ const PettyCashTransactions = () => {
                           <EditOutlinedIcon sx={{ fontSize: '1.1rem' }} />
                         </IconButton>
                       </Tooltip>
+
+                      {/* Add Expenses */}
                       <Tooltip title="Add Expenses" arrow>
                         <IconButton
                           size="small"
@@ -607,6 +611,8 @@ const PettyCashTransactions = () => {
                           <ReceiptLongIcon sx={{ fontSize: '1.1rem' }} />
                         </IconButton>
                       </Tooltip>
+
+                      {/* Request Petty Cash */}
                       <Tooltip title="Request Petty Cash" arrow>
                         <IconButton
                           size="small"
@@ -616,6 +622,8 @@ const PettyCashTransactions = () => {
                           <RequestQuoteIcon sx={{ fontSize: '1.1rem' }} />
                         </IconButton>
                       </Tooltip>
+
+                      {/* Rollback */}
                       <Tooltip title="Rollback" arrow>
                         <IconButton
                           size="small"
@@ -625,6 +633,8 @@ const PettyCashTransactions = () => {
                           <UndoIcon sx={{ fontSize: '1.1rem' }} />
                         </IconButton>
                       </Tooltip>
+
+                      {/* Delete */}
                       <Tooltip title="Delete" arrow>
                         <IconButton
                           size="small"
@@ -844,7 +854,7 @@ const PettyCashTransactions = () => {
                   </Box>
                 </Grid>
               </Grid>
-              {/* Notes — full width, outside the 3-column grid */}
+              {/* Notes — full width */}
               <Box sx={{ ...styles.fieldContainer, mt: 2 }}>
                 <Typography sx={styles.fieldLabel}>Notes / Purpose</Typography>
                 <TextField
@@ -977,6 +987,7 @@ const PettyCashTransactions = () => {
           handleClose={handleCloseAcknowledgeDialog}
           transaction={selectedTransaction}
           onAcknowledge={handleAcknowledgeSubmit}
+          signers={signers}
         />
       )}
 

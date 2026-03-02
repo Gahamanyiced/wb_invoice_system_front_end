@@ -10,28 +10,46 @@ import {
   IconButton,
   Box,
   Alert,
+  Divider,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Paper,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+
+const styles = {
+  section: {
+    mb: 3,
+    p: 2,
+    bgcolor: 'rgba(102, 187, 106, 0.03)',
+    borderRadius: 1,
+  },
+};
 
 const AcknowledgeTransactionDialog = ({
   open,
   handleClose,
   transaction,
   onAcknowledge,
+  signers = [],
 }) => {
   const [comment, setComment] = useState('');
+  const [expenseCreatorId, setExpenseCreatorId] = useState('');
 
   const handleAcknowledge = () => {
-    // Call the parent's acknowledge handler with id and comment
     if (onAcknowledge) {
-      onAcknowledge(transaction?.id, comment);
+      onAcknowledge(transaction?.id, comment, expenseCreatorId);
     }
-    setComment(''); // Reset comment
+    setComment('');
+    setExpenseCreatorId('');
   };
 
   const handleCancel = () => {
-    setComment(''); // Reset comment when closing
+    setComment('');
+    setExpenseCreatorId('');
     handleClose();
   };
 
@@ -121,6 +139,91 @@ const AcknowledgeTransactionDialog = ({
           </Typography>
         </Alert>
 
+        {/* Verifier / Expense Creator Section */}
+        <Paper elevation={0} sx={styles.section}>
+          <Typography
+            variant="subtitle1"
+            fontWeight={600}
+            color="#66BB6A"
+            gutterBottom
+          >
+            Expense Verifier
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          <Box
+            sx={{
+              p: 2,
+              bgcolor: 'rgba(102, 187, 106, 0.04)',
+              borderRadius: 2,
+              border: '2px solid rgba(102, 187, 106, 0.2)',
+            }}
+          >
+            <Typography
+              variant="subtitle2"
+              sx={{
+                color: '#57A05A',
+                fontWeight: 600,
+                mb: 1.5,
+                fontSize: '1rem',
+              }}
+            >
+              Select Verifier *
+            </Typography>
+            <FormControl fullWidth required size="large">
+              <InputLabel sx={{ fontSize: '1.1rem' }}>
+                Choose Verifier
+              </InputLabel>
+              <Select
+                value={expenseCreatorId}
+                onChange={(e) => setExpenseCreatorId(e.target.value)}
+                label="Choose Verifier"
+                sx={{
+                  fontSize: '1.1rem',
+                  '& .MuiSelect-select': { py: 2 },
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#66BB6A',
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#66BB6A',
+                  },
+                }}
+                MenuProps={{ PaperProps: { style: { maxHeight: 400 } } }}
+              >
+                <MenuItem value="" disabled>
+                  <em>Select a verifier from the list</em>
+                </MenuItem>
+                {signers.length > 0 ? (
+                  signers.map((signer) => (
+                    <MenuItem
+                      key={signer.id}
+                      value={signer.id}
+                      sx={{ py: 1.5 }}
+                    >
+                      <Box>
+                        <Typography variant="body1" fontWeight={500}>
+                          {signer.firstname} {signer.lastname}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ display: 'block' }}
+                        >
+                          {signer.position} • {signer.department} •{' '}
+                          {signer.section}
+                        </Typography>
+                      </Box>
+                    </MenuItem>
+                  ))
+                ) : (
+                  <MenuItem value="" disabled>
+                    <em>Loading verifiers...</em>
+                  </MenuItem>
+                )}
+              </Select>
+            </FormControl>
+          </Box>
+        </Paper>
+
         {/* Comments Field */}
         <TextField
           fullWidth
@@ -165,10 +268,15 @@ const AcknowledgeTransactionDialog = ({
           onClick={handleAcknowledge}
           variant="contained"
           startIcon={<CheckCircleOutlineIcon />}
+          disabled={!expenseCreatorId}
           sx={{
             bgcolor: '#66BB6A',
             '&:hover': {
               bgcolor: '#57A05A',
+            },
+            '&.Mui-disabled': {
+              bgcolor: 'rgba(102, 187, 106, 0.4)',
+              color: 'white',
             },
             textTransform: 'none',
             px: 3,

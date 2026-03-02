@@ -260,7 +260,7 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
                 </Box>
               </Grid>
 
-              {/* Notes — scrollable box handles long / unbroken content */}
+              {/* Notes */}
               <Grid item xs={12}>
                 <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>Notes</Typography>
@@ -413,6 +413,87 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
             </Grid>
           </Paper>
 
+          {/* Expense Creator Information */}
+          {transaction?.expense_creator && (
+            <Paper
+              elevation={0}
+              sx={{
+                ...style.section,
+                bgcolor: 'rgba(102, 187, 106, 0.04)',
+                border: '1px solid rgba(102, 187, 106, 0.2)',
+              }}
+            >
+              <Typography
+                variant="subtitle1"
+                fontWeight={600}
+                color="#57A05A"
+                gutterBottom
+              >
+                Expense Creator (Verifier)
+              </Typography>
+              <Divider
+                sx={{ mb: 2, borderColor: 'rgba(102, 187, 106, 0.3)' }}
+              />
+
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <Box sx={style.fieldContainer}>
+                    <Typography sx={style.fieldLabel}>Name</Typography>
+                    <Typography sx={style.fieldValue}>
+                      {transaction.expense_creator.firstname}{' '}
+                      {transaction.expense_creator.lastname}
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box sx={style.fieldContainer}>
+                    <Typography sx={style.fieldLabel}>Position</Typography>
+                    <Typography sx={style.fieldValue}>
+                      {transaction.expense_creator.position || 'N/A'}
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box sx={style.fieldContainer}>
+                    <Typography sx={style.fieldLabel}>Email</Typography>
+                    <Typography sx={style.fieldValue}>
+                      {transaction.expense_creator.email || 'N/A'}
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box sx={style.fieldContainer}>
+                    <Typography sx={style.fieldLabel}>Department</Typography>
+                    <Typography sx={style.fieldValue}>
+                      {transaction.expense_creator.department || 'N/A'}
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box sx={style.fieldContainer}>
+                    <Typography sx={style.fieldLabel}>Section</Typography>
+                    <Typography sx={style.fieldValue}>
+                      {transaction.expense_creator.section || 'N/A'}
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box sx={style.fieldContainer}>
+                    <Typography sx={style.fieldLabel}>Station</Typography>
+                    <Typography sx={style.fieldValue}>
+                      {transaction.expense_creator.station || 'N/A'}
+                    </Typography>
+                  </Box>
+                </Grid>
+              </Grid>
+            </Paper>
+          )}
+
           {/* Acknowledgment Information */}
           {transaction?.is_acknowledged && (
             <Paper elevation={0} sx={style.section}>
@@ -509,7 +590,8 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
               </Box>
             </Paper>
           )}
-          {/* ── Issue Comments ── */}
+
+          {/* Issue Comments */}
           <Accordion
             expanded={commentsExpanded}
             onChange={() => setCommentsExpanded((p) => !p)}
