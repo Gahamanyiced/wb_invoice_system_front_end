@@ -51,6 +51,17 @@ const rollbackPettyCash = async (id, data) => {
   return response.data;
 };
 
+// Replenish / Top-Up Petty Cash Issuance
+// FormData: notes, issue_date, supporting_document
+const replenishPettyCash = async (id, data) => {
+  const response = await http.post(
+    `/invoice/petty-cash/${id}/replenish/`,
+    data,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return response.data;
+};
+
 // 2. Petty Cash Acknowledgment
 
 // Acknowledge Petty Cash Receipt
@@ -123,7 +134,7 @@ const trackPettyCashRequest = async (id) => {
 // POST /invoice/petty-cash-request/sign/{id}/
 // Payload: { action, notes, next_approver_id?, final_approval? }
 const approvePettyCashRequest = async (id, data) => {
-  const response = await http.post(
+  const response = await http.put(
     `/invoice/petty-cash-request/sign/${id}/`,
     data,
   );
@@ -199,6 +210,33 @@ const getPettyCashIssueComments = async (id) => {
   return response.data;
 };
 
+// ==================== 6. Export Approved Expenses ====================
+
+// Export approved expenses for a specific petty cash issuance as a file (Excel/PDF)
+// GET /invoice/petty-cash/{id}/export-approved-expenses/
+const exportApprovedExpenses = async (id) => {
+  const response = await http.get(
+    `/invoice/petty-cash/${id}/export-approved-expenses/`,
+    { responseType: 'blob' },
+  );
+  return response;
+};
+
+// ==================== 7. Requests scoped to a Petty Cash Issuance ====================
+
+// List all petty cash requests / replenishment requests linked to a specific issuance
+// GET /invoice/petty-cash/{id}/requests/
+const getPettyCashIssuanceRequests = async (id, params = {}) => {
+  const queryParams = new URLSearchParams(
+    Object.fromEntries(
+      Object.entries(params).filter(([_, v]) => v != null && v !== ''),
+    ),
+  ).toString();
+  const url = `/invoice/petty-cash/${id}/requests/${queryParams ? `?${queryParams}` : ''}`;
+  const response = await http.get(url);
+  return response.data;
+};
+
 const pettyCashService = {
   // Petty Cash Issuance
   issuePettyCash,
@@ -207,6 +245,7 @@ const pettyCashService = {
   updatePettyCash,
   deletePettyCash,
   rollbackPettyCash,
+  replenishPettyCash,
 
   // Acknowledgment
   acknowledgePettyCash,
@@ -229,9 +268,15 @@ const pettyCashService = {
   createPettyCashExpense,
   updatePettyCashExpense,
   deletePettyCashExpense,
-  getIssuancePettyCashExpenses, // scoped to a single issuance
+  getIssuancePettyCashExpenses,
   trackPettyCashExpense,
   approvePettyCashExpense,
+
+  // Export
+  exportApprovedExpenses,
+
+  // Issuance-scoped requests
+  getPettyCashIssuanceRequests,
 };
 
 export default pettyCashService;

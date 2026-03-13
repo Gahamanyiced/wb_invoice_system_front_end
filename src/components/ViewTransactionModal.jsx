@@ -242,6 +242,33 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
                 </Box>
               </Grid>
 
+              {/* Replenishment Amount — only shown when present */}
+              {transaction?.replenishment_amount && (
+                <Grid item xs={12} sm={6}>
+                  <Box sx={style.fieldContainer}>
+                    <Typography sx={style.fieldLabel}>
+                      Replenishment Amount
+                    </Typography>
+                    <Typography
+                      sx={style.fieldValue}
+                      fontWeight={700}
+                      color="#00897B"
+                    >
+                      {formatAmount(transaction.replenishment_amount)}{' '}
+                      <span
+                        style={{
+                          fontSize: '0.8rem',
+                          fontWeight: 500,
+                          color: '#666',
+                        }}
+                      >
+                        {transaction?.currency}
+                      </span>
+                    </Typography>
+                  </Box>
+                </Grid>
+              )}
+
               <Grid item xs={12} sm={6}>
                 <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>Issue Date</Typography>
@@ -291,7 +318,7 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
             </Grid>
           </Paper>
 
-          {/* Holder Information */}
+          {/* Custodian Information */}
           <Paper elevation={0} sx={style.section}>
             <Typography
               variant="subtitle1"
@@ -299,7 +326,7 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
               color="#00529B"
               gutterBottom
             >
-              Holder Information
+              Custodian Information
             </Typography>
             <Divider sx={{ mb: 2 }} />
 
@@ -379,7 +406,8 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
                   <Typography sx={style.fieldLabel}>Name</Typography>
                   <Typography sx={style.fieldValue}>
                     {transaction?.issued_by?.firstname}{' '}
-                    {transaction?.issued_by?.lastname}
+                    {transaction?.issued_by?.lastname ||
+                      transaction?.issued_by?.name}
                   </Typography>
                 </Box>
               </Grid>
@@ -429,7 +457,7 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
                 color="#57A05A"
                 gutterBottom
               >
-                Expense Creator (Verifier)
+                Expense Creator
               </Typography>
               <Divider
                 sx={{ mb: 2, borderColor: 'rgba(102, 187, 106, 0.3)' }}
@@ -569,9 +597,7 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
                   bgcolor: 'rgba(0, 82, 155, 0.05)',
                   borderRadius: 1,
                   cursor: 'pointer',
-                  '&:hover': {
-                    bgcolor: 'rgba(0, 82, 155, 0.1)',
-                  },
+                  '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.1)' },
                 }}
                 onClick={() =>
                   window.open(transaction.supporting_document, '_blank')
@@ -657,7 +683,6 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
                         boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                       }}
                     >
-                      {/* Top row: avatar + name + action chip + date */}
                       <Box
                         sx={{
                           display: 'flex',
@@ -711,7 +736,6 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
                         </Box>
                       </Box>
 
-                      {/* Comment content */}
                       <Typography
                         variant="body2"
                         sx={{

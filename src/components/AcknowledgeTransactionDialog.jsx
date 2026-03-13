@@ -139,7 +139,7 @@ const AcknowledgeTransactionDialog = ({
           </Typography>
         </Alert>
 
-        {/* Verifier / Expense Creator Section */}
+        {/* Expense Creator Section */}
         <Paper elevation={0} sx={styles.section}>
           <Typography
             variant="subtitle1"
@@ -147,7 +147,7 @@ const AcknowledgeTransactionDialog = ({
             color="#66BB6A"
             gutterBottom
           >
-            Expense Verifier
+            Expense Creator
           </Typography>
           <Divider sx={{ mb: 2 }} />
           <Box
@@ -167,16 +167,16 @@ const AcknowledgeTransactionDialog = ({
                 fontSize: '1rem',
               }}
             >
-              Select Verifier *
+              Select Creator *
             </Typography>
             <FormControl fullWidth required size="large">
               <InputLabel sx={{ fontSize: '1.1rem' }}>
-                Choose Verifier
+                Choose Creator
               </InputLabel>
               <Select
                 value={expenseCreatorId}
                 onChange={(e) => setExpenseCreatorId(e.target.value)}
-                label="Choose Verifier"
+                label="Choose Creator"
                 sx={{
                   fontSize: '1.1rem',
                   '& .MuiSelect-select': { py: 2 },
@@ -190,7 +190,7 @@ const AcknowledgeTransactionDialog = ({
                 MenuProps={{ PaperProps: { style: { maxHeight: 400 } } }}
               >
                 <MenuItem value="" disabled>
-                  <em>Select a verifier from the list</em>
+                  <em>Select a creator from the list</em>
                 </MenuItem>
                 {signers.length > 0 ? (
                   signers.map((signer) => (
@@ -216,7 +216,7 @@ const AcknowledgeTransactionDialog = ({
                   ))
                 ) : (
                   <MenuItem value="" disabled>
-                    <em>Loading verifiers...</em>
+                    <em>Loading creators...</em>
                   </MenuItem>
                 )}
               </Select>

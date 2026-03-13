@@ -15,11 +15,15 @@ import {
   Select,
   MenuItem,
   CircularProgress,
+  Alert,
+  AlertTitle,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
+import BlockIcon from '@mui/icons-material/Block';
+import LockPersonIcon from '@mui/icons-material/LockPerson';
 import { toast } from 'react-toastify';
 import { updatePettyCash } from '../features/pettyCash/pettyCashSlice';
 
@@ -90,6 +94,18 @@ const CURRENCIES = [
   { code: 'TZS', name: 'Tanzanian Shilling', symbol: 'TSh' },
 ];
 
+// Statuses that allow editing
+const EDIT_ALLOWED_STATUSES = ['rollback', 'pending_acknowledgment'];
+
+const formatStatus = (status) => {
+  if (!status) return 'N/A';
+  return status
+    .replace(/_/g, ' ')
+    .split(' ')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
 const EditTransactionModal = ({
   open,
   handleClose,
@@ -100,6 +116,7 @@ const EditTransactionModal = ({
   const dispatch = useDispatch();
   const { isLoading } = useSelector((state) => state.pettyCash);
 
+  const [loggedInUser, setLoggedInUser] = useState(null);
   const [formData, setFormData] = useState({
     holder_id: '',
     amount: '',
@@ -112,6 +129,14 @@ const EditTransactionModal = ({
   });
 
   const [commentError, setCommentError] = useState('');
+
+  // Resolve logged-in user whenever modal opens
+  useEffect(() => {
+    if (open) {
+      const userStr = localStorage.getItem('user');
+      if (userStr) setLoggedInUser(JSON.parse(userStr));
+    }
+  }, [open]);
 
   useEffect(() => {
     if (transaction) {
@@ -129,6 +154,12 @@ const EditTransactionModal = ({
     }
   }, [transaction]);
 
+  // ── Permission & status checks ────────────────────────────────────────────
+  const isIssuer = loggedInUser?.id === transaction?.issued_by?.id;
+  const isStatusAllowed = EDIT_ALLOWED_STATUSES.includes(transaction?.status);
+  const canEdit = isIssuer && isStatusAllowed;
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -161,15 +192,17 @@ const EditTransactionModal = ({
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Permission check — only the issuer can edit
-    const userStr = localStorage.getItem('user');
-    if (!userStr) {
-      toast.error('User not found. Please log in again.');
+    // Guard: must be the issuer
+    if (!isIssuer) {
+      toast.error('Only the person who issued this transaction can edit it.');
       return;
     }
-    const loggedInUser = JSON.parse(userStr);
-    if (loggedInUser.id !== transaction?.issued_by?.id) {
-      toast.error('Only the person who issued this transaction can edit it.');
+
+    // Guard: status must be rollback or pending_acknowledgment
+    if (!isStatusAllowed) {
+      toast.error(
+        'This transaction can only be edited when its status is Rolled Back or Pending Acknowledgment.',
+      );
       return;
     }
 
@@ -223,392 +256,469 @@ const EditTransactionModal = ({
 
         {/* Scrollable Content */}
         <Box sx={style.content} component="form" onSubmit={handleSubmit}>
-          {/* ── Holder Section ── */}
-          <Paper elevation={0} sx={style.section}>
-            <Typography
-              variant="subtitle1"
-              fontWeight={600}
-              color="#00529B"
-              gutterBottom
-            >
-              Petty Cash Holder
-            </Typography>
-            <Divider sx={{ mb: 2 }} />
+          {/* ── BLOCK 1: Not the issuer ── */}
+          {!isIssuer && loggedInUser && (
+            <Alert severity="error" icon={<LockPersonIcon />} sx={{ mb: 3 }}>
+              <AlertTitle sx={{ fontWeight: 700 }}>
+                Permission Denied
+              </AlertTitle>
+              Only{' '}
+              <strong>
+                {transaction?.issued_by?.firstname}{' '}
+                {transaction?.issued_by?.lastname}
+              </strong>{' '}
+              ({transaction?.issued_by?.position || 'the issuer'}) can edit this
+              transaction.
+            </Alert>
+          )}
 
-            <Box
-              sx={{
-                p: 2,
-                bgcolor: 'rgba(0, 82, 155, 0.03)',
-                borderRadius: 2,
-                border: '2px solid rgba(0, 82, 155, 0.1)',
-              }}
-            >
-              <Typography
-                variant="subtitle2"
-                sx={{
-                  color: '#00529B',
-                  fontWeight: 600,
-                  mb: 1.5,
-                  fontSize: '1rem',
-                }}
-              >
-                Select Petty Cash Holder *
-              </Typography>
-              <FormControl fullWidth required size="large">
-                <InputLabel sx={{ fontSize: '1.1rem' }}>
-                  Choose Holder
-                </InputLabel>
-                <Select
-                  name="holder_id"
-                  value={formData.holder_id}
-                  onChange={handleInputChange}
-                  label="Choose Holder"
-                  sx={{ fontSize: '1.1rem', '& .MuiSelect-select': { py: 2 } }}
-                  MenuProps={{ PaperProps: { style: { maxHeight: 400 } } }}
+          {/* ── BLOCK 2: Issuer but wrong status ── */}
+          {isIssuer && !isStatusAllowed && (
+            <Alert severity="error" icon={<BlockIcon />} sx={{ mb: 3 }}>
+              <AlertTitle sx={{ fontWeight: 700 }}>
+                Cannot Edit — {formatStatus(transaction?.status)}
+              </AlertTitle>
+              Editing is only permitted when the transaction status is{' '}
+              <strong>Rolled Back</strong> or{' '}
+              <strong>Pending Acknowledgment</strong>.
+              {transaction?.status === 'active' &&
+                ' Please roll back the transaction first before editing.'}
+              {transaction?.status === 'exhausted' &&
+                ' Exhausted transactions cannot be edited.'}
+            </Alert>
+          )}
+
+          {/* ── ALLOWED: show full edit form ── */}
+          {canEdit && (
+            <>
+              {/* Status-specific info banner */}
+              {transaction?.status === 'rollback' && (
+                <Alert severity="info" sx={{ mb: 3 }}>
+                  This transaction has been <strong>rolled back</strong>. You
+                  may edit and resubmit it.
+                </Alert>
+              )}
+              {transaction?.status === 'pending_acknowledgment' && (
+                <Alert severity="warning" sx={{ mb: 3 }}>
+                  This transaction is <strong>pending acknowledgment</strong>.
+                  Editing it may affect the acknowledgment process.
+                </Alert>
+              )}
+
+              {/* ── Holder Section ── */}
+              <Paper elevation={0} sx={style.section}>
+                <Typography
+                  variant="subtitle1"
+                  fontWeight={600}
+                  color="#00529B"
+                  gutterBottom
                 >
-                  <MenuItem value="" disabled>
-                    <em>Select a holder from the list</em>
-                  </MenuItem>
-                  {signers.length > 0 ? (
-                    signers.map((signer) => (
-                      <MenuItem
-                        key={signer.id}
-                        value={signer.id}
-                        sx={{ py: 1.5 }}
-                      >
-                        <Box>
-                          <Typography variant="body1" fontWeight={500}>
-                            {signer.firstname} {signer.lastname}
-                          </Typography>
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            sx={{ display: 'block' }}
-                          >
-                            {signer.position} • {signer.department} •{' '}
-                            {signer.section}
-                          </Typography>
-                        </Box>
-                      </MenuItem>
-                    ))
-                  ) : (
-                    <MenuItem value={transaction?.holder?.id || ''}>
-                      <Box>
-                        <Typography variant="body1" fontWeight={500}>
-                          {transaction?.holder?.firstname}{' '}
-                          {transaction?.holder?.lastname}
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          sx={{ display: 'block' }}
-                        >
-                          {transaction?.holder?.position} •{' '}
-                          {transaction?.holder?.department}
-                        </Typography>
-                      </Box>
-                    </MenuItem>
-                  )}
-                </Select>
-              </FormControl>
-            </Box>
-          </Paper>
+                  Petty Cash Holder
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
 
-          {/* ── Transaction Details Section ── */}
-          <Paper elevation={0} sx={style.section}>
-            <Typography
-              variant="subtitle1"
-              fontWeight={600}
-              color="#00529B"
-              gutterBottom
-            >
-              Transaction Details
-            </Typography>
-            <Divider sx={{ mb: 2 }} />
-
-            <Grid container spacing={3}>
-              {/* Amount */}
-              <Grid item xs={12} md={4}>
-                <Box sx={style.fieldContainer}>
-                  <Typography sx={style.fieldLabel}>Amount *</Typography>
-                  <TextField
-                    fullWidth
-                    name="amount"
-                    type="number"
-                    value={formData.amount}
-                    onChange={handleInputChange}
-                    required
-                    InputProps={{ inputProps: { min: 0, step: 0.01 } }}
-                    placeholder="e.g., 500.00"
-                  />
-                </Box>
-              </Grid>
-
-              {/* Currency */}
-              <Grid item xs={12} md={4}>
-                <Box sx={style.fieldContainer}>
-                  <Typography sx={style.fieldLabel}>Currency *</Typography>
-                  <FormControl fullWidth required>
-                    <InputLabel>Currency</InputLabel>
+                <Box
+                  sx={{
+                    p: 2,
+                    bgcolor: 'rgba(0, 82, 155, 0.03)',
+                    borderRadius: 2,
+                    border: '2px solid rgba(0, 82, 155, 0.1)',
+                  }}
+                >
+                  <Typography
+                    variant="subtitle2"
+                    sx={{
+                      color: '#00529B',
+                      fontWeight: 600,
+                      mb: 1.5,
+                      fontSize: '1rem',
+                    }}
+                  >
+                    Select Petty Cash Holder *
+                  </Typography>
+                  <FormControl fullWidth required size="large">
+                    <InputLabel sx={{ fontSize: '1.1rem' }}>
+                      Choose Holder
+                    </InputLabel>
                     <Select
-                      name="currency"
-                      value={formData.currency}
+                      name="holder_id"
+                      value={formData.holder_id}
                       onChange={handleInputChange}
-                      label="Currency"
+                      label="Choose Holder"
+                      sx={{
+                        fontSize: '1.1rem',
+                        '& .MuiSelect-select': { py: 2 },
+                      }}
+                      MenuProps={{ PaperProps: { style: { maxHeight: 400 } } }}
                     >
-                      {CURRENCIES.map((curr) => (
-                        <MenuItem key={curr.code} value={curr.code}>
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            <Typography variant="body2" sx={{ mr: 1 }}>
-                              {curr.symbol}
-                            </Typography>
-                            <Typography variant="body2" fontWeight={500}>
-                              {curr.code}
+                      <MenuItem value="" disabled>
+                        <em>Select a holder from the list</em>
+                      </MenuItem>
+                      {signers.length > 0 ? (
+                        signers.map((signer) => (
+                          <MenuItem
+                            key={signer.id}
+                            value={signer.id}
+                            sx={{ py: 1.5 }}
+                          >
+                            <Box>
+                              <Typography variant="body1" fontWeight={500}>
+                                {signer.firstname} {signer.lastname}
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ display: 'block' }}
+                              >
+                                {signer.position} • {signer.department} •{' '}
+                                {signer.section}
+                              </Typography>
+                            </Box>
+                          </MenuItem>
+                        ))
+                      ) : (
+                        <MenuItem value={transaction?.holder?.id || ''}>
+                          <Box>
+                            <Typography variant="body1" fontWeight={500}>
+                              {transaction?.holder?.firstname}{' '}
+                              {transaction?.holder?.lastname}
                             </Typography>
                             <Typography
                               variant="caption"
                               color="text.secondary"
-                              sx={{ ml: 1 }}
+                              sx={{ display: 'block' }}
                             >
-                              - {curr.name}
+                              {transaction?.holder?.position} •{' '}
+                              {transaction?.holder?.department}
                             </Typography>
                           </Box>
                         </MenuItem>
-                      ))}
+                      )}
                     </Select>
                   </FormControl>
                 </Box>
-              </Grid>
+              </Paper>
 
-              {/* Issue Date */}
-              <Grid item xs={12} md={4}>
-                <Box sx={style.fieldContainer}>
-                  <Typography sx={style.fieldLabel}>Issue Date *</Typography>
+              {/* ── Transaction Details Section ── */}
+              <Paper elevation={0} sx={style.section}>
+                <Typography
+                  variant="subtitle1"
+                  fontWeight={600}
+                  color="#00529B"
+                  gutterBottom
+                >
+                  Transaction Details
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+
+                <Grid container spacing={3}>
+                  {/* Amount */}
+                  <Grid item xs={12} md={4}>
+                    <Box sx={style.fieldContainer}>
+                      <Typography sx={style.fieldLabel}>Amount *</Typography>
+                      <TextField
+                        fullWidth
+                        name="amount"
+                        type="number"
+                        value={formData.amount}
+                        onChange={handleInputChange}
+                        required
+                        InputProps={{ inputProps: { min: 0, step: 0.01 } }}
+                        placeholder="e.g., 500.00"
+                      />
+                    </Box>
+                  </Grid>
+
+                  {/* Currency */}
+                  <Grid item xs={12} md={4}>
+                    <Box sx={style.fieldContainer}>
+                      <Typography sx={style.fieldLabel}>Currency *</Typography>
+                      <FormControl fullWidth required>
+                        <InputLabel>Currency</InputLabel>
+                        <Select
+                          name="currency"
+                          value={formData.currency}
+                          onChange={handleInputChange}
+                          label="Currency"
+                        >
+                          {CURRENCIES.map((curr) => (
+                            <MenuItem key={curr.code} value={curr.code}>
+                              <Box
+                                sx={{ display: 'flex', alignItems: 'center' }}
+                              >
+                                <Typography variant="body2" sx={{ mr: 1 }}>
+                                  {curr.symbol}
+                                </Typography>
+                                <Typography variant="body2" fontWeight={500}>
+                                  {curr.code}
+                                </Typography>
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  sx={{ ml: 1 }}
+                                >
+                                  - {curr.name}
+                                </Typography>
+                              </Box>
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Box>
+                  </Grid>
+
+                  {/* Issue Date */}
+                  <Grid item xs={12} md={4}>
+                    <Box sx={style.fieldContainer}>
+                      <Typography sx={style.fieldLabel}>
+                        Issue Date *
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        name="issue_date"
+                        type="date"
+                        value={formData.issue_date}
+                        onChange={handleInputChange}
+                        required
+                        InputLabelProps={{ shrink: true }}
+                      />
+                    </Box>
+                  </Grid>
+                </Grid>
+
+                {/* Notes */}
+                <Box sx={{ ...style.fieldContainer, mt: 2 }}>
+                  <Typography sx={style.fieldLabel}>Notes / Purpose</Typography>
                   <TextField
                     fullWidth
-                    name="issue_date"
-                    type="date"
-                    value={formData.issue_date}
+                    name="notes"
+                    value={formData.notes}
                     onChange={handleInputChange}
+                    multiline
+                    rows={4}
+                    placeholder="Describe the purpose of this petty cash issuance..."
+                  />
+                </Box>
+              </Paper>
+
+              {/* ── Supporting Document Section ── */}
+              <Paper elevation={0} sx={style.section}>
+                <Typography
+                  variant="subtitle1"
+                  fontWeight={600}
+                  color="#00529B"
+                  gutterBottom
+                >
+                  Supporting Document
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+
+                {/* Existing server document */}
+                {formData.existingDocument && !formData.newDocument && (
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      p: 2,
+                      mb: 2,
+                      bgcolor: 'rgba(0, 82, 155, 0.05)',
+                      borderRadius: 1,
+                      border: '1px solid rgba(0, 82, 155, 0.2)',
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        flex: 1,
+                        cursor: 'pointer',
+                      }}
+                      onClick={() =>
+                        window.open(formData.existingDocument, '_blank')
+                      }
+                    >
+                      <AttachFileIcon sx={{ mr: 1, color: '#00529B' }} />
+                      <Typography variant="body2" sx={{ flex: 1 }}>
+                        {formData.existingDocument.split('/').pop()}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{ color: '#00529B', fontWeight: 500, mr: 1 }}
+                      >
+                        View Document
+                      </Typography>
+                    </Box>
+                    <IconButton
+                      size="small"
+                      onClick={handleRemoveExistingDocument}
+                      sx={{ color: '#d32f2f' }}
+                    >
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                )}
+
+                {/* Newly selected file preview */}
+                {formData.newDocument && (
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      p: 1.5,
+                      mb: 2,
+                      bgcolor: 'rgba(0, 82, 155, 0.05)',
+                      borderRadius: 1,
+                      border: '1px solid rgba(0, 82, 155, 0.2)',
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <AttachFileIcon
+                        sx={{ mr: 1, color: '#00529B', fontSize: 20 }}
+                      />
+                      <Typography variant="body2">
+                        {formData.newDocument.name}
+                      </Typography>
+                    </Box>
+                    <IconButton
+                      size="small"
+                      onClick={handleRemoveNewDocument}
+                      sx={{ color: '#d32f2f' }}
+                    >
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                )}
+
+                {/* Upload area */}
+                <Box sx={style.uploadBox}>
+                  <input
+                    accept="*/*"
+                    style={{ display: 'none' }}
+                    id="edit-transaction-file-upload"
+                    type="file"
+                    onChange={handleFileUpload}
+                  />
+                  <label htmlFor="edit-transaction-file-upload">
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <CloudUploadIcon
+                        sx={{ fontSize: 40, color: '#00529B', mb: 1 }}
+                      />
+                      <Typography variant="body2" color="textSecondary">
+                        {formData.existingDocument || formData.newDocument
+                          ? 'Click to replace document'
+                          : 'Click to upload supporting document'}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        color="textSecondary"
+                        sx={{ mt: 0.5 }}
+                      >
+                        PDF, DOC, DOCX, or image files
+                      </Typography>
+                    </Box>
+                  </label>
+                </Box>
+              </Paper>
+
+              {/* ── Comment Section ── */}
+              <Paper elevation={0} sx={style.section}>
+                <Typography
+                  variant="subtitle1"
+                  fontWeight={600}
+                  color="#00529B"
+                  gutterBottom
+                >
+                  Reason for Edit
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+
+                <Box sx={style.fieldContainer}>
+                  <Typography sx={style.fieldLabel}>
+                    Comment <span style={{ color: '#d32f2f' }}>*</span>
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    name="comment"
+                    value={formData.comment}
+                    onChange={handleInputChange}
+                    multiline
+                    rows={3}
                     required
-                    InputLabelProps={{ shrink: true }}
+                    placeholder="Explain the reason for this edit..."
+                    error={!!commentError}
+                    helperText={commentError}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        '&.Mui-focused fieldset': { borderColor: '#00529B' },
+                      },
+                      '& .MuiInputLabel-root.Mui-focused': {
+                        color: '#00529B',
+                      },
+                    }}
                   />
                 </Box>
-              </Grid>
-            </Grid>
+              </Paper>
 
-            {/* Notes — full width, outside the 3-column grid so it matches Supporting Document width */}
-            <Box sx={{ ...style.fieldContainer, mt: 2 }}>
-              <Typography sx={style.fieldLabel}>Notes / Purpose</Typography>
-              <TextField
-                fullWidth
-                name="notes"
-                value={formData.notes}
-                onChange={handleInputChange}
-                multiline
-                rows={4}
-                placeholder="Describe the purpose of this petty cash issuance..."
-              />
-            </Box>
-          </Paper>
-
-          {/* ── Supporting Document Section ── */}
-          <Paper elevation={0} sx={style.section}>
-            <Typography
-              variant="subtitle1"
-              fontWeight={600}
-              color="#00529B"
-              gutterBottom
-            >
-              Supporting Document
-            </Typography>
-            <Divider sx={{ mb: 2 }} />
-
-            {/* Existing server document */}
-            {formData.existingDocument && !formData.newDocument && (
+              {/* ── Action Buttons ── */}
               <Box
                 sx={{
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  p: 2,
-                  mb: 2,
-                  bgcolor: 'rgba(0, 82, 155, 0.05)',
-                  borderRadius: 1,
-                  border: '1px solid rgba(0, 82, 155, 0.2)',
+                  justifyContent: 'flex-end',
+                  gap: 2,
+                  pb: 1,
                 }}
               >
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    flex: 1,
-                    cursor: 'pointer',
-                  }}
-                  onClick={() =>
-                    window.open(formData.existingDocument, '_blank')
+                <Button
+                  onClick={handleCancel}
+                  disabled={isLoading}
+                  sx={{ color: '#666', textTransform: 'none' }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  disabled={isLoading}
+                  startIcon={
+                    isLoading ? (
+                      <CircularProgress size={18} sx={{ color: 'white' }} />
+                    ) : (
+                      <SaveOutlinedIcon />
+                    )
                   }
-                >
-                  <AttachFileIcon sx={{ mr: 1, color: '#00529B' }} />
-                  <Typography variant="body2" sx={{ flex: 1 }}>
-                    {formData.existingDocument.split('/').pop()}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{ color: '#00529B', fontWeight: 500, mr: 1 }}
-                  >
-                    View Document
-                  </Typography>
-                </Box>
-                <IconButton
-                  size="small"
-                  onClick={handleRemoveExistingDocument}
-                  sx={{ color: '#d32f2f' }}
-                >
-                  <CloseIcon fontSize="small" />
-                </IconButton>
-              </Box>
-            )}
-
-            {/* Newly selected file preview */}
-            {formData.newDocument && (
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  p: 1.5,
-                  mb: 2,
-                  bgcolor: 'rgba(0, 82, 155, 0.05)',
-                  borderRadius: 1,
-                  border: '1px solid rgba(0, 82, 155, 0.2)',
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <AttachFileIcon
-                    sx={{ mr: 1, color: '#00529B', fontSize: 20 }}
-                  />
-                  <Typography variant="body2">
-                    {formData.newDocument.name}
-                  </Typography>
-                </Box>
-                <IconButton
-                  size="small"
-                  onClick={handleRemoveNewDocument}
-                  sx={{ color: '#d32f2f' }}
-                >
-                  <CloseIcon fontSize="small" />
-                </IconButton>
-              </Box>
-            )}
-
-            {/* Upload area */}
-            <Box sx={style.uploadBox}>
-              <input
-                accept="*/*"
-                style={{ display: 'none' }}
-                id="edit-transaction-file-upload"
-                type="file"
-                onChange={handleFileUpload}
-              />
-              <label htmlFor="edit-transaction-file-upload">
-                <Box
                   sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    cursor: 'pointer',
+                    bgcolor: '#00529B',
+                    '&:hover': { bgcolor: '#003d73' },
+                    textTransform: 'none',
+                    minWidth: 140,
                   }}
                 >
-                  <CloudUploadIcon
-                    sx={{ fontSize: 40, color: '#00529B', mb: 1 }}
-                  />
-                  <Typography variant="body2" color="textSecondary">
-                    {formData.existingDocument || formData.newDocument
-                      ? 'Click to replace document'
-                      : 'Click to upload supporting document'}
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    color="textSecondary"
-                    sx={{ mt: 0.5 }}
-                  >
-                    PDF, DOC, DOCX, or image files
-                  </Typography>
-                </Box>
-              </label>
+                  {isLoading ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </Box>
+            </>
+          )}
+
+          {/* ── Blocked: show only Close button ── */}
+          {!canEdit && (
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', pb: 1 }}>
+              <Button
+                onClick={handleCancel}
+                sx={{ color: '#666', textTransform: 'none' }}
+              >
+                Close
+              </Button>
             </Box>
-          </Paper>
-
-          {/* ── Comment Section ── */}
-          <Paper elevation={0} sx={style.section}>
-            <Typography
-              variant="subtitle1"
-              fontWeight={600}
-              color="#00529B"
-              gutterBottom
-            >
-              Reason for Edit
-            </Typography>
-            <Divider sx={{ mb: 2 }} />
-
-            <Box sx={style.fieldContainer}>
-              <Typography sx={style.fieldLabel}>
-                Comment <span style={{ color: '#d32f2f' }}>*</span>
-              </Typography>
-              <TextField
-                fullWidth
-                name="comment"
-                value={formData.comment}
-                onChange={handleInputChange}
-                multiline
-                rows={3}
-                required
-                placeholder="Explain the reason for this edit..."
-                error={!!commentError}
-                helperText={commentError}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    '&.Mui-focused fieldset': { borderColor: '#00529B' },
-                  },
-                  '& .MuiInputLabel-root.Mui-focused': { color: '#00529B' },
-                }}
-              />
-            </Box>
-          </Paper>
-
-          {/* ── Action Buttons ── */}
-          <Box
-            sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, pb: 1 }}
-          >
-            <Button
-              onClick={handleCancel}
-              disabled={isLoading}
-              sx={{ color: '#666', textTransform: 'none' }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="contained"
-              disabled={isLoading}
-              startIcon={
-                isLoading ? (
-                  <CircularProgress size={18} sx={{ color: 'white' }} />
-                ) : (
-                  <SaveOutlinedIcon />
-                )
-              }
-              sx={{
-                bgcolor: '#00529B',
-                '&:hover': { bgcolor: '#003d73' },
-                textTransform: 'none',
-                minWidth: 140,
-              }}
-            >
-              {isLoading ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </Box>
+          )}
         </Box>
       </Box>
     </Modal>

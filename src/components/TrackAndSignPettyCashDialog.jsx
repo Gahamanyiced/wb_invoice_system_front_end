@@ -304,7 +304,7 @@ const TrackAndSignPettyCashDialog = ({
   //   histories[].user.is_head_of_department
   //
   // Request context:  td.request   + td.request_histories
-  //   no can_approve field           → derive from request.status
+  //   no can_approve field           → derive from logged-in user + history
   //   histories[].signature (string) → isSigned = !!signature
   //   histories[].user.firstname/lastname
   //   histories[].is_user_head_of_department (top-level, not inside user)
@@ -334,14 +334,16 @@ const TrackAndSignPettyCashDialog = ({
   const approvalLevel =
     entity.current_approval_level || td.current_approval_level;
 
-  // canApprove: expense has explicit field; request derives from status
-  const canApprove = isRequestContext
-    ? !['approved', 'denied', 'rolled_back'].includes(
-        entity.status?.toLowerCase(),
-      )
-    : (entity.can_approve ?? false);
+  // ── Logged-in user ────────────────────────────────────────────────────────
+  const loggedInUser = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || 'null');
+    } catch {
+      return null;
+    }
+  })();
 
-  // History field normalisation helpers
+  // History field normalisation helpers (defined before canApprove so we can reuse them)
   const historyUserName = (h) =>
     isRequestContext ? userName(h.user) : h.user?.name || userName(h.user);
 
@@ -352,6 +354,43 @@ const TrackAndSignPettyCashDialog = ({
     isRequestContext
       ? !!h.is_user_head_of_department
       : !!h.user?.is_head_of_department;
+
+  // ── Check if the logged-in user is the current pending approver ───────────
+  //
+  // We look for a history entry that:
+  //   1. Belongs to the logged-in user (by user.id)
+  //   2. Has a status that means "waiting for this person to act"
+  //      → "to_sign", "to_verify", "to sign", "to verify", or "pending"
+  //
+  // This logic is identical for both expense and request contexts because
+  // both shapes store the approver as history[].user.id.
+  const PENDING_APPROVER_STATUSES = new Set([
+    'to_sign',
+    'to_verify',
+    'to sign',
+    'to verify',
+    'pending',
+  ]);
+
+  const isCurrentApprover =
+    !!loggedInUser?.id &&
+    histories.some((h) => {
+      const statusKey = h.status?.toLowerCase().replace(/ /g, '_');
+      const isPending =
+        PENDING_APPROVER_STATUSES.has(h.status?.toLowerCase()) ||
+        PENDING_APPROVER_STATUSES.has(statusKey);
+      return isPending && h.user?.id === loggedInUser.id;
+    });
+
+  // canApprove:
+  //   Expense  → backend's can_approve field (already user-scoped by the API)
+  //   Request  → logged-in user must be the pending approver in history AND
+  //              the request must not be in a terminal state
+  const terminalStatuses = ['approved', 'denied', 'rolled_back'];
+  const canApprove = isRequestContext
+    ? isCurrentApprover &&
+      !terminalStatuses.includes(entity.status?.toLowerCase())
+    : (entity.can_approve ?? false);
 
   // Step icon colour based on status
   const stepBgColor = (status) => {
@@ -463,13 +502,17 @@ const TrackAndSignPettyCashDialog = ({
                   </Typography>
                 </Grid>
 
-                {/* Approval Level */}
-                <Grid item xs={12} sm={6}>
-                  <Typography sx={style.fieldLabel}>Approval Level</Typography>
-                  <Typography sx={style.fieldValue}>
-                    {approvalLevel != null ? `Level ${approvalLevel}` : 'N/A'}
-                  </Typography>
-                </Grid>
+                {/* Approval Level — expense context only */}
+                {!isRequestContext && (
+                  <Grid item xs={12} sm={6}>
+                    <Typography sx={style.fieldLabel}>
+                      Approval Level
+                    </Typography>
+                    <Typography sx={style.fieldValue}>
+                      {approvalLevel != null ? `Level ${approvalLevel}` : 'N/A'}
+                    </Typography>
+                  </Grid>
+                )}
 
                 {/* Description / expense items */}
                 <Grid item xs={12}>
@@ -544,36 +587,6 @@ const TrackAndSignPettyCashDialog = ({
                   </Grid>
                 )}
 
-                {isRequestContext && entity.verifier && (
-                  <Grid item xs={12} sm={6}>
-                    <Typography sx={style.fieldLabel}>Verifier</Typography>
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1,
-                        mt: 0.5,
-                      }}
-                    >
-                      <VerifiedUserIcon
-                        sx={{ color: '#42A5F5', fontSize: 20 }}
-                      />
-                      <Box>
-                        <Typography variant="body2" fontWeight={500}>
-                          {userName(entity.verifier)}
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          display="block"
-                        >
-                          {entity.verifier.position}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Grid>
-                )}
-
                 {/* Request stats — request context only */}
                 {isRequestContext && (
                   <>
@@ -582,25 +595,6 @@ const TrackAndSignPettyCashDialog = ({
                       <Typography sx={style.fieldValue}>
                         {entity.expenses_count ?? entity.expenses?.length ?? 0}
                       </Typography>
-                    </Grid>
-                    <Grid item xs={6} sm={3}>
-                      <Typography sx={style.fieldLabel}>Signatures</Typography>
-                      <Typography sx={style.fieldValue}>
-                        {entity.signature_count ?? 0}
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={6} sm={3}>
-                      <Typography sx={style.fieldLabel}>Verified</Typography>
-                      <Chip
-                        label={entity.is_verified ? 'Yes' : 'No'}
-                        size="small"
-                        sx={{
-                          bgcolor: entity.is_verified ? '#66BB6A' : '#9E9E9E',
-                          color: 'white',
-                          fontWeight: 600,
-                          mt: 0.5,
-                        }}
-                      />
                     </Grid>
                   </>
                 )}

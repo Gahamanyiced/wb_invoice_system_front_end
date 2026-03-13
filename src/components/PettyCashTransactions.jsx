@@ -48,12 +48,14 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
 import UndoIcon from '@mui/icons-material/Undo';
+import CurrencyExchangeIcon from '@mui/icons-material/CurrencyExchange';
 import { useNavigate } from 'react-router-dom';
 import ViewTransactionModal from './ViewTransactionModal';
 import AcknowledgeTransactionDialog from './AcknowledgeTransactionDialog';
 import EditTransactionModal from './EditTransactionModal';
 import DeleteTransactionDialog from './DeleteTransactionDialog';
 import RollbackTransactionDialog from './RollbackTransactionDialog';
+import ReplenishTransactionDialog from './ReplenishTransactionDialog';
 
 const styles = {
   header: {
@@ -109,6 +111,9 @@ const CURRENCIES = [
   { code: 'TZS', name: 'Tanzanian Shilling', symbol: 'TSh' },
 ];
 
+// Statuses that allow editing — must be issuer AND one of these statuses
+const EDIT_ALLOWED_STATUSES = ['rollback', 'pending_acknowledgment'];
+
 const PettyCashTransactions = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [openViewModal, setOpenViewModal] = useState(false);
@@ -116,6 +121,7 @@ const PettyCashTransactions = () => {
   const [openEditModal, setOpenEditModal] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [openRollbackDialog, setOpenRollbackDialog] = useState(false);
+  const [openReplenishDialog, setOpenReplenishDialog] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -128,6 +134,16 @@ const PettyCashTransactions = () => {
   const [transactions, setTransactions] = useState([]);
   const signers = signersData?.results || [];
   const totalCount = pettyCashList?.count || 0;
+
+  // ── Parse logged-in user once ────────────────────────────────────────────
+  const loggedInUser = (() => {
+    try {
+      const userStr = localStorage.getItem('user');
+      return userStr ? JSON.parse(userStr) : null;
+    } catch {
+      return null;
+    }
+  })();
 
   const refreshList = () => {
     dispatch(getAllPettyCash({ page: page + 1 }));
@@ -223,14 +239,12 @@ const PettyCashTransactions = () => {
   };
 
   const handleAcknowledge = (transaction) => {
-    const userStr = localStorage.getItem('user');
-    if (!userStr) {
+    if (!loggedInUser) {
       toast.error('User not found. Please log in again.');
       return;
     }
-    const loggedInUser = JSON.parse(userStr);
     if (loggedInUser.id !== transaction.holder?.id) {
-      toast.error('Only the transaction holder can acknowledge receipt');
+      toast.error('Only the transaction custodian can acknowledge receipt');
       return;
     }
     if (transaction.is_acknowledged) {
@@ -246,14 +260,18 @@ const PettyCashTransactions = () => {
   };
 
   const handleEdit = (transaction) => {
-    const userStr = localStorage.getItem('user');
-    if (!userStr) {
+    if (!loggedInUser) {
       toast.error('User not found. Please log in again.');
       return;
     }
-    const loggedInUser = JSON.parse(userStr);
     if (loggedInUser.id !== transaction.issued_by?.id) {
       toast.error('Only the person who issued this transaction can edit it.');
+      return;
+    }
+    if (!EDIT_ALLOWED_STATUSES.includes(transaction.status)) {
+      toast.error(
+        'This transaction can only be edited when its status is Rolled Back or Pending Acknowledgment.',
+      );
       return;
     }
     setSelectedTransaction(transaction);
@@ -261,12 +279,10 @@ const PettyCashTransactions = () => {
   };
 
   const handleDelete = (transaction) => {
-    const userStr = localStorage.getItem('user');
-    if (!userStr) {
+    if (!loggedInUser) {
       toast.error('User not found. Please log in again.');
       return;
     }
-    const loggedInUser = JSON.parse(userStr);
     if (loggedInUser.id !== transaction.issued_by?.id) {
       toast.error('Only the person who issued this transaction can delete it.');
       return;
@@ -286,25 +302,31 @@ const PettyCashTransactions = () => {
   };
 
   const handleRollback = (transaction) => {
-    const userStr = localStorage.getItem('user');
-    if (!userStr) {
+    if (!loggedInUser) {
       toast.error('User not found. Please log in again.');
       return;
     }
-    const loggedInUser = JSON.parse(userStr);
     const isHolder = loggedInUser.id === transaction.holder?.id;
     const isAdmin =
       loggedInUser.role === 'admin' || loggedInUser.role === 'signer_admin';
 
     if (!isHolder && !isAdmin) {
       toast.error(
-        'Only the transaction holder or an admin can perform a rollback.',
+        'Only the transaction custodian or an admin can perform a rollback.',
       );
       return;
     }
-
     setSelectedTransaction(transaction);
     setOpenRollbackDialog(true);
+  };
+
+  const handleReplenish = (transaction) => {
+    if (!loggedInUser) {
+      toast.error('User not found. Please log in again.');
+      return;
+    }
+    setSelectedTransaction(transaction);
+    setOpenReplenishDialog(true);
   };
 
   // ── Submit handlers ──────────────────────────────────────────
@@ -344,6 +366,11 @@ const PettyCashTransactions = () => {
     refreshList();
   };
 
+  const handleReplenishSuccess = () => {
+    handleCloseReplenishDialog();
+    refreshList();
+  };
+
   // ── Close handlers ───────────────────────────────────────────
 
   const handleCloseViewModal = () => {
@@ -364,6 +391,10 @@ const PettyCashTransactions = () => {
   };
   const handleCloseRollbackDialog = () => {
     setOpenRollbackDialog(false);
+    setSelectedTransaction(null);
+  };
+  const handleCloseReplenishDialog = () => {
+    setOpenReplenishDialog(false);
     setSelectedTransaction(null);
   };
 
@@ -432,14 +463,14 @@ const PettyCashTransactions = () => {
         elevation={2}
         sx={{ overflowX: 'auto' }}
       >
-        <Table sx={{ ...styles.table, tableLayout: 'fixed', minWidth: 1200 }}>
+        <Table sx={{ ...styles.table, tableLayout: 'fixed', minWidth: 1310 }}>
           <TableHead>
             <TableRow sx={{ bgcolor: 'rgba(0, 82, 155, 0.05)' }}>
               <TableCell sx={{ ...styles.headerCell, width: '40px' }}>
                 #
               </TableCell>
               <TableCell sx={{ ...styles.headerCell, width: '120px' }}>
-                Holder
+                Custodian
               </TableCell>
               <TableCell sx={{ ...styles.headerCell, width: '90px' }}>
                 Amount
@@ -450,6 +481,9 @@ const PettyCashTransactions = () => {
               <TableCell sx={{ ...styles.headerCell, width: '90px' }}>
                 Remaining
               </TableCell>
+              <TableCell sx={{ ...styles.headerCell, width: '110px' }}>
+                Replenishment
+              </TableCell>
               <TableCell sx={{ ...styles.headerCell, width: '100px' }}>
                 Issue Date
               </TableCell>
@@ -459,11 +493,8 @@ const PettyCashTransactions = () => {
               <TableCell sx={{ ...styles.headerCell, width: '100px' }}>
                 Status
               </TableCell>
-              <TableCell sx={{ ...styles.headerCell, width: '100px' }}>
-                Acknowledged
-              </TableCell>
               <TableCell
-                sx={{ ...styles.headerCell, minWidth: '300px' }}
+                sx={{ ...styles.headerCell, minWidth: '330px' }}
                 align="center"
               >
                 Actions
@@ -522,6 +553,11 @@ const PettyCashTransactions = () => {
                   <TableCell sx={{ width: '90px' }}>
                     {formatAmount(transaction.remaining_amount)}
                   </TableCell>
+                  <TableCell sx={{ width: '110px' }}>
+                    {transaction.replenishment_amount
+                      ? formatAmount(transaction.replenishment_amount)
+                      : '—'}
+                  </TableCell>
                   <TableCell sx={{ width: '100px' }}>
                     {transaction.issue_date}
                   </TableCell>
@@ -542,23 +578,10 @@ const PettyCashTransactions = () => {
                   <TableCell sx={{ width: '100px' }}>
                     {getStatusChip(transaction.status)}
                   </TableCell>
-                  <TableCell sx={{ width: '100px' }}>
-                    <Chip
-                      label={transaction.is_acknowledged ? 'Yes' : 'No'}
-                      size="small"
-                      sx={{
-                        bgcolor: transaction.is_acknowledged
-                          ? '#66BB6A'
-                          : '#FFA726',
-                        color: 'white',
-                        fontWeight: 500,
-                        minWidth: '60px',
-                      }}
-                    />
-                  </TableCell>
+
                   <TableCell
                     align="center"
-                    sx={{ minWidth: '300px', whiteSpace: 'nowrap' }}
+                    sx={{ minWidth: '330px', whiteSpace: 'nowrap' }}
                   >
                     <Box
                       sx={{
@@ -620,6 +643,17 @@ const PettyCashTransactions = () => {
                           sx={{ color: '#9C27B0', padding: '6px' }}
                         >
                           <RequestQuoteIcon sx={{ fontSize: '1.1rem' }} />
+                        </IconButton>
+                      </Tooltip>
+
+                      {/* Replenish / Top-Up */}
+                      <Tooltip title="Replenish / Top-Up" arrow>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleReplenish(transaction)}
+                          sx={{ color: '#00897B', padding: '6px' }}
+                        >
+                          <CurrencyExchangeIcon sx={{ fontSize: '1.1rem' }} />
                         </IconButton>
                       </Tooltip>
 
@@ -698,7 +732,7 @@ const PettyCashTransactions = () => {
 
         <form onSubmit={handleSubmit}>
           <DialogContent sx={{ pt: 3 }}>
-            {/* Holder Section */}
+            {/* Custodian Section */}
             <Paper elevation={0} sx={styles.section}>
               <Typography
                 variant="subtitle1"
@@ -706,7 +740,7 @@ const PettyCashTransactions = () => {
                 color="#00529B"
                 gutterBottom
               >
-                Petty Cash Holder
+                Petty Cash Custodian
               </Typography>
               <Divider sx={{ mb: 2 }} />
               <Box
@@ -726,17 +760,17 @@ const PettyCashTransactions = () => {
                     fontSize: '1rem',
                   }}
                 >
-                  Select Petty Cash Holder *
+                  Select Petty Cash Custodian *
                 </Typography>
                 <FormControl fullWidth required size="large">
                   <InputLabel sx={{ fontSize: '1.1rem' }}>
-                    Choose Holder
+                    Choose Custodian
                   </InputLabel>
                   <Select
                     name="holder_id"
                     value={formData.holder_id}
                     onChange={handleInputChange}
-                    label="Choose Holder"
+                    label="Choose Custodian"
                     sx={{
                       fontSize: '1.1rem',
                       '& .MuiSelect-select': { py: 2 },
@@ -744,7 +778,7 @@ const PettyCashTransactions = () => {
                     MenuProps={{ PaperProps: { style: { maxHeight: 400 } } }}
                   >
                     <MenuItem value="" disabled>
-                      <em>Select a holder from the list</em>
+                      <em>Select a custodian from the list</em>
                     </MenuItem>
                     {signers.length > 0 ? (
                       signers.map((signer) => (
@@ -770,7 +804,7 @@ const PettyCashTransactions = () => {
                       ))
                     ) : (
                       <MenuItem value="" disabled>
-                        <em>Loading holders...</em>
+                        <em>Loading custodians...</em>
                       </MenuItem>
                     )}
                   </Select>
@@ -854,7 +888,6 @@ const PettyCashTransactions = () => {
                   </Box>
                 </Grid>
               </Grid>
-              {/* Notes — full width */}
               <Box sx={{ ...styles.fieldContainer, mt: 2 }}>
                 <Typography sx={styles.fieldLabel}>Notes / Purpose</Typography>
                 <TextField
@@ -1022,6 +1055,18 @@ const PettyCashTransactions = () => {
           handleClose={handleCloseRollbackDialog}
           transaction={selectedTransaction}
           onSuccess={handleRollbackSuccess}
+          loggedInUser={loggedInUser}
+        />
+      )}
+
+      {/* Replenish / Top-Up Dialog */}
+      {selectedTransaction && (
+        <ReplenishTransactionDialog
+          open={openReplenishDialog}
+          handleClose={handleCloseReplenishDialog}
+          transaction={selectedTransaction}
+          signers={signers}
+          onSuccess={handleReplenishSuccess}
         />
       )}
     </Box>

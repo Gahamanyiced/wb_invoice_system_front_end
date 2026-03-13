@@ -8,6 +8,7 @@ import {
   getIssuancePettyCashExpenses,
   trackPettyCashExpense,
   approvePettyCashExpense,
+  exportApprovedExpenses,
 } from '../features/pettyCash/pettyCashSlice';
 import { getAllSigners } from '../features/user/userSlice';
 import { toast } from 'react-toastify';
@@ -51,7 +52,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import DownloadIcon from '@mui/icons-material/Download';
 import RootLayout from '../layouts/RootLayout';
-import ViewPettyCashRequestModal from '../components/ViewPettyCashRequestModal';
+import ViewExpenseModal from '../components/ViewExpenseModal';
 import TrackAndSignPettyCashDialog from '../components/TrackAndSignPettyCashDialog';
 import EditExpenseModal from '../components/EditExpenseModal';
 import DeleteExpenseDialog from '../components/DeleteExpenseDialog';
@@ -111,7 +112,7 @@ const ManageExpenses = () => {
 
   const transaction = location.state?.transaction;
 
-  const { issuancePettyCashExpenses, isLoading } = useSelector(
+  const { issuancePettyCashExpenses, isLoading, isExporting } = useSelector(
     (state) => state.pettyCash,
   );
   const { users: signersData } = useSelector((state) => state.user);
@@ -125,7 +126,7 @@ const ManageExpenses = () => {
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [selectedRequest, setSelectedRequest] = useState(null); // kept as selectedRequest to match child component props
+  const [selectedExpense, setSelectedExpense] = useState(null);
   const [openCreateDialog, setOpenCreateDialog] = useState(false);
   const [openViewModal, setOpenViewModal] = useState(false);
   const [openTrackSignDialog, setOpenTrackSignDialog] = useState(false);
@@ -260,7 +261,7 @@ const ManageExpenses = () => {
     return true;
   };
 
-  // ── Create submit → createPettyCashExpense ────────────────────────────────────
+  // ── Create submit ─────────────────────────────────────────────────────────────
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -298,28 +299,27 @@ const ManageExpenses = () => {
   // ── Action handlers ───────────────────────────────────────────────────────────
 
   const handleView = (expense) => {
-    setSelectedRequest(expense);
+    setSelectedExpense(expense);
     setOpenViewModal(true);
   };
 
   const handleTrackAndSign = (expense) => {
-    setSelectedRequest(expense);
+    setSelectedExpense(expense);
     setOpenTrackSignDialog(true);
-    // Pre-load tracking data
     dispatch(trackPettyCashExpense(expense.id));
   };
 
   const handleEdit = (expense) => {
-    setSelectedRequest(expense);
+    setSelectedExpense(expense);
     setOpenEditModal(true);
   };
 
   const handleDelete = (expense) => {
-    setSelectedRequest(expense);
+    setSelectedExpense(expense);
     setOpenDeleteDialog(true);
   };
 
-  // ── Edit submit → updatePettyCashExpense ──────────────────────────────────────
+  // ── Edit submit ───────────────────────────────────────────────────────────────
 
   const handleEditSubmit = async (id, formDataPayload) => {
     const result = await dispatch(
@@ -335,7 +335,7 @@ const ManageExpenses = () => {
     }
   };
 
-  // ── Delete confirm → deletePettyCashExpense ───────────────────────────────────
+  // ── Delete confirm ────────────────────────────────────────────────────────────
 
   const handleDeleteConfirm = async (id, comment) => {
     const result = await dispatch(deletePettyCashExpense({ id, comment }));
@@ -349,8 +349,7 @@ const ManageExpenses = () => {
     }
   };
 
-  // ── Approve/Deny/Rollback → approvePettyCashExpense ───────────────────────────
-  // Called from TrackAndSignPettyCashDialog via a prop if needed
+  // ── Approve/Deny/Rollback ─────────────────────────────────────────────────────
 
   const handleApprove = async (expenseId, action, comment = '') => {
     const result = await dispatch(
@@ -370,79 +369,65 @@ const ManageExpenses = () => {
     }
   };
 
+  // ── Export CSV ────────────────────────────────────────────────────────────────
+
+  const handleExportCSV = async () => {
+    try {
+      const result = await dispatch(exportApprovedExpenses(transactionId));
+
+      if (exportApprovedExpenses.rejected.match(result)) {
+        toast.error(result.payload || 'Failed to export expenses.');
+        return;
+      }
+
+      const response = result.payload;
+
+      const disposition = response.headers?.['content-disposition'] || '';
+      const filenameMatch = disposition.match(
+        /filename[^;=\n]*=(['"]?)([^'";\n]+)\1/,
+      );
+      const filename = filenameMatch
+        ? filenameMatch[2].trim()
+        : `approved-expenses-${transactionId}-${new Date().toISOString().split('T')[0]}.csv`;
+
+      const blob = new Blob([response.data], {
+        type: response.headers?.['content-type'] || 'text/csv;charset=utf-8;',
+      });
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success('Approved expenses exported successfully.');
+    } catch {
+      toast.error('An unexpected error occurred during export.');
+    }
+  };
+
   // ── Close handlers ────────────────────────────────────────────────────────────
 
   const handleCloseViewModal = () => {
     setOpenViewModal(false);
-    setSelectedRequest(null);
+    setSelectedExpense(null);
   };
   const handleCloseTrackSignDialog = () => {
     setOpenTrackSignDialog(false);
-    setSelectedRequest(null);
+    setSelectedExpense(null);
+    refreshList();
   };
   const handleCloseEditModal = () => {
     setOpenEditModal(false);
-    setSelectedRequest(null);
+    setSelectedExpense(null);
   };
   const handleCloseDeleteDialog = () => {
     setOpenDeleteDialog(false);
-    setSelectedRequest(null);
-  };
-
-  // ── CSV export ────────────────────────────────────────────────────────────────
-
-  const handleExportCSV = () => {
-    if (!expenses || expenses.length === 0) {
-      toast.error('No expense data to export');
-      return;
-    }
-
-    // Response is a flat list of expense lines
-    const rows = expenses.map((expense) => ({
-      ID: expense.id,
-      Date: expense.date || '',
-      'Item Description': expense.item_description || '',
-      Amount: parseFloat(expense.amount || 0).toFixed(2),
-      Currency: expense.currency || '',
-      'Supporting Document': expense.supporting_document || '',
-      'Created At': expense.created_at
-        ? new Date(expense.created_at).toLocaleDateString()
-        : '',
-    }));
-
-    if (rows.length === 0) {
-      toast.error('No expenses found to export');
-      return;
-    }
-
-    const headers = Object.keys(rows[0]);
-    const csv = [
-      headers.join(','),
-      ...rows.map((row) =>
-        headers
-          .map((h) => {
-            const val = String(row[h]);
-            return val.includes(',') || val.includes('"')
-              ? `"${val.replace(/"/g, '""')}"`
-              : val;
-          })
-          .join(','),
-      ),
-    ].join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute(
-      'download',
-      `expenses_transaction_${transactionId}_${new Date().toISOString().split('T')[0]}.csv`,
-    );
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success('CSV exported successfully');
+    setSelectedExpense(null);
   };
 
   // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -516,8 +501,15 @@ const ManageExpenses = () => {
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Button
               variant="outlined"
-              startIcon={<DownloadIcon />}
+              startIcon={
+                isExporting ? (
+                  <CircularProgress size={16} sx={{ color: '#00529B' }} />
+                ) : (
+                  <DownloadIcon />
+                )
+              }
               onClick={handleExportCSV}
+              disabled={isExporting}
               sx={{
                 borderColor: '#00529B',
                 color: '#00529B',
@@ -525,10 +517,15 @@ const ManageExpenses = () => {
                   borderColor: '#003d73',
                   bgcolor: 'rgba(0, 82, 155, 0.05)',
                 },
+                '&.Mui-disabled': {
+                  borderColor: 'rgba(0, 82, 155, 0.3)',
+                  color: 'rgba(0, 82, 155, 0.4)',
+                },
                 textTransform: 'none',
+                minWidth: 130,
               }}
             >
-              Export CSV
+              {isExporting ? 'Exporting...' : 'Export CSV'}
             </Button>
             <Button
               variant="contained"
@@ -719,11 +716,7 @@ const ManageExpenses = () => {
                       sx={{ '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.02)' } }}
                     >
                       <TableCell>{page * rowsPerPage + index + 1}</TableCell>
-
-                      {/* Date */}
                       <TableCell>{expense.date || 'N/A'}</TableCell>
-
-                      {/* Item Description — truncate with tooltip */}
                       <TableCell sx={{ maxWidth: 220 }}>
                         <Tooltip
                           title={expense.item_description || ''}
@@ -743,15 +736,11 @@ const ManageExpenses = () => {
                           </Typography>
                         </Tooltip>
                       </TableCell>
-
-                      {/* Amount */}
                       <TableCell>
                         <Typography variant="body2" fontWeight={600}>
                           {formatAmount(expense.amount)}
                         </Typography>
                       </TableCell>
-
-                      {/* Currency */}
                       <TableCell>
                         <Chip
                           label={expense.currency || 'N/A'}
@@ -764,8 +753,6 @@ const ManageExpenses = () => {
                           }}
                         />
                       </TableCell>
-
-                      {/* Supporting Document */}
                       <TableCell>
                         {expense.supporting_document ? (
                           <Tooltip title="View document" arrow>
@@ -788,8 +775,6 @@ const ManageExpenses = () => {
                           </Typography>
                         )}
                       </TableCell>
-
-                      {/* Created At */}
                       <TableCell
                         sx={{ fontSize: '0.82rem', color: 'text.secondary' }}
                       >
@@ -806,8 +791,6 @@ const ManageExpenses = () => {
                             )
                           : 'N/A'}
                       </TableCell>
-
-                      {/* Actions */}
                       <TableCell align="center">
                         <Tooltip title="View" arrow>
                           <IconButton
@@ -1052,7 +1035,6 @@ const ManageExpenses = () => {
                             size="small"
                           />
                         </Grid>
-
                         <Grid item xs={12} sm={6}>
                           <TextField
                             fullWidth
@@ -1071,7 +1053,6 @@ const ManageExpenses = () => {
                             size="small"
                           />
                         </Grid>
-
                         <Grid item xs={12} sm={6}>
                           <FormControl fullWidth required size="small">
                             <InputLabel>Currency</InputLabel>
@@ -1104,7 +1085,6 @@ const ManageExpenses = () => {
                             </Typography>
                           )}
                         </Grid>
-
                         <Grid item xs={12} sm={6}>
                           <TextField
                             fullWidth
@@ -1121,7 +1101,6 @@ const ManageExpenses = () => {
                             size="small"
                           />
                         </Grid>
-
                         <Grid item xs={12}>
                           <Typography
                             variant="caption"
@@ -1239,24 +1218,24 @@ const ManageExpenses = () => {
           </form>
         </Dialog>
 
-        {/* Sub-component modals — original component names, expense data passed as request prop */}
-        {selectedRequest && (
+        {/* Modals */}
+        {selectedExpense && (
           <>
-            <ViewPettyCashRequestModal
+            <ViewExpenseModal
               open={openViewModal}
               handleClose={handleCloseViewModal}
-              request={selectedRequest}
+              expense={selectedExpense}
             />
             <TrackAndSignPettyCashDialog
               open={openTrackSignDialog}
               handleClose={handleCloseTrackSignDialog}
-              request={selectedRequest}
+              request={selectedExpense}
               onApprove={handleApprove}
             />
             <EditExpenseModal
               open={openEditModal}
               handleClose={handleCloseEditModal}
-              request={selectedRequest}
+              request={selectedExpense}
               onUpdate={handleEditSubmit}
               signers={signers}
               currencies={CURRENCIES}
@@ -1264,7 +1243,7 @@ const ManageExpenses = () => {
             <DeleteExpenseDialog
               open={openDeleteDialog}
               handleClose={handleCloseDeleteDialog}
-              request={selectedRequest}
+              request={selectedExpense}
               onDelete={handleDeleteConfirm}
             />
           </>

@@ -199,7 +199,7 @@ const DeleteTransactionDialog = ({
               <Grid container spacing={2}>
                 <Grid item xs={6}>
                   <Typography variant="caption" color="text.secondary">
-                    Holder
+                    Custodian
                   </Typography>
                   <Typography variant="body2" fontWeight={500}>
                     {transaction?.holder?.firstname}{' '}

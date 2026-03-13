@@ -3,7 +3,7 @@ import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   createPettyCashReplenishRequest,
-  getAllPettyCashRequests,
+  getPettyCashIssuanceRequests,
   updatePettyCashReplenishRequest,
   deletePettyCashReplenishRequest,
   trackPettyCashReplenishRequest,
@@ -36,7 +36,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Alert,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddIcon from '@mui/icons-material/Add';
@@ -48,7 +47,6 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import RootLayout from '../layouts/RootLayout';
-// ── renamed: ViewPettyCashRequestModal → ViewRequestPettyCashModal ──
 import ViewRequestPettyCashModal from '../components/ViewRequestPettyCashModal';
 import TrackAndSignPettyCashDialog from '../components/TrackAndSignPettyCashDialog';
 import EditRequestPettyCashModal from '../components/EditRequestPettyCashModal';
@@ -90,7 +88,8 @@ const RequestPettyCash = () => {
   const dispatch = useDispatch();
 
   const transaction = location.state?.transaction;
-  const { pettyCashRequests, isLoading } = useSelector(
+
+  const { issuanceRequests, isLoading } = useSelector(
     (state) => state.pettyCash,
   );
   const { users: signersData } = useSelector((state) => state.user);
@@ -113,19 +112,35 @@ const RequestPettyCash = () => {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
 
   const signers = signersData?.results || [];
-  const requests = pettyCashRequests?.results || [];
-  const totalCount = pettyCashRequests?.count || 0;
+
+  // API returns { requests: [...], total_requests: N }
+  const requests =
+    issuanceRequests?.requests ??
+    issuanceRequests?.results ??
+    (Array.isArray(issuanceRequests) ? issuanceRequests : []);
+  const totalCount =
+    issuanceRequests?.total_requests ??
+    issuanceRequests?.count ??
+    requests.length;
+
+  // ── Data fetching ──────────────────────────────────────────────────────────
 
   const refreshList = (p = 1) => {
     dispatch(
-      getAllPettyCashRequests({
-        page: p,
-        related_petty_cash_id: transactionId,
+      getPettyCashIssuanceRequests({
+        id: transactionId,
+        params: { page: p },
       }),
     );
   };
 
-  // Pagination handlers
+  useEffect(() => {
+    dispatch(getAllSigners({ is_petty_cash_user: 'true' }));
+    refreshList(1);
+  }, [dispatch, transactionId]);
+
+  // ── Pagination ─────────────────────────────────────────────────────────────
+
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
     refreshList(newPage + 1);
@@ -137,13 +152,8 @@ const RequestPettyCash = () => {
     refreshList(1);
   };
 
-  // Fetch data on component mount
-  useEffect(() => {
-    dispatch(getAllSigners({ is_petty_cash_user: 'true' }));
-    refreshList(1);
-  }, [dispatch, transactionId]);
+  // ── Form handlers ──────────────────────────────────────────────────────────
 
-  // Form handlers
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
@@ -164,12 +174,23 @@ const RequestPettyCash = () => {
           toast.error('CSV file is empty or invalid');
           return;
         }
+
+        // Dynamically find the "amount" column index from the header row
+        const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+        const amountIndex = headers.indexOf('amount');
+
+        if (amountIndex === -1) {
+          toast.error('CSV does not contain an "amount" column');
+          return;
+        }
+
         let total = 0;
         for (let i = 1; i < lines.length; i++) {
           const columns = lines[i].split(',');
-          const amount = parseFloat(columns[5]) || 0;
+          const amount = parseFloat(columns[amountIndex]) || 0;
           total += amount;
         }
+
         setFormData({
           ...formData,
           expenses_csv: file,
@@ -205,21 +226,12 @@ const RequestPettyCash = () => {
       const submitData = new FormData();
       submitData.append('related_petty_cash_id', transactionId);
       submitData.append('verifier_id', formData.verifier_id);
-      const expensesData = [
-        {
-          date: new Date().toISOString().split('T')[0],
-          item_description: formData.description,
-          amount: formData.amount,
-          currency: 'USD',
-        },
-      ];
-      submitData.append('expenses', JSON.stringify(expensesData));
+      submitData.append('amount', formData.amount);
       submitData.append('comment', formData.comment);
       if (formData.expenses_csv) {
-        submitData.append('expense_document_0', formData.expenses_csv);
+        submitData.append('expenses_file', formData.expenses_csv);
       }
 
-      // ── uses createPettyCashReplenishRequest ──
       await dispatch(createPettyCashReplenishRequest(submitData)).unwrap();
       toast.success('Petty cash request created successfully');
       handleCloseCreateDialog();
@@ -229,7 +241,8 @@ const RequestPettyCash = () => {
     }
   };
 
-  // Action handlers
+  // ── Action handlers ────────────────────────────────────────────────────────
+
   const handleView = (request) => {
     setSelectedRequest(request);
     setOpenViewModal(true);
@@ -237,7 +250,6 @@ const RequestPettyCash = () => {
 
   const handleTrackAndSign = async (request) => {
     setSelectedRequest(request);
-    // ── dispatch track before opening dialog ──
     await dispatch(trackPettyCashReplenishRequest(request.id));
     setOpenTrackSignDialog(true);
   };
@@ -254,7 +266,6 @@ const RequestPettyCash = () => {
 
   const handleEditSubmit = async (id, updatedFormData) => {
     try {
-      // ── uses updatePettyCashReplenishRequest ──
       await dispatch(
         updatePettyCashReplenishRequest({ id, formData: updatedFormData }),
       ).unwrap();
@@ -267,7 +278,6 @@ const RequestPettyCash = () => {
     }
   };
 
-  // ── onDelete now receives (id, comment) from DeleteRequestPettyCashDialog ──
   const handleDeleteConfirm = async (id, comment) => {
     try {
       await dispatch(deletePettyCashReplenishRequest({ id, comment })).unwrap();
@@ -280,7 +290,6 @@ const RequestPettyCash = () => {
     }
   };
 
-  // ── onApprove callback from TrackAndSignPettyCashDialog ──
   const handleApprove = async (id, action, notes) => {
     try {
       await dispatch(
@@ -292,6 +301,8 @@ const RequestPettyCash = () => {
     }
   };
 
+  // ── Close handlers ─────────────────────────────────────────────────────────
+
   const handleCloseViewModal = () => {
     setOpenViewModal(false);
     setSelectedRequest(null);
@@ -299,6 +310,7 @@ const RequestPettyCash = () => {
   const handleCloseTrackSignDialog = () => {
     setOpenTrackSignDialog(false);
     setSelectedRequest(null);
+    refreshList(page + 1);
   };
   const handleCloseEditModal = () => {
     setOpenEditModal(false);
@@ -308,6 +320,8 @@ const RequestPettyCash = () => {
     setOpenDeleteDialog(false);
     setSelectedRequest(null);
   };
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
 
   const getStatusChip = (status) => {
     const statusColors = {
@@ -339,17 +353,18 @@ const RequestPettyCash = () => {
     );
   };
 
-  const formatAmount = (amount) => {
-    return new Intl.NumberFormat('en-US', {
+  const formatAmount = (amount) =>
+    new Intl.NumberFormat('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(parseFloat(amount || 0));
-  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <RootLayout>
       <Box>
-        {/* Header with Back Button */}
+        {/* Header */}
         <Box sx={styles.header}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <IconButton
@@ -396,18 +411,37 @@ const RequestPettyCash = () => {
             </Typography>
           </Box>
 
-          <TableContainer>
-            <Table sx={styles.table}>
+          <TableContainer sx={{ overflowX: 'auto' }}>
+            <Table
+              sx={{ ...styles.table, tableLayout: 'fixed', minWidth: 900 }}
+            >
               <TableHead>
                 <TableRow sx={{ bgcolor: 'rgba(0, 82, 155, 0.05)' }}>
-                  <TableCell sx={styles.headerCell}>#</TableCell>
-                  <TableCell sx={styles.headerCell}>Requester</TableCell>
-                  <TableCell sx={styles.headerCell}>Verifier</TableCell>
-                  <TableCell sx={styles.headerCell}>Amount</TableCell>
-                  <TableCell sx={styles.headerCell}>Description</TableCell>
-                  <TableCell sx={styles.headerCell}>Status</TableCell>
-                  <TableCell sx={styles.headerCell}>Created At</TableCell>
-                  <TableCell sx={styles.headerCell} align="center">
+                  <TableCell sx={{ ...styles.headerCell, width: '40px' }}>
+                    #
+                  </TableCell>
+                  <TableCell sx={{ ...styles.headerCell, width: '150px' }}>
+                    Requester
+                  </TableCell>
+                  <TableCell sx={{ ...styles.headerCell, width: '110px' }}>
+                    Amount
+                  </TableCell>
+                  <TableCell sx={{ ...styles.headerCell, width: '80px' }}>
+                    Currency
+                  </TableCell>
+                  <TableCell sx={{ ...styles.headerCell, width: '110px' }}>
+                    Expenses File
+                  </TableCell>
+                  <TableCell sx={{ ...styles.headerCell, width: '100px' }}>
+                    Status
+                  </TableCell>
+                  <TableCell sx={{ ...styles.headerCell, width: '150px' }}>
+                    Created At
+                  </TableCell>
+                  <TableCell
+                    sx={{ ...styles.headerCell, width: '160px' }}
+                    align="center"
+                  >
                     Actions
                   </TableCell>
                 </TableRow>
@@ -433,24 +467,75 @@ const RequestPettyCash = () => {
                       sx={{ '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.02)' } }}
                     >
                       <TableCell>{page * rowsPerPage + index + 1}</TableCell>
-                      <TableCell>
+                      <TableCell
+                        sx={{
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
                         {request.requester?.firstname}{' '}
                         {request.requester?.lastname}
                       </TableCell>
                       <TableCell>
-                        {request.verifier?.firstname}{' '}
-                        {request.verifier?.lastname}
+                        {request.currency === 'USD' ? '$' : ''}
+                        {formatAmount(request.total_expenses)}{' '}
+                        {request.currency !== 'USD' ? request.currency : ''}
                       </TableCell>
                       <TableCell>
-                        ${formatAmount(request.total_expenses)}
+                        <Chip
+                          label={request.currency || 'USD'}
+                          size="small"
+                          sx={{
+                            bgcolor: '#00529B',
+                            color: 'white',
+                            fontWeight: 500,
+                            minWidth: '50px',
+                          }}
+                        />
                       </TableCell>
                       <TableCell>
-                        {request.expenses?.[0]?.item_description || 'N/A'}
+                        {request.expenses_file_url ? (
+                          <Tooltip title="Download expenses CSV" arrow>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              component="a"
+                              href={request.expenses_file_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              sx={{
+                                fontSize: '0.7rem',
+                                textTransform: 'none',
+                                color: '#00529B',
+                                borderColor: '#00529B',
+                                px: 1,
+                                py: 0.25,
+                                minWidth: 'auto',
+                              }}
+                            >
+                              View CSV
+                            </Button>
+                          </Tooltip>
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">
+                            No file
+                          </Typography>
+                        )}
                       </TableCell>
                       <TableCell>{getStatusChip(request.status)}</TableCell>
-                      <TableCell>
+                      <TableCell sx={{ fontSize: '0.82rem' }}>
                         {request.created_at
-                          ? new Date(request.created_at).toLocaleString()
+                          ? new Date(request.created_at).toLocaleString(
+                              'en-US',
+                              {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              },
+                            )
                           : 'N/A'}
                       </TableCell>
                       <TableCell align="center">
@@ -539,7 +624,7 @@ const RequestPettyCash = () => {
           <form onSubmit={handleSubmit}>
             <DialogContent sx={{ mt: 2 }}>
               <Grid container spacing={3}>
-                {/* Verifier Selection */}
+                {/* Verifier */}
                 <Grid item xs={12}>
                   <Box
                     sx={{
@@ -651,7 +736,7 @@ const RequestPettyCash = () => {
                   )}
                 </Grid>
 
-                {/* Auto-calculated Amount (Read-only) */}
+                {/* Auto-calculated Amount */}
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
@@ -720,7 +805,6 @@ const RequestPettyCash = () => {
         {/* Modals */}
         {selectedRequest && (
           <>
-            {/* ── ViewRequestPettyCashModal (new component, request-aware) ── */}
             <ViewRequestPettyCashModal
               open={openViewModal}
               handleClose={handleCloseViewModal}

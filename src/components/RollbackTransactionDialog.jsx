@@ -19,15 +19,13 @@ import {
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import UndoIcon from '@mui/icons-material/Undo';
 import BlockIcon from '@mui/icons-material/Block';
+import LockPersonIcon from '@mui/icons-material/LockPerson';
 import { toast } from 'react-toastify';
 import { rollbackPettyCash } from '../features/pettyCash/pettyCashSlice';
 
 // ── Statuses that block rollback ──────────────────────────────────────────────
 // Note: 'pending_acknowledgment' is intentionally NOT blocked — rollback
 // during that state is valid and resets the transaction to its previous step.
-// Permission validation (holder / admin check) is handled upstream in
-// PettyCashTransactions.handleRollback, so this dialog only opens for
-// authorised users.
 const BLOCKED_STATUSES = {
   exhausted: {
     title: 'Cannot Rollback — Transaction Exhausted',
@@ -41,6 +39,7 @@ const RollbackTransactionDialog = ({
   handleClose,
   transaction,
   onSuccess,
+  loggedInUser, // ← received as prop, same pattern as AcknowledgeTransactionDialog
 }) => {
   const dispatch = useDispatch();
   const { isLoading } = useSelector((state) => state.pettyCash);
@@ -48,12 +47,22 @@ const RollbackTransactionDialog = ({
   const [comment, setComment] = useState('');
   const [commentError, setCommentError] = useState('');
 
-  // Determine if this transaction's current status blocks rollback
-  const blockedInfo = BLOCKED_STATUSES[transaction?.status];
-  const isBlocked = !!blockedInfo;
+  // ── Permission & status checks ────────────────────────────────────────────
+  // Custodian OR admin can rollback (mirrors handleRollback guard in parent)
+  const isHolder = loggedInUser?.id === transaction?.holder?.id;
+  const isAdmin =
+    loggedInUser?.role === 'admin' || loggedInUser?.role === 'signer_admin';
+  const hasPermission = isHolder || isAdmin;
 
+  const blockedInfo = BLOCKED_STATUSES[transaction?.status];
+  const isStatusBlocked = !!blockedInfo;
+
+  // Can only proceed if both permission and status are satisfied
+  const canRollback = hasPermission && !isStatusBlocked;
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
   const handleConfirmRollback = async () => {
-    if (isBlocked) return;
+    if (!canRollback) return;
 
     if (!comment.trim()) {
       setCommentError('A comment is required before rolling back.');
@@ -99,6 +108,8 @@ const RollbackTransactionDialog = ({
       .join(' ');
   };
 
+  const isBlocked = !hasPermission || isStatusBlocked;
+
   return (
     <Dialog open={open} onClose={handleCancel} maxWidth="sm" fullWidth>
       <DialogTitle
@@ -115,8 +126,21 @@ const RollbackTransactionDialog = ({
       </DialogTitle>
 
       <DialogContent sx={{ mt: 2 }}>
-        {/* ── BLOCKED BY STATUS ── */}
-        {isBlocked ? (
+        {/* ── BLOCK 1: No permission ── */}
+        {!hasPermission && loggedInUser && (
+          <Alert severity="error" icon={<LockPersonIcon />} sx={{ mb: 3 }}>
+            <AlertTitle sx={{ fontWeight: 700 }}>Permission Denied</AlertTitle>
+            Only the transaction custodian (
+            <strong>
+              {transaction?.holder?.firstname} {transaction?.holder?.lastname}
+            </strong>
+            ) or an <strong>Admin</strong> can perform a rollback on this
+            transaction.
+          </Alert>
+        )}
+
+        {/* ── BLOCK 2: Permission OK but status blocked ── */}
+        {hasPermission && isStatusBlocked && (
           <>
             <Alert
               severity="error"
@@ -150,7 +174,7 @@ const RollbackTransactionDialog = ({
               <Grid container spacing={1.5}>
                 <Grid item xs={6}>
                   <Typography variant="caption" color="text.secondary">
-                    Holder
+                    Custodian
                   </Typography>
                   <Typography variant="body2" fontWeight={500}>
                     {transaction?.holder?.firstname}{' '}
@@ -193,10 +217,11 @@ const RollbackTransactionDialog = ({
               </Grid>
             </Box>
           </>
-        ) : (
-          <>
-            {/* ── ALLOWED STATE ── */}
+        )}
 
+        {/* ── ALLOWED: full rollback form ── */}
+        {canRollback && (
+          <>
             {/* Caution alert */}
             <Alert severity="warning" sx={{ mb: 3 }}>
               <AlertTitle sx={{ fontWeight: 600 }}>Caution</AlertTitle>
@@ -224,7 +249,7 @@ const RollbackTransactionDialog = ({
               <Grid container spacing={2}>
                 <Grid item xs={6}>
                   <Typography variant="caption" color="text.secondary">
-                    Holder
+                    Custodian
                   </Typography>
                   <Typography variant="body2" fontWeight={500}>
                     {transaction?.holder?.firstname}{' '}
@@ -403,8 +428,8 @@ const RollbackTransactionDialog = ({
           {isBlocked ? 'Close' : 'Cancel'}
         </Button>
 
-        {/* Only render Rollback button when status allows it */}
-        {!isBlocked && (
+        {/* Only render Rollback button when both permission and status allow it */}
+        {canRollback && (
           <Button
             onClick={handleConfirmRollback}
             variant="contained"
