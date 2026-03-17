@@ -27,6 +27,7 @@ import {
   verifySignature,
 } from '../features/invoice/invoiceSlice';
 import DownloadIcon from '@mui/icons-material/Download';
+import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import CloseIcon from '@mui/icons-material/Close';
 import PersonIcon from '@mui/icons-material/Person';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
@@ -35,8 +36,12 @@ import QrCodeIcon from '@mui/icons-material/QrCode';
 import { getInvoiceReport } from '../features/report/reportSlice';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'react-toastify';
+import ChainOverrideDialog from '../components/ChainOverrideDialog';
 
-// List of payment terms options
+// ── COA data from DB instead of Excel file ────────────────────────────────────
+import useCOAData from '../hooks/useCOAData';
+
+// Payment terms — kept for getDescriptiveValue lookup (no API equivalent)
 const paymentTermsOptions = [
   { value: 'net_30', label: 'Net 30 - Payment due within 30 days' },
   { value: 'net_45', label: 'Net 45 - Payment due within 45 days' },
@@ -89,25 +94,10 @@ const style = {
     gap: 2,
     bgcolor: 'white',
   },
-  section: {
-    p: 3,
-    mb: 2,
-    bgcolor: 'white',
-  },
-  fieldContainer: {
-    mb: 2,
-  },
-  fieldLabel: {
-    fontWeight: 600,
-    color: '#666',
-    fontSize: '0.875rem',
-    mb: 0.5,
-  },
-  fieldValue: {
-    color: '#333',
-    fontSize: '0.95rem',
-    fontWeight: 500,
-  },
+  section: { p: 3, mb: 2, bgcolor: 'white' },
+  fieldContainer: { mb: 2 },
+  fieldLabel: { fontWeight: 600, color: '#666', fontSize: '0.875rem', mb: 0.5 },
+  fieldValue: { color: '#333', fontSize: '0.95rem', fontWeight: 500 },
   glLineCard: {
     border: '1px solid #e0e0e0',
     borderRadius: '8px',
@@ -115,12 +105,7 @@ const style = {
     mb: 2,
     bgcolor: 'rgba(0, 82, 155, 0.02)',
   },
-  stepperContainer: {
-    p: 3,
-    bgcolor: 'white',
-    borderRadius: '8px',
-    mb: 2,
-  },
+  stepperContainer: { p: 3, bgcolor: 'white', borderRadius: '8px', mb: 2 },
   qrCodeContainer: {
     display: 'flex',
     flexDirection: 'column',
@@ -139,7 +124,6 @@ const style = {
   },
 };
 
-// Helper function to get status color
 const getStatusColor = (status) => {
   switch (status?.toLowerCase()) {
     case 'approved':
@@ -157,7 +141,6 @@ const getStatusColor = (status) => {
   }
 };
 
-// Helper function to format currency
 const formatCurrency = (amount, currency) => {
   if (!amount) return 'N/A';
   return `${currency || ''} ${parseFloat(amount).toLocaleString()}`;
@@ -167,177 +150,97 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { invoiceReport } = useSelector((state) => state.report);
+
   const [open, setOpen] = useState(false);
   const [buttonClicked, setButtonClicked] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [invoice, setInvoice] = useState();
   const [isAllowed, setIsAllowed] = useState(false);
-
   const [activeStep, setActiveStep] = useState(0);
-  const [user, setUser] = useState(JSON.parse(localStorage.getItem('user')));
-  const [selectedId, setSelectedId] = useState(
-    selected?.invoice?.id || selected?.id
-  );
+  const [user] = useState(JSON.parse(localStorage.getItem('user')));
+  const isAdmin = user?.role === 'admin' || user?.role === 'signer_admin';
+  const [selectedId] = useState(selected?.invoice?.id || selected?.id);
 
-  // State for Excel data
-  const [excelData, setExcelData] = useState({
-    suppliers: [],
-    costCenters: [],
-    glCodes: [],
-    locations: [],
-    aircraftTypes: [],
-    routes: [],
+  const [chainOpen, setChainOpen] = useState(false);
+
+  // ── COA data from DB (replaces loadExcelData + excelData state) ────────────
+  // enabled: openModal  → only fetch when the modal is open,
+  //                       matching the old "if (openModal) loadExcelData()" behaviour.
+  const { excelData, isLoading: coaLoading } = useCOAData({
+    enabled: openModal,
   });
-  const [dataLoading, setDataLoading] = useState(false);
 
-  // Function to load Excel data
-  const loadExcelData = async () => {
-    try {
-      const XLSX = await import('xlsx');
+  // ── value helpers — completely unchanged from original ─────────────────────
+  const getValue = (field) =>
+    invoice?.invoice?.[field] || invoice?.[field] || 'N/A';
 
-      const response = await fetch('/6. COA.xlsx');
-      if (!response.ok) {
-        throw new Error(`Failed to fetch Excel file: ${response.statusText}`);
+  const getInvoiceId = () => invoice?.invoice?.id || invoice?.id;
+
+  const getDescriptiveValue = (field, value) => {
+    if (!value || value === 'N/A') return 'N/A';
+    switch (field) {
+      case 'location': {
+        const loc = excelData.locations.find((item) => item.value === value);
+        return loc ? loc.label : value;
       }
-
-      const arrayBuffer = await response.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer, {
-        cellStyles: true,
-        cellFormulas: true,
-        cellDates: true,
-        cellNF: true,
-        sheetStubs: true,
-      });
-
-      const processSheet = (
-        sheetName,
-        valueColumn,
-        labelColumn,
-        combinedLabel = false
-      ) => {
-        try {
-          const worksheet = workbook.Sheets[sheetName];
-          if (!worksheet) {
-            console.warn(`Sheet "${sheetName}" not found`);
-            return [];
-          }
-
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-          return jsonData
-            .slice(1)
-            .filter(
-              (row) =>
-                row[valueColumn] !== undefined &&
-                row[valueColumn] !== null &&
-                row[valueColumn] !== ''
-            )
-            .map((row) => {
-              const value = String(row[valueColumn]).trim();
-              const label = row[labelColumn]
-                ? String(row[labelColumn]).trim()
-                : value;
-
-              return {
-                value: value,
-                label: combinedLabel ? `${value} - ${label}` : label,
-                description: label,
-              };
-            })
-            .filter((item) => item.value && item.label);
-        } catch (error) {
-          console.error(`Error processing sheet ${sheetName}:`, error);
-          return [];
-        }
-      };
-
-      const suppliers = processSheet('Supplier Details', 0, 1, true);
-      const costCenters = processSheet('Cost Center', 0, 1, true);
-      const glCodes = processSheet('GL Code', 0, 1, true);
-      const locations = processSheet('Location Code', 0, 1, true);
-      const aircraftTypes = processSheet('Aircraft Type', 0, 1, true);
-      const routes = processSheet('Route', 0, 1, true);
-
-      return {
-        suppliers,
-        costCenters,
-        glCodes,
-        locations,
-        aircraftTypes: aircraftTypes.length > 0 ? aircraftTypes : [],
-        routes: routes.length > 0 ? routes : [],
-      };
-    } catch (error) {
-      console.error('Error loading Excel data:', error);
-
-      return {
-        suppliers: [
-          {
-            value: '00001',
-            label: '00001 - Sample Supplier',
-            description: 'Sample Supplier',
-          },
-        ],
-        costCenters: [
-          {
-            value: '1000',
-            label: '1000 - Sample Cost Center',
-            description: 'Sample Cost Center',
-          },
-        ],
-        glCodes: [
-          {
-            value: '1011',
-            label: '1011 - Sample GL Code',
-            description: 'Sample GL Code',
-          },
-        ],
-        locations: [
-          {
-            value: '0000',
-            label: '0000 - Default Location',
-            description: 'Default Location',
-          },
-        ],
-        aircraftTypes: [],
-        routes: [],
-      };
+      case 'aircraft_type': {
+        const ac = excelData.aircraftTypes.find((item) => item.value === value);
+        return ac ? ac.label : value;
+      }
+      case 'route': {
+        const route = excelData.routes.find((item) => item.value === value);
+        return route ? route.label : value;
+      }
+      case 'payment_terms': {
+        const pt = paymentTermsOptions.find((option) => option.value === value);
+        return pt ? pt.label : value;
+      }
+      case 'supplier_number': {
+        const supplier = excelData.suppliers.find(
+          (item) => item.value === value,
+        );
+        return supplier ? supplier.label : value;
+      }
+      default:
+        return value;
     }
   };
 
-  // Load Excel data when component mounts or when modal opens
-  useEffect(() => {
-    if (openModal) {
-      const loadData = async () => {
-        setDataLoading(true);
-        try {
-          const data = await loadExcelData();
-          setExcelData(data);
-        } catch (error) {
-          console.error('Failed to load Excel data:', error);
-        } finally {
-          setDataLoading(false);
-        }
-      };
+  const getGLCodeDescription = (glCode) => {
+    if (!glCode || glCode === 'N/A') return 'N/A';
+    const gl = excelData.glCodes.find((item) => item.value === glCode);
+    return gl ? gl.label : glCode;
+  };
 
-      loadData();
-    }
-  }, [openModal]);
+  const getCostCenterDescription = (costCenter) => {
+    if (!costCenter || costCenter === 'N/A') return 'N/A';
+    const cc = excelData.costCenters.find((item) => item.value === costCenter);
+    return cc ? cc.label : costCenter;
+  };
 
+  // Supports BOTH flat and nested structures
+  const glLines = invoice?.invoice?.gl_lines || invoice?.gl_lines || [];
+  const invoiceOwner =
+    invoice?.invoice?.invoice_owner || invoice?.invoice_owner;
+  const ownerName = invoiceOwner
+    ? `${invoiceOwner.firstname || ''} ${invoiceOwner.lastname || ''}`.trim()
+    : 'N/A';
+  const isRollBack = invoice?.invoice?.is_roll_back || invoice?.is_roll_back;
+
+  // ── event handlers — all unchanged ────────────────────────────────────────
   const handleStepClick = (status) => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    const signer = invoice?.invoice_histories?.find((item) => {
-      return item?.signer?.email === user?.email;
-    });
-
+    const currentUser = JSON.parse(localStorage.getItem('user'));
+    const signer = invoice?.invoice_histories?.find(
+      (item) => item?.signer?.email === currentUser?.email,
+    );
     if (
-      (user?.role === 'signer' || user?.role === 'signer_admin') &&
+      (currentUser?.role === 'signer' ||
+        currentUser?.role === 'signer_admin') &&
       signer?.status === 'to sign'
     ) {
       setIsAllowed(true);
     }
-    if (status === 'to sign') {
-      setOpen(true);
-    }
+    if (status === 'to sign') setOpen(true);
   };
 
   const handleClose = () => {
@@ -352,11 +255,10 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
       const fetchedInvoice = res.payload;
 
       const hasSignedCEO = fetchedInvoice.invoice_histories.some(
-        (item) => item.status === 'signed' && item.signer.position === 'CEO'
+        (item) => item.status === 'signed' && item.signer.position === 'CEO',
       );
-
       const hasSignedDCEO = fetchedInvoice.invoice_histories.some(
-        (item) => item.status === 'signed' && item.signer.position === 'DCEO'
+        (item) => item.status === 'signed' && item.signer.position === 'DCEO',
       );
 
       const processedInvoice = {
@@ -365,13 +267,13 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
           if (hasSignedCEO) {
             return fetchedInvoice.invoice_histories.filter(
               (item) =>
-                item?.signer?.email !== process.env.REACT_APP_CEO_OFFICE_EMAIL
+                item?.signer?.email !== process.env.REACT_APP_CEO_OFFICE_EMAIL,
             );
           }
           if (hasSignedDCEO) {
             return fetchedInvoice.invoice_histories.filter(
               (item) =>
-                item?.signer?.email !== process.env.REACT_APP_DCEO_OFFICE_EMAIL
+                item?.signer?.email !== process.env.REACT_APP_DCEO_OFFICE_EMAIL,
             );
           }
           return fetchedInvoice.invoice_histories;
@@ -392,25 +294,21 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
     if (invoiceReport && buttonClicked) {
       const blob = new Blob([invoiceReport], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
-
       const a = document.createElement('a');
       a.href = url;
       a.download = 'report.pdf';
-
       document.body.appendChild(a);
       a.click();
-
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
     }
   }, [invoiceReport]);
 
-  const handleDownloadInvoice = async (e, invoice) => {
+  const handleDownloadInvoice = async (e, inv) => {
     e.preventDefault();
     setButtonClicked(true);
-
     try {
-      navigate('/download-pdf', { state: { invoice } });
+      navigate('/download-pdf', { state: { invoice: inv } });
     } catch (error) {
       console.error('Error navigating to download PDF:', error);
     }
@@ -428,91 +326,13 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
         public_key,
       };
       const result = await dispatch(verifySignature(data));
-      if (result.payload.valid === true) {
-        toast.success(result.payload.message);
-      }
+      if (result.payload.valid === true) toast.success(result.payload.message);
     } catch (error) {
       toast.error(error);
     }
   };
 
-  // Helper function to get value - supports BOTH flat and nested structures
-  const getValue = (field) => {
-    return invoice?.invoice?.[field] || invoice?.[field] || 'N/A';
-  };
-
-  // Helper function to get invoice ID - supports BOTH structures
-  const getInvoiceId = () => {
-    return invoice?.invoice?.id || invoice?.id;
-  };
-
-  // Helper function to get descriptive label for a field
-  const getDescriptiveValue = (field, value) => {
-    if (!value || value === 'N/A') return 'N/A';
-
-    switch (field) {
-      case 'location':
-        const location = excelData.locations.find(
-          (item) => item.value === value
-        );
-        return location ? location.label : value;
-
-      case 'aircraft_type':
-        const aircraftType = excelData.aircraftTypes.find(
-          (item) => item.value === value
-        );
-        return aircraftType ? aircraftType.label : value;
-
-      case 'route':
-        const route = excelData.routes.find((item) => item.value === value);
-        return route ? route.label : value;
-
-      case 'payment_terms':
-        const paymentTerm = paymentTermsOptions.find(
-          (option) => option.value === value
-        );
-        return paymentTerm ? paymentTerm.label : value;
-
-      case 'supplier_number':
-        const supplier = excelData.suppliers.find(
-          (item) => item.value === value
-        );
-        return supplier ? supplier.label : value;
-
-      default:
-        return value;
-    }
-  };
-
-  // Helper function to get GL Code description
-  const getGLCodeDescription = (glCode) => {
-    if (!glCode || glCode === 'N/A') return 'N/A';
-    const glItem = excelData.glCodes.find((item) => item.value === glCode);
-    return glItem ? glItem.label : glCode;
-  };
-
-  // Helper function to get Cost Center description
-  const getCostCenterDescription = (costCenter) => {
-    if (!costCenter || costCenter === 'N/A') return 'N/A';
-    const ccItem = excelData.costCenters.find(
-      (item) => item.value === costCenter
-    );
-    return ccItem ? ccItem.label : costCenter;
-  };
-
-  // Get GL Lines data - supports BOTH structures
-  const glLines = invoice?.invoice?.gl_lines || invoice?.gl_lines || [];
-
-  // Get invoice owner info - supports BOTH structures
-  const invoiceOwner =
-    invoice?.invoice?.invoice_owner || invoice?.invoice_owner;
-  const ownerName = invoiceOwner
-    ? `${invoiceOwner.firstname || ''} ${invoiceOwner.lastname || ''}`.trim()
-    : 'N/A';
-
-  // Get is_roll_back - supports BOTH structures
-  const isRollBack = invoice?.invoice?.is_roll_back || invoice?.is_roll_back;
-
+  // ── render — JSX completely unchanged, only dataLoading → coaLoading ───────
   return (
     <Modal
       open={openModal}
@@ -536,11 +356,10 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
           </IconButton>
         </Box>
 
-        {/* Content */}
         <Box sx={style.content}>
           {(invoice?.invoice || invoice) && (
             <>
-              {/* Invoice Header Section */}
+              {/* ── Invoice Header ───────────────────────────────────────── */}
               <Paper elevation={0} sx={style.section}>
                 <Box
                   display="flex"
@@ -569,7 +388,6 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                       </Typography>
                     </Box>
                   </Grid>
-
                   <Grid item xs={12} md={6}>
                     <Box sx={style.fieldContainer}>
                       <Typography sx={style.fieldLabel}>
@@ -578,13 +396,12 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                       <Typography sx={style.fieldValue}>
                         {getValue('invoice_date') !== 'N/A'
                           ? new Date(
-                              getValue('invoice_date')
+                              getValue('invoice_date'),
                             ).toLocaleDateString()
                           : 'N/A'}
                       </Typography>
                     </Box>
                   </Grid>
-
                   <Grid item xs={12} md={6}>
                     <Box sx={style.fieldContainer}>
                       <Typography sx={style.fieldLabel}>
@@ -595,7 +412,6 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                       </Typography>
                     </Box>
                   </Grid>
-
                   <Grid item xs={12} md={6}>
                     <Box sx={style.fieldContainer}>
                       <Typography sx={style.fieldLabel}>
@@ -608,12 +424,11 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                       >
                         {formatCurrency(
                           getValue('amount'),
-                          getValue('currency')
+                          getValue('currency'),
                         )}
                       </Typography>
                     </Box>
                   </Grid>
-
                   <Grid item xs={12} md={6}>
                     <Box sx={style.fieldContainer}>
                       <Typography sx={style.fieldLabel}>Created By</Typography>
@@ -632,7 +447,6 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                       </Box>
                     </Box>
                   </Grid>
-
                   <Grid item xs={12} md={6}>
                     <Box sx={style.fieldContainer}>
                       <Typography sx={style.fieldLabel}>Created At</Typography>
@@ -656,7 +470,7 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                 </Grid>
               </Paper>
 
-              {/* Supplier Information Section */}
+              {/* ── Supplier Information ─────────────────────────────────── */}
               <Paper elevation={0} sx={style.section}>
                 <Typography
                   variant="subtitle1"
@@ -674,16 +488,15 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                         Supplier Number
                       </Typography>
                       <Typography sx={style.fieldValue}>
-                        {dataLoading
+                        {coaLoading
                           ? 'Loading...'
                           : getDescriptiveValue(
                               'supplier_number',
-                              getValue('supplier_number')
+                              getValue('supplier_number'),
                             )}
                       </Typography>
                     </Box>
                   </Grid>
-
                   <Grid item xs={12} md={6}>
                     <Box sx={style.fieldContainer}>
                       <Typography sx={style.fieldLabel}>
@@ -694,7 +507,6 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                       </Typography>
                     </Box>
                   </Grid>
-
                   <Grid item xs={12} md={6}>
                     <Box sx={style.fieldContainer}>
                       <Typography sx={style.fieldLabel}>Currency</Typography>
@@ -703,18 +515,17 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                       </Typography>
                     </Box>
                   </Grid>
-
                   <Grid item xs={12} md={6}>
                     <Box sx={style.fieldContainer}>
                       <Typography sx={style.fieldLabel}>
                         Payment Terms
                       </Typography>
                       <Typography sx={style.fieldValue}>
-                        {dataLoading
+                        {coaLoading
                           ? 'Loading...'
                           : getDescriptiveValue(
                               'payment_terms',
-                              getValue('payment_terms')
+                              getValue('payment_terms'),
                             )}
                       </Typography>
                     </Box>
@@ -722,7 +533,7 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                 </Grid>
               </Paper>
 
-              {/* GL Lines Section - Now includes location, aircraft_type, route */}
+              {/* ── GL Lines ─────────────────────────────────────────────── */}
               {glLines.length > 0 && (
                 <Paper elevation={0} sx={style.section}>
                   <Typography
@@ -746,20 +557,19 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                         </Typography>
 
                         <Grid container spacing={2}>
-                          {/* Row 1: GL Code, Description, Cost Center, Amount */}
+                          {/* Row 1: GL Code | GL Description | Cost Center | Amount */}
                           <Grid item xs={12} md={3}>
                             <Box sx={style.fieldContainer}>
                               <Typography sx={style.fieldLabel}>
                                 GL Code
                               </Typography>
                               <Typography sx={style.fieldValue}>
-                                {dataLoading
+                                {coaLoading
                                   ? 'Loading...'
                                   : getGLCodeDescription(line.gl_code)}
                               </Typography>
                             </Box>
                           </Grid>
-
                           <Grid item xs={12} md={4}>
                             <Box sx={style.fieldContainer}>
                               <Typography sx={style.fieldLabel}>
@@ -770,20 +580,18 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                               </Typography>
                             </Box>
                           </Grid>
-
                           <Grid item xs={12} md={3}>
                             <Box sx={style.fieldContainer}>
                               <Typography sx={style.fieldLabel}>
                                 Cost Center
                               </Typography>
                               <Typography sx={style.fieldValue}>
-                                {dataLoading
+                                {coaLoading
                                   ? 'Loading...'
                                   : getCostCenterDescription(line.cost_center)}
                               </Typography>
                             </Box>
                           </Grid>
-
                           <Grid item xs={12} md={2}>
                             <Box sx={style.fieldContainer}>
                               <Typography sx={style.fieldLabel}>
@@ -795,52 +603,50 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                               >
                                 {formatCurrency(
                                   line.gl_amount,
-                                  getValue('currency')
+                                  getValue('currency'),
                                 )}
                               </Typography>
                             </Box>
                           </Grid>
 
-                          {/* Row 2: Location, Aircraft Type, Route */}
+                          {/* Row 2: Location | Aircraft Type | Route */}
                           <Grid item xs={12} md={4}>
                             <Box sx={style.fieldContainer}>
                               <Typography sx={style.fieldLabel}>
                                 Location
                               </Typography>
                               <Typography sx={style.fieldValue}>
-                                {dataLoading
+                                {coaLoading
                                   ? 'Loading...'
                                   : getDescriptiveValue(
                                       'location',
-                                      line.location
+                                      line.location,
                                     )}
                               </Typography>
                             </Box>
                           </Grid>
-
                           <Grid item xs={12} md={4}>
                             <Box sx={style.fieldContainer}>
                               <Typography sx={style.fieldLabel}>
                                 Aircraft Type
                               </Typography>
                               <Typography sx={style.fieldValue}>
-                                {dataLoading
+                                {coaLoading
                                   ? 'Loading...'
                                   : getDescriptiveValue(
                                       'aircraft_type',
-                                      line.aircraft_type
+                                      line.aircraft_type,
                                     )}
                               </Typography>
                             </Box>
                           </Grid>
-
                           <Grid item xs={12} md={4}>
                             <Box sx={style.fieldContainer}>
                               <Typography sx={style.fieldLabel}>
                                 Route
                               </Typography>
                               <Typography sx={style.fieldValue}>
-                                {dataLoading
+                                {coaLoading
                                   ? 'Loading...'
                                   : getDescriptiveValue('route', line.route)}
                               </Typography>
@@ -853,7 +659,7 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                 </Paper>
               )}
 
-              {/* Additional Details Section - Only Quantity */}
+              {/* ── Additional Details (Quantity) ────────────────────────── */}
               {getValue('quantity') !== 'N/A' && (
                 <Paper elevation={0} sx={style.section}>
                   <Typography
@@ -864,7 +670,6 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                   >
                     Additional Details
                   </Typography>
-
                   <Grid container spacing={3}>
                     <Grid item xs={12} md={6}>
                       <Box sx={style.fieldContainer}>
@@ -878,7 +683,7 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                 </Paper>
               )}
 
-              {/* Approval Workflow Section */}
+              {/* ── Approval Workflow Stepper — completely unchanged ─────── */}
               <Paper elevation={0} sx={style.stepperContainer}>
                 <Typography
                   variant="subtitle1"
@@ -892,10 +697,7 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                 <Stepper
                   activeStep={activeStep}
                   alternativeLabel
-                  sx={{
-                    width: '100%',
-                    '--StepIndicator-size': '48px',
-                  }}
+                  sx={{ width: '100%', '--StepIndicator-size': '48px' }}
                 >
                   {invoice?.invoice_histories?.map((invoiceItem, index) => (
                     <Step
@@ -909,10 +711,10 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                             invoiceItem?.status === 'signed'
                               ? 'success'
                               : invoiceItem?.status === 'pending'
-                              ? 'neutral'
-                              : invoiceItem?.status === 'denied'
-                              ? 'warning'
-                              : 'primary'
+                                ? 'neutral'
+                                : invoiceItem?.status === 'denied'
+                                  ? 'warning'
+                                  : 'primary'
                           }
                           sx={{ cursor: 'pointer' }}
                         >
@@ -930,10 +732,10 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                             {invoiceItem?.status === 'pending'
                               ? 'To be signed by: '
                               : invoiceItem?.status === 'to sign'
-                              ? 'Next to sign: '
-                              : invoiceItem?.status === 'denied'
-                              ? 'Denied by: '
-                              : 'Signed by: '}
+                                ? 'Next to sign: '
+                                : invoiceItem?.status === 'denied'
+                                  ? 'Denied by: '
+                                  : 'Signed by: '}
                             {`${invoiceItem?.signer?.firstname} ${invoiceItem?.signer?.lastname}`}
                           </Typography>
 
@@ -963,7 +765,7 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                               Signed on:{' '}
                               {invoiceItem?.updated_at &&
                                 new Date(
-                                  invoiceItem?.updated_at
+                                  invoiceItem?.updated_at,
                                 ).toLocaleString()}
                             </Typography>
                           )}
@@ -992,22 +794,18 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                                       size={80}
                                       value={
                                         invoiceItem?.signature
-                                          ? `${
-                                              process.env.REACT_APP_URL
-                                            }/verify-signature/${getInvoiceId()}/${encodeURIComponent(
+                                          ? `${process.env.REACT_APP_URL}/verify-signature/${getInvoiceId()}/${encodeURIComponent(
                                               invoiceItem?.public_key
                                                 ?.replace(
                                                   '-----BEGIN PUBLIC KEY-----\n',
-                                                  ''
+                                                  '',
                                                 )
                                                 ?.replace(
                                                   '\n-----END PUBLIC KEY-----',
-                                                  ''
+                                                  '',
                                                 )
-                                                ?.replace(/\n/g, '')
-                                            )}/${encodeURIComponent(
-                                              invoiceItem?.signature
-                                            )}`
+                                                ?.replace(/\n/g, ''),
+                                            )}/${encodeURIComponent(invoiceItem?.signature)}`
                                           : ''
                                       }
                                     />
@@ -1036,21 +834,50 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
         {/* Footer */}
         <Box sx={style.footer}>
           <Comment selected={selectedId} />
-          <Button
-            variant="contained"
-            onClick={(event) => handleDownloadInvoice(event, invoice)}
-            startIcon={<DownloadIcon />}
-            sx={{
-              bgcolor: '#00529B',
-              '&:hover': {
-                bgcolor: '#003a6d',
-              },
-              borderRadius: '8px',
-            }}
-          >
-            Download Invoice
-          </Button>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            {/* Manage Chain — admin / signer_admin only */}
+            {isAdmin && invoice && (
+              <Button
+                variant="outlined"
+                onClick={() => setChainOpen(true)}
+                startIcon={<ManageAccountsIcon />}
+                sx={{
+                  borderColor: '#00529B',
+                  color: '#00529B',
+                  '&:hover': { bgcolor: 'rgba(0,82,155,0.05)' },
+                  borderRadius: '8px',
+                }}
+              >
+                Manage Chain
+              </Button>
+            )}
+            <Button
+              variant="contained"
+              onClick={(event) => handleDownloadInvoice(event, invoice)}
+              startIcon={<DownloadIcon />}
+              sx={{
+                bgcolor: '#00529B',
+                '&:hover': { bgcolor: '#003a6d' },
+                borderRadius: '8px',
+              }}
+            >
+              Download Invoice
+            </Button>
+          </Box>
         </Box>
+
+        {/* Chain Override Dialog */}
+        {chainOpen && (
+          <ChainOverrideDialog
+            open={chainOpen}
+            onClose={() => setChainOpen(false)}
+            invoice={invoice}
+            onSuccess={() => {
+              setChainOpen(false);
+              getInvoiceTrackingData();
+            }}
+          />
+        )}
 
         {open && (
           <StepperModal

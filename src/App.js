@@ -18,6 +18,8 @@ import ResetPassword from './pages/ResetPassword';
 import PettyCash from './pages/PettyCash';
 import ManageExpenses from './pages/ManageExpenses';
 import RequestPettyCash from './pages/RequestPettyCash';
+import CoaPage from './pages/CoaPage';
+import Delegation from './pages/Delegation';
 
 export const isAuthenticated = () => {
   try {
@@ -49,7 +51,24 @@ function App() {
             <Route path="/user" element={<User />} />
             <Route path="/department" element={<Department />} />
             <Route path="/section" element={<Section />} />
-            <Route path="signing-flow" element={<SigningFlow />} />
+            {/* Signing Flow Routes — tab index matches SigningFlow tab order */}
+            <Route
+              path="/signing-flow/department"
+              element={<SigningFlow defaultTab={0} />}
+            />
+            <Route
+              path="/signing-flow/cost-center"
+              element={<SigningFlow defaultTab={1} />}
+            />
+            <Route
+              path="/signing-flow/location"
+              element={<SigningFlow defaultTab={2} />}
+            />
+            {/* Fallback: keep old route pointing to tab 0 */}
+            <Route
+              path="/signing-flow"
+              element={<SigningFlow defaultTab={0} />}
+            />
             <Route path="/petty-cash" element={<PettyCash />} />
             <Route
               path="/manage-expenses/:transactionId"
@@ -61,6 +80,26 @@ function App() {
             />
             <Route path="download-pdf" element={<DownloadPdf />} />
             <Route path="/profile" element={<Profile />} />
+
+            {/* Delegation */}
+            <Route path="/delegation" element={<Delegation />} />
+
+            {/* Chart of Accounts (COA) Routes — tab index matches COA_TABS order */}
+            <Route path="/coa/suppliers" element={<CoaPage defaultTab={0} />} />
+            <Route
+              path="/coa/cost-centers"
+              element={<CoaPage defaultTab={1} />}
+            />
+            <Route
+              path="/coa/gl-accounts"
+              element={<CoaPage defaultTab={2} />}
+            />
+            <Route path="/coa/locations" element={<CoaPage defaultTab={3} />} />
+            <Route
+              path="/coa/aircraft-types"
+              element={<CoaPage defaultTab={4} />}
+            />
+            <Route path="/coa/routes" element={<CoaPage defaultTab={5} />} />
           </Route>
         </Routes>
       </Router>

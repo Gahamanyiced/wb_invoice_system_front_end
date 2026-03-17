@@ -26,22 +26,22 @@ import {
   MenuItem,
   Select,
   InputLabel,
+  Autocomplete,
+  Chip,
 } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
-import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import DescriptionIcon from '@mui/icons-material/Description';
 import { toast } from 'react-toastify';
-import { useNavigate } from 'react-router-dom';
 
-// Import currencies from separate file
 import currencies from '../utils/currencies';
+import useCOAData from '../hooks/useCOAData';
+import useInvoiceNumberCheck from '../hooks/useInvoiceNumberCheck';
 
-// List of payment terms options
 const paymentTermsOptions = [
   { value: 'net_30', label: 'Net 30 - Payment due within 30 days' },
   { value: 'net_45', label: 'Net 45 - Payment due within 45 days' },
@@ -63,7 +63,7 @@ const style = {
     top: '50%',
     left: '50%',
     transform: 'translate(-50%, -50%)',
-    width: 900,
+    width: 960,
     maxWidth: '95vw',
     bgcolor: '#f5f5f5',
     borderRadius: '12px',
@@ -94,11 +94,7 @@ const style = {
     gap: 2,
     bgcolor: 'white',
   },
-  section: {
-    p: 3,
-    mb: 2,
-    bgcolor: 'white',
-  },
+  section: { p: 3, mb: 2, bgcolor: 'white' },
   documentItem: {
     borderRadius: '8px',
     p: 2,
@@ -134,62 +130,135 @@ const style = {
   },
 };
 
+// ─── COA Autocomplete ─────────────────────────────────────────────────────────
+// Two-line dropdown: [CODE chip] + description text
+// Input field shows full label so nothing is clipped
+// Works with raw string values (field.value = "1310", not an object)
+// ─────────────────────────────────────────────────────────────────────────────
+function COAAutocomplete({
+  options = [],
+  value,
+  onChange,
+  label,
+  disabled,
+  error,
+  helperText,
+  required = false,
+  size = 'small',
+  placeholder = 'Type to search...',
+}) {
+  const selectedOption = options.find((o) => o.value === value) || null;
+
+  return (
+    <Autocomplete
+      options={options}
+      value={selectedOption}
+      disabled={disabled}
+      onChange={(_, newOption) => onChange(newOption ? newOption.value : '')}
+      isOptionEqualToValue={(option, val) => option.value === val?.value}
+      getOptionLabel={(option) => option.label || ''}
+      renderOption={(props, option) => {
+        const dashIndex = option.label.indexOf(' - ');
+        const code =
+          dashIndex !== -1 ? option.label.slice(0, dashIndex) : option.label;
+        const description =
+          dashIndex !== -1 ? option.label.slice(dashIndex + 3) : '';
+
+        return (
+          <Box
+            component="li"
+            {...props}
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start !important',
+              py: '10px !important',
+            }}
+          >
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.25 }}
+            >
+              <Chip
+                label={code}
+                size="small"
+                sx={{
+                  backgroundColor: '#e8f0fe',
+                  color: '#00529B',
+                  fontWeight: 600,
+                  fontSize: '11px',
+                  height: 20,
+                  borderRadius: '4px',
+                }}
+              />
+            </Box>
+            {description && (
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ fontSize: '12px', lineHeight: 1.3 }}
+              >
+                {description}
+              </Typography>
+            )}
+          </Box>
+        );
+      }}
+      ListboxProps={{ style: { maxHeight: 280 } }}
+      componentsProps={{ paper: { sx: { minWidth: 380 } } }}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          label={required ? `${label} *` : label}
+          variant="outlined"
+          fullWidth
+          size={size}
+          error={error}
+          helperText={helperText}
+          placeholder={placeholder}
+          InputLabelProps={{
+            shrink: true,
+            style: {
+              backgroundColor: 'white',
+              paddingLeft: 4,
+              paddingRight: 4,
+            },
+          }}
+        />
+      )}
+      noOptionsText={`No ${label.toLowerCase()} found`}
+    />
+  );
+}
+
 function UpdateInvoiceModal({
   defaultValues,
   open,
   handleClose,
   setUpdateTrigger,
 }) {
-  console.log('defaultValues', defaultValues);
-  const navigate = useNavigate();
   const dispatch = useDispatch();
   const { isLoading } = useSelector((state) => state.invoice);
 
-  // Get user role from localStorage
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isSupplier = user?.role === 'supplier';
 
-  // Helper function to get invoice data regardless of structure
-  const getInvoiceData = (key) => {
-    // Check if data is nested in invoice property
-    if (defaultValues?.invoice) {
-      return defaultValues.invoice[key];
-    }
-    // Otherwise, get from flat structure
-    return defaultValues?.[key];
-  };
+  // ── helpers ─────────────────────────────────────────────────────────────
+  const getInvoiceData = (key) =>
+    defaultValues?.invoice ? defaultValues.invoice[key] : defaultValues?.[key];
 
-  // Check if documents are in invoice property or directly in defaultValues
   const documentsInInvoice = Boolean(defaultValues?.invoice?.documents);
 
-  // Get documents array
-  const getDocuments = () => {
-    if (documentsInInvoice) {
-      return defaultValues?.invoice?.documents || [];
-    }
-    return defaultValues?.documents || [];
-  };
+  const getDocuments = () =>
+    documentsInInvoice
+      ? defaultValues?.invoice?.documents || []
+      : defaultValues?.documents || [];
 
-  // Get GL Lines array
-  const getGLLines = () => {
-    if (defaultValues?.invoice?.gl_lines) {
-      return defaultValues.invoice.gl_lines;
-    }
-    return defaultValues?.gl_lines || [];
-  };
+  const getGLLines = () =>
+    defaultValues?.invoice?.gl_lines || defaultValues?.gl_lines || [];
 
-  // Initialize value state
-  const [value, setValue] = useState('new');
-  const [comment, setComment] = useState('');
-  const [customPaymentTerms, setCustomPaymentTerms] = useState(
-    getInvoiceData('payment_terms') === 'custom'
-  );
-  const [customTermsInput, setCustomTermsInput] = useState('');
-
-  // Initialize GL Lines from the data - now includes location, aircraft_type, route
   const initializeGLLines = () => {
-    const glLines = getGLLines();
-    if (glLines.length === 0) {
+    const lines = getGLLines();
+    if (lines.length === 0) {
       return [
         {
           gl_code: '',
@@ -202,7 +271,7 @@ function UpdateInvoiceModal({
         },
       ];
     }
-    return glLines.map((line) => ({
+    return lines.map((line) => ({
       id: line.id,
       gl_code: line.gl_code || '',
       gl_description: line.gl_description || '',
@@ -214,7 +283,16 @@ function UpdateInvoiceModal({
     }));
   };
 
-  // Initialize form data with proper data access
+  // ── state ────────────────────────────────────────────────────────────────
+  const [value, setValue] = useState('new');
+  const [comment, setComment] = useState('');
+  const [customPaymentTerms, setCustomPaymentTerms] = useState(
+    getInvoiceData('payment_terms') === 'custom',
+  );
+  const [customTermsInput, setCustomTermsInput] = useState('');
+  const [hasNonStandardTerm, setHasNonStandardTerm] = useState(false);
+  const [nonStandardTermValue, setNonStandardTermValue] = useState('');
+
   const [formData, setFormData] = useState({
     supplier_number: getInvoiceData('supplier_number') || '',
     supplier_name: getInvoiceData('supplier_name') || '',
@@ -229,21 +307,7 @@ function UpdateInvoiceModal({
     payment_due_date: getInvoiceData('payment_due_date') || '',
   });
 
-  // GL Lines state
   const [glLines, setGLLines] = useState(initializeGLLines());
-
-  // State for Excel data
-  const [excelData, setExcelData] = useState({
-    suppliers: [],
-    costCenters: [],
-    glCodes: [],
-    locations: [],
-    aircraftTypes: [],
-    routes: [],
-  });
-  const [dataLoading, setDataLoading] = useState(false);
-
-  // Initialize documents state
   const [documents, setDocuments] = useState(getDocuments());
   const [anotherDocuments, setAnotherDocuments] = useState([]);
   const [selectedDocumentIndices, setSelectedDocumentIndices] = useState([]);
@@ -252,151 +316,39 @@ function UpdateInvoiceModal({
   const [replacedDocumentIds, setReplacedDocumentIds] = useState([]);
   const [uploadedFileNames, setUploadedFileNames] = useState([]);
 
-  // Initialize state to track if we have a non-standard payment term
-  const [hasNonStandardTerm, setHasNonStandardTerm] = useState(false);
-  const [nonStandardTermValue, setNonStandardTermValue] = useState('');
+  // ── COA data from DB (replaces loadExcelData + excelData state) ──────────
+  const { excelData, isLoading: coaLoading } = useCOAData({ enabled: open });
 
-  // Function to load Excel data
-  const loadExcelData = async () => {
-    try {
-      const XLSX = await import('xlsx');
+  // ── Invoice number uniqueness check ───────────────────────────────────────────
+  // Uses formData.supplier_number so the check carries the correct supplier context.
+  const { invoiceNumStatus, checkInvoiceNum, resetInvoiceNumCheck } =
+    useInvoiceNumberCheck(formData.supplier_number || null);
 
-      const response = await fetch('/6. COA.xlsx');
-      if (!response.ok) {
-        throw new Error(`Failed to fetch Excel file: ${response.statusText}`);
-      }
-
-      const arrayBuffer = await response.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer, {
-        cellStyles: true,
-        cellFormulas: true,
-        cellDates: true,
-        cellNF: true,
-        sheetStubs: true,
-      });
-
-      const processSheet = (
-        sheetName,
-        valueColumn,
-        labelColumn,
-        combinedLabel = false
-      ) => {
-        try {
-          const worksheet = workbook.Sheets[sheetName];
-          if (!worksheet) {
-            console.warn(`Sheet "${sheetName}" not found`);
-            return [];
-          }
-
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-          return jsonData
-            .slice(1)
-            .filter(
-              (row) =>
-                row[valueColumn] !== undefined &&
-                row[valueColumn] !== null &&
-                row[valueColumn] !== ''
-            )
-            .map((row) => {
-              const value = String(row[valueColumn]).trim();
-              const label = row[labelColumn]
-                ? String(row[labelColumn]).trim()
-                : value;
-
-              return {
-                value: value,
-                label: combinedLabel ? `${value} - ${label}` : label,
-              };
-            })
-            .filter((item) => item.value && item.label);
-        } catch (error) {
-          console.error(`Error processing sheet ${sheetName}:`, error);
-          return [];
-        }
-      };
-
-      const suppliers = processSheet('Supplier Details', 0, 1, true);
-      const costCenters = processSheet('Cost Center', 0, 1, true);
-      const glCodes = processSheet('GL Code', 0, 1, true);
-      const locations = processSheet('Location Code', 0, 1, true);
-      const aircraftTypes = processSheet('Aircraft Type', 0, 1, true);
-      const routes = processSheet('Route', 0, 1, true);
-
-      return {
-        suppliers,
-        costCenters,
-        glCodes,
-        locations,
-        aircraftTypes: aircraftTypes.length > 0 ? aircraftTypes : [],
-        routes: routes.length > 0 ? routes : [],
-      };
-    } catch (error) {
-      console.error('Error loading Excel data:', error);
-
-      return {
-        suppliers: [{ value: '00001', label: '00001 - Sample Supplier' }],
-        costCenters: [{ value: '1000', label: '1000 - Sample Cost Center' }],
-        glCodes: [{ value: '1011', label: '1011 - Sample GL Code' }],
-        locations: [{ value: '0000', label: '0000 - Default Location' }],
-        aircraftTypes: [],
-        routes: [],
-      };
-    }
-  };
-
-  // Load Excel data when component mounts
+  // ── check payment terms on mount ─────────────────────────────────────────
   useEffect(() => {
-    const loadData = async () => {
-      setDataLoading(true);
-      try {
-        const data = await loadExcelData();
-        setExcelData(data);
-      } catch (error) {
-        console.error('Failed to load Excel data:', error);
-        toast.error('Failed to load reference data');
-      } finally {
-        setDataLoading(false);
-      }
-    };
-
-    loadData();
-  }, []);
-
-  // Check payment terms on mount
-  useEffect(() => {
-    const isStandardTerm = (term) => {
-      return (
-        !term || paymentTermsOptions.some((option) => option.value === term)
-      );
-    };
-
+    const isStandard = (term) =>
+      !term || paymentTermsOptions.some((o) => o.value === term);
     const paymentTerms = getInvoiceData('payment_terms');
 
     if (paymentTerms === 'custom') {
       setCustomPaymentTerms(true);
       const customValue = getInvoiceData('payment_terms_description') || '';
       setCustomTermsInput(customValue);
-      if (customValue) {
+      if (customValue)
         setFormData((prev) => ({ ...prev, payment_terms: customValue }));
-      }
-    } else if (paymentTerms && !isStandardTerm(paymentTerms)) {
+    } else if (paymentTerms && !isStandard(paymentTerms)) {
       setHasNonStandardTerm(true);
       setNonStandardTermValue(paymentTerms);
       setCustomTermsInput(paymentTerms);
     }
   }, []);
 
-  const handleRadioChange = (event) => {
-    setValue(event.target.value);
-  };
+  // ── handlers ─────────────────────────────────────────────────────────────
+  const handleRadioChange = (e) => setValue(e.target.value);
+  const handleComment = (e) => setComment(e.target.value);
 
-  const handleComment = (event) => {
-    setComment(event.target.value);
-  };
-
-  const handleCheckboxChange = (event, index) => {
-    if (event.target.checked) {
+  const handleCheckboxChange = (e, index) => {
+    if (e.target.checked) {
       setSelectedDocumentIndices([...selectedDocumentIndices, index]);
       setAnotherSelectedDocumentIndices([...selectedDocumentIndices, index]);
     } else {
@@ -407,10 +359,9 @@ function UpdateInvoiceModal({
   };
 
   const handleChangeFormData = (e) => {
-    const { name, value } = e.target;
-
+    const { name, value: val } = e.target;
     if (name === 'payment_terms') {
-      if (value === 'custom') {
+      if (val === 'custom') {
         setCustomPaymentTerms(true);
         if (hasNonStandardTerm) {
           setCustomTermsInput(nonStandardTermValue);
@@ -425,36 +376,39 @@ function UpdateInvoiceModal({
       } else {
         setCustomPaymentTerms(false);
         setHasNonStandardTerm(false);
-        setFormData((prev) => ({ ...prev, [name]: value }));
+        setFormData((prev) => ({ ...prev, [name]: val }));
       }
     } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
+      setFormData((prev) => ({ ...prev, [name]: val }));
     }
   };
 
-  const handleGLLineChange = (index, field, value) => {
-    const updatedLines = [...glLines];
-    updatedLines[index] = { ...updatedLines[index], [field]: value };
+  const handleGLLineChange = (index, field, val) => {
+    const updated = [...glLines];
+    updated[index] = { ...updated[index], [field]: val };
 
-    if (field === 'gl_code' && value) {
-      const selectedGL = excelData.glCodes.find((gl) => gl.value === value);
-      if (selectedGL) {
-        const description = selectedGL.label.split(' - ').slice(1).join(' - ');
-        updatedLines[index]['gl_description'] = description;
-      }
+    // Auto-fill description when GL code selected
+    if (field === 'gl_code' && val) {
+      const gl = excelData.glCodes.find((x) => x.value === val);
+      if (gl)
+        updated[index]['gl_description'] = gl.label
+          .split(' - ')
+          .slice(1)
+          .join(' - ');
     }
 
-    setGLLines(updatedLines);
+    setGLLines(updated);
 
     if (field === 'gl_amount') {
-      const totalAmount = updatedLines.reduce((sum, line) => {
-        return sum + (parseFloat(line.gl_amount) || 0);
-      }, 0);
-      setFormData((prev) => ({ ...prev, amount: totalAmount.toFixed(2) }));
+      const total = updated.reduce(
+        (sum, l) => sum + (parseFloat(l.gl_amount) || 0),
+        0,
+      );
+      setFormData((prev) => ({ ...prev, amount: total.toFixed(2) }));
     }
   };
 
-  const addGLLine = () => {
+  const addGLLine = () =>
     setGLLines([
       ...glLines,
       {
@@ -467,31 +421,27 @@ function UpdateInvoiceModal({
         route: '',
       },
     ]);
-  };
 
   const removeGLLine = (index) => {
     if (glLines.length > 1) {
-      const updatedLines = glLines.filter((_, i) => i !== index);
-      setGLLines(updatedLines);
-
-      const totalAmount = updatedLines.reduce((sum, line) => {
-        return sum + (parseFloat(line.gl_amount) || 0);
-      }, 0);
-      setFormData((prev) => ({ ...prev, amount: totalAmount.toFixed(2) }));
+      const updated = glLines.filter((_, i) => i !== index);
+      setGLLines(updated);
+      const total = updated.reduce(
+        (sum, l) => sum + (parseFloat(l.gl_amount) || 0),
+        0,
+      );
+      setFormData((prev) => ({ ...prev, amount: total.toFixed(2) }));
     }
   };
 
   const handleSupplierChange = (selectedValue) => {
     if (selectedValue) {
-      const selectedSupplier = excelData.suppliers.find(
-        (s) => s.value === selectedValue
-      );
-      if (selectedSupplier) {
-        const [number, name] = selectedSupplier.label.split(' - ');
+      const s = excelData.suppliers.find((x) => x.value === selectedValue);
+      if (s) {
         setFormData((prev) => ({
           ...prev,
           supplier_number: selectedValue,
-          supplier_name: name || '',
+          supplier_name: s.label.split(' - ').slice(1).join(' - ') || '',
         }));
       }
     } else {
@@ -504,47 +454,36 @@ function UpdateInvoiceModal({
   };
 
   const handleCustomTermsChange = (e) => {
-    const value = e.target.value;
-    setCustomTermsInput(value);
-    setFormData((prev) => ({ ...prev, payment_terms: value }));
+    setCustomTermsInput(e.target.value);
+    setFormData((prev) => ({ ...prev, payment_terms: e.target.value }));
   };
 
-  const handleChangeForNewDocument = (event, index) => {
-    if (event.target.files[0]) {
-      const newDocuments = [...anotherDocuments];
-      newDocuments[index] = event.target.files[0];
-      setAnotherDocuments(newDocuments);
-
-      const newFileNames = [...uploadedFileNames];
-      newFileNames[index] = event.target.files[0].name;
-      setUploadedFileNames(newFileNames);
+  const handleChangeForNewDocument = (e, index) => {
+    if (e.target.files[0]) {
+      const docs = [...anotherDocuments];
+      docs[index] = e.target.files[0];
+      setAnotherDocuments(docs);
+      const names = [...uploadedFileNames];
+      names[index] = e.target.files[0].name;
+      setUploadedFileNames(names);
     }
   };
 
-  const handleChangeForUpdatingDocument = (event, index) => {
-    if (event.target.files[0]) {
-      const newDocuments = [...documents];
+  const handleChangeForUpdatingDocument = (e, index) => {
+    if (e.target.files[0]) {
+      const docs = [...documents];
       const selectedIndex = selectedDocumentIndices.shift();
       if (selectedIndex !== undefined) {
-        const docId = newDocuments[selectedIndex].id;
-        if (docId) {
-          setReplacedDocumentIds([...replacedDocumentIds, docId]);
-        }
-
-        newDocuments[selectedIndex] = event.target.files[0];
+        const docId = docs[selectedIndex]?.id;
+        if (docId) setReplacedDocumentIds([...replacedDocumentIds, docId]);
+        docs[selectedIndex] = e.target.files[0];
         setSelectedDocumentIndices([...selectedDocumentIndices]);
-
-        const newFileNames = [...uploadedFileNames];
-        newFileNames[index] = event.target.files[0].name;
-        setUploadedFileNames(newFileNames);
+        const names = [...uploadedFileNames];
+        names[index] = e.target.files[0].name;
+        setUploadedFileNames(names);
       }
-      setDocuments(newDocuments);
+      setDocuments(docs);
     }
-  };
-
-  const handleCloseUpdate = () => {
-    resetState();
-    handleClose();
   };
 
   const resetState = () => {
@@ -572,7 +511,41 @@ function UpdateInvoiceModal({
     setComment('');
     setCustomPaymentTerms(getInvoiceData('payment_terms') === 'custom');
     setCustomTermsInput('');
+    resetInvoiceNumCheck();
   };
+
+  const handleCloseUpdate = () => {
+    resetState();
+    handleClose();
+  };
+
+  const handleAddMore = () => {
+    if (value === 'new' || documentsInInvoice) {
+      setAnotherDocuments([...anotherDocuments, null]);
+    } else {
+      setDocuments([...documents, {}]);
+    }
+  };
+
+  const handleFileSelect = (e, index) => {
+    if (value === 'change' && !documentsInInvoice) {
+      handleChangeForUpdatingDocument(e, index);
+    } else {
+      handleChangeForNewDocument(e, index);
+    }
+  };
+
+  const getDocumentList = () =>
+    value === 'change' && !documentsInInvoice
+      ? documents?.filter(
+          (doc) => doc && (doc.id || doc.file_data || doc.filename),
+        ) || []
+      : [];
+
+  const getUploadList = () =>
+    value === 'change' && !documentsInInvoice
+      ? selectedDocumentIndices
+      : [...Array(anotherDocuments.length || 1).keys()];
 
   const validateSupplierForm = () => {
     if (
@@ -597,81 +570,70 @@ function UpdateInvoiceModal({
       toast.error('Please fill all required fields');
       return false;
     }
-
     if (!formData.payment_terms) {
       toast.error('Please select payment terms');
       return false;
     }
-
     if (customPaymentTerms && !formData.payment_terms) {
       toast.error('Please provide your custom payment terms');
       return false;
     }
-
-    // Updated validation to include new GL line fields
-    const invalidGLLine = glLines.find(
-      (line) =>
-        !line.gl_code ||
-        !line.gl_description ||
-        !line.cost_center ||
-        !line.gl_amount ||
-        !line.location
+    const invalid = glLines.find(
+      (l) =>
+        !l.gl_code ||
+        !l.gl_description ||
+        !l.cost_center ||
+        !l.gl_amount ||
+        !l.location,
     );
-
-    if (invalidGLLine) {
+    if (invalid) {
       toast.error('Please fill all required GL Line fields');
       return false;
     }
-
     return true;
   };
 
   const submit = async () => {
     try {
+      // Block submission if invoice number is taken
+      if (invoiceNumStatus === 'taken') {
+        toast.error(
+          'This invoice number has already been used. Please enter a different one.',
+        );
+        return;
+      }
+
       const data = new FormData();
 
       if (isSupplier) {
-        if (!validateSupplierForm()) {
-          return;
-        }
+        if (!validateSupplierForm()) return;
         data.append('invoice_number', formData.invoice_number);
         data.append('service_period', formData.service_period);
         data.append('currency', formData.currency);
         data.append('amount', formData.amount);
       } else {
-        if (!validateNonSupplierForm()) {
-          return;
-        }
-
+        if (!validateNonSupplierForm()) return;
         Object.keys(formData).forEach((key) => {
-          if (key !== 'payment_terms_description') {
+          if (key !== 'payment_terms_description')
             data.append(key, formData[key]);
-          }
         });
-
         data.append('gl_lines', JSON.stringify(glLines));
       }
 
-      if (comment) {
-        data.append('comment', comment);
-      }
+      if (comment) data.append('comment', comment);
 
       if (value === 'change' && !documentsInInvoice) {
-        anotherSelectedDocumentIndices.forEach((documentIndex, index) => {
-          data.append('documents', documents[documentIndex]);
-          data.append('document_id', replacedDocumentIds[index]);
+        anotherSelectedDocumentIndices.forEach((docIndex, i) => {
+          data.append('documents', documents[docIndex]);
+          data.append('document_id', replacedDocumentIds[i]);
         });
       } else if (value === 'new') {
-        anotherDocuments.forEach((document) => {
-          if (document) {
-            data.append('documents', document);
-          }
+        anotherDocuments.forEach((doc) => {
+          if (doc) data.append('documents', doc);
         });
       }
 
-      // Get the correct invoice ID
       const invoiceId = defaultValues?.invoice?.id || defaultValues?.id;
-
       await dispatch(updateInvoice({ id: invoiceId, data }));
       toast.success('Invoice Updated Successfully');
       handleCloseUpdate();
@@ -681,42 +643,7 @@ function UpdateInvoiceModal({
     }
   };
 
-  const handleAddMore = () => {
-    if (value === 'new' || documentsInInvoice) {
-      setAnotherDocuments([...anotherDocuments, null]);
-    } else {
-      setDocuments([...documents, {}]);
-    }
-  };
-
-  const handleFileSelect = (event, index) => {
-    if (value === 'change' && !documentsInInvoice) {
-      handleChangeForUpdatingDocument(event, index);
-    } else if (value === 'new' || documentsInInvoice) {
-      handleChangeForNewDocument(event, index);
-    }
-  };
-
-  const getDocumentList = () => {
-    if (value === 'change' && !documentsInInvoice) {
-      return (
-        documents?.filter(
-          (doc) => doc && (doc.id || doc.file_data || doc.filename)
-        ) || []
-      );
-    } else {
-      return [];
-    }
-  };
-
-  const getUploadList = () => {
-    if (value === 'change' && !documentsInInvoice) {
-      return selectedDocumentIndices;
-    } else {
-      return [...Array(anotherDocuments.length || 1).keys()];
-    }
-  };
-
+  // ── render ────────────────────────────────────────────────────────────────
   return (
     <Modal
       open={open}
@@ -724,6 +651,7 @@ function UpdateInvoiceModal({
       aria-labelledby="update-invoice-modal-title"
     >
       <Box sx={style.modal}>
+        {/* Header */}
         <Box sx={style.header}>
           <Typography variant="h6" component="h2" fontWeight="500">
             Update Invoice
@@ -732,7 +660,6 @@ function UpdateInvoiceModal({
             edge="end"
             color="inherit"
             onClick={handleCloseUpdate}
-            aria-label="close"
             size="small"
           >
             <CloseIcon />
@@ -740,6 +667,7 @@ function UpdateInvoiceModal({
         </Box>
 
         <Box sx={style.content}>
+          {/* ── Invoice Information ──────────────────────────────────────── */}
           <Paper elevation={0} sx={style.section}>
             <Typography
               variant="subtitle1"
@@ -753,31 +681,19 @@ function UpdateInvoiceModal({
             <Grid container spacing={3}>
               {!isSupplier && (
                 <>
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth variant="outlined" size="small">
-                      <InputLabel>Supplier Number</InputLabel>
-                      <Select
-                        value={formData.supplier_number}
-                        onChange={(e) => {
-                          handleChangeFormData(e);
-                          handleSupplierChange(e.target.value);
-                        }}
-                        name="supplier_number"
-                        label="Supplier Number"
-                        disabled={dataLoading}
-                      >
-                        <MenuItem value="">
-                          <em>Select supplier</em>
-                        </MenuItem>
-                        {excelData.suppliers.map((option) => (
-                          <MenuItem key={option.value} value={option.value}>
-                            {option.label}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
+                  {/* Supplier — full width so long vendor names are visible */}
+                  <Grid item xs={12}>
+                    <COAAutocomplete
+                      options={excelData.suppliers}
+                      value={formData.supplier_number}
+                      onChange={(val) => handleSupplierChange(val)}
+                      label="Supplier"
+                      disabled={coaLoading}
+                      placeholder="Type vendor ID or name to search..."
+                    />
                   </Grid>
 
+                  {/* Supplier Name — read-only, auto-filled */}
                   <Grid item xs={12} md={6}>
                     <TextField
                       label="Supplier Name"
@@ -797,14 +713,38 @@ function UpdateInvoiceModal({
                   label="Invoice Number *"
                   name="invoice_number"
                   value={formData.invoice_number}
-                  onChange={handleChangeFormData}
+                  onChange={(e) => {
+                    handleChangeFormData(e);
+                    checkInvoiceNum(e.target.value);
+                  }}
                   fullWidth
                   required
                   variant="outlined"
                   size="small"
+                  error={invoiceNumStatus === 'taken'}
+                  helperText={
+                    invoiceNumStatus === 'checking'
+                      ? 'Checking availability...'
+                      : invoiceNumStatus === 'taken'
+                        ? 'This invoice number has already been used.'
+                        : invoiceNumStatus === 'available'
+                          ? '✓ Invoice number is available.'
+                          : ''
+                  }
+                  FormHelperTextProps={{
+                    sx:
+                      invoiceNumStatus === 'available'
+                        ? { color: 'success.main' }
+                        : {},
+                  }}
+                  InputProps={{
+                    endAdornment:
+                      invoiceNumStatus === 'checking' ? (
+                        <CircularProgress size={16} sx={{ mr: 1 }} />
+                      ) : undefined,
+                  }}
                 />
               </Grid>
-
               <Grid item xs={12} md={6}>
                 <TextField
                   label="Reference"
@@ -816,7 +756,6 @@ function UpdateInvoiceModal({
                   size="small"
                 />
               </Grid>
-
               <Grid item xs={12} md={6}>
                 <TextField
                   type="date"
@@ -830,7 +769,6 @@ function UpdateInvoiceModal({
                   InputLabelProps={{ shrink: true }}
                 />
               </Grid>
-
               <Grid item xs={12} md={6}>
                 <TextField
                   label="Service Period *"
@@ -843,7 +781,6 @@ function UpdateInvoiceModal({
                   size="small"
                 />
               </Grid>
-
               {!isSupplier && (
                 <Grid item xs={12} md={6}>
                   <TextField
@@ -859,7 +796,6 @@ function UpdateInvoiceModal({
                   />
                 </Grid>
               )}
-
               <Grid item xs={12} md={6}>
                 <FormControl fullWidth variant="outlined" size="small">
                   <InputLabel>Currency *</InputLabel>
@@ -870,15 +806,14 @@ function UpdateInvoiceModal({
                     label="Currency *"
                     required
                   >
-                    {currencies.map((option) => (
-                      <MenuItem key={option.value} value={option.value}>
-                        {option.label}
+                    {currencies.map((o) => (
+                      <MenuItem key={o.value} value={o.value}>
+                        {o.label}
                       </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
               </Grid>
-
               <Grid item xs={12} md={6}>
                 <TextField
                   label="Total Amount *"
@@ -890,9 +825,7 @@ function UpdateInvoiceModal({
                   variant="outlined"
                   size="small"
                   type="number"
-                  InputProps={{
-                    readOnly: !isSupplier && glLines.length > 0,
-                  }}
+                  InputProps={{ readOnly: !isSupplier && glLines.length > 0 }}
                   helperText={
                     !isSupplier && glLines.length > 0
                       ? 'Auto-calculated from GL lines'
@@ -903,6 +836,7 @@ function UpdateInvoiceModal({
             </Grid>
           </Paper>
 
+          {/* ── GL Lines ─────────────────────────────────────────────────── */}
           {!isSupplier && (
             <Paper elevation={0} sx={style.section}>
               <Box
@@ -957,36 +891,21 @@ function UpdateInvoiceModal({
                     </Box>
 
                     <Grid container spacing={2}>
-                      {/* Row 1: GL Code, GL Description, Cost Center, Amount */}
-                      <Grid item xs={12} md={3}>
-                        <FormControl fullWidth variant="outlined" size="small">
-                          <InputLabel>GL Code *</InputLabel>
-                          <Select
-                            value={line.gl_code}
-                            onChange={(e) =>
-                              handleGLLineChange(
-                                index,
-                                'gl_code',
-                                e.target.value
-                              )
-                            }
-                            label="GL Code *"
-                            required
-                            disabled={dataLoading}
-                          >
-                            <MenuItem value="">
-                              <em>Select GL code</em>
-                            </MenuItem>
-                            {excelData.glCodes.map((option) => (
-                              <MenuItem key={option.value} value={option.value}>
-                                {option.label}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
+                      {/* Row 1: GL Code | GL Description | Amount */}
+                      <Grid item xs={12} md={5}>
+                        <COAAutocomplete
+                          options={excelData.glCodes}
+                          value={line.gl_code}
+                          onChange={(val) =>
+                            handleGLLineChange(index, 'gl_code', val)
+                          }
+                          label="GL Code"
+                          required
+                          disabled={coaLoading}
+                          placeholder="Type GL code or description..."
+                        />
                       </Grid>
-
-                      <Grid item xs={12} md={4}>
+                      <Grid item xs={12} md={5}>
                         <TextField
                           label="GL Description"
                           value={line.gl_description}
@@ -997,35 +916,6 @@ function UpdateInvoiceModal({
                           InputLabelProps={{ shrink: true }}
                         />
                       </Grid>
-
-                      <Grid item xs={12} md={3}>
-                        <FormControl fullWidth variant="outlined" size="small">
-                          <InputLabel>Cost Center *</InputLabel>
-                          <Select
-                            value={line.cost_center}
-                            onChange={(e) =>
-                              handleGLLineChange(
-                                index,
-                                'cost_center',
-                                e.target.value
-                              )
-                            }
-                            label="Cost Center *"
-                            required
-                            disabled={dataLoading}
-                          >
-                            <MenuItem value="">
-                              <em>Select cost center</em>
-                            </MenuItem>
-                            {excelData.costCenters.map((option) => (
-                              <MenuItem key={option.value} value={option.value}>
-                                {option.label}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </Grid>
-
                       <Grid item xs={12} md={2}>
                         <TextField
                           label="Amount *"
@@ -1034,7 +924,7 @@ function UpdateInvoiceModal({
                             handleGLLineChange(
                               index,
                               'gl_amount',
-                              e.target.value
+                              e.target.value,
                             )
                           }
                           fullWidth
@@ -1045,83 +935,56 @@ function UpdateInvoiceModal({
                         />
                       </Grid>
 
-                      {/* Row 2: Location, Aircraft Type, Route */}
-                      <Grid item xs={12} md={4}>
-                        <FormControl fullWidth variant="outlined" size="small">
-                          <InputLabel>Location *</InputLabel>
-                          <Select
-                            value={line.location}
-                            onChange={(e) =>
-                              handleGLLineChange(
-                                index,
-                                'location',
-                                e.target.value
-                              )
-                            }
-                            label="Location *"
-                            required
-                            disabled={dataLoading}
-                          >
-                            <MenuItem value="">
-                              <em>Select location</em>
-                            </MenuItem>
-                            {excelData.locations.map((option) => (
-                              <MenuItem key={option.value} value={option.value}>
-                                {option.label}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
+                      {/* Row 2: Cost Center | Location | Aircraft Type | Route */}
+                      <Grid item xs={12} md={3}>
+                        <COAAutocomplete
+                          options={excelData.costCenters}
+                          value={line.cost_center}
+                          onChange={(val) =>
+                            handleGLLineChange(index, 'cost_center', val)
+                          }
+                          label="Cost Center"
+                          required
+                          disabled={coaLoading}
+                          placeholder="Search cost center..."
+                        />
                       </Grid>
-
-                      <Grid item xs={12} md={4}>
-                        <FormControl fullWidth variant="outlined" size="small">
-                          <InputLabel>Aircraft Type</InputLabel>
-                          <Select
-                            value={line.aircraft_type}
-                            onChange={(e) =>
-                              handleGLLineChange(
-                                index,
-                                'aircraft_type',
-                                e.target.value
-                              )
-                            }
-                            label="Aircraft Type"
-                            disabled={dataLoading}
-                          >
-                            <MenuItem value="">
-                              <em>Select aircraft type</em>
-                            </MenuItem>
-                            {excelData.aircraftTypes.map((option) => (
-                              <MenuItem key={option.value} value={option.value}>
-                                {option.label}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
+                      <Grid item xs={12} md={3}>
+                        <COAAutocomplete
+                          options={excelData.locations}
+                          value={line.location}
+                          onChange={(val) =>
+                            handleGLLineChange(index, 'location', val)
+                          }
+                          label="Location"
+                          required
+                          disabled={coaLoading}
+                          placeholder="Search location..."
+                        />
                       </Grid>
-
-                      <Grid item xs={12} md={4}>
-                        <FormControl fullWidth variant="outlined" size="small">
-                          <InputLabel>Route</InputLabel>
-                          <Select
-                            value={line.route}
-                            onChange={(e) =>
-                              handleGLLineChange(index, 'route', e.target.value)
-                            }
-                            label="Route"
-                            disabled={dataLoading}
-                          >
-                            <MenuItem value="">
-                              <em>Select route</em>
-                            </MenuItem>
-                            {excelData.routes.map((option) => (
-                              <MenuItem key={option.value} value={option.value}>
-                                {option.label}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
+                      <Grid item xs={12} md={3}>
+                        <COAAutocomplete
+                          options={excelData.aircraftTypes}
+                          value={line.aircraft_type}
+                          onChange={(val) =>
+                            handleGLLineChange(index, 'aircraft_type', val)
+                          }
+                          label="Aircraft Type"
+                          disabled={coaLoading}
+                          placeholder="Search aircraft type..."
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={3}>
+                        <COAAutocomplete
+                          options={excelData.routes}
+                          value={line.route}
+                          onChange={(val) =>
+                            handleGLLineChange(index, 'route', val)
+                          }
+                          label="Route"
+                          disabled={coaLoading}
+                          placeholder="Search route..."
+                        />
                       </Grid>
                     </Grid>
                   </CardContent>
@@ -1130,6 +993,7 @@ function UpdateInvoiceModal({
             </Paper>
           )}
 
+          {/* ── Payment Terms ─────────────────────────────────────────────── */}
           {!isSupplier && (
             <Paper elevation={0} sx={style.section}>
               <Typography
@@ -1160,9 +1024,9 @@ function UpdateInvoiceModal({
                       <MenuItem value="">
                         <em>Select payment terms</em>
                       </MenuItem>
-                      {paymentTermsOptions.map((option) => (
-                        <MenuItem key={option.value} value={option.value}>
-                          {option.label}
+                      {paymentTermsOptions.map((o) => (
+                        <MenuItem key={o.value} value={o.value}>
+                          {o.label}
                         </MenuItem>
                       ))}
                       {hasNonStandardTerm && (
@@ -1186,7 +1050,6 @@ function UpdateInvoiceModal({
                     />
                   </Grid>
                 )}
-
                 <Grid item xs={12} md={6}>
                   <TextField
                     type="date"
@@ -1204,6 +1067,7 @@ function UpdateInvoiceModal({
             </Paper>
           )}
 
+          {/* ── Update Comments ───────────────────────────────────────────── */}
           <Paper elevation={0} sx={style.section}>
             <Typography
               variant="subtitle1"
@@ -1213,7 +1077,6 @@ function UpdateInvoiceModal({
             >
               Update Comments
             </Typography>
-
             <TextField
               label="Add a comment about this update"
               name="comment"
@@ -1227,6 +1090,7 @@ function UpdateInvoiceModal({
             />
           </Paper>
 
+          {/* ── Document Management ───────────────────────────────────────── */}
           <Paper elevation={0} sx={style.section}>
             <Box
               sx={{
@@ -1301,9 +1165,7 @@ function UpdateInvoiceModal({
                         <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                           <Box sx={style.documentItem}>
                             <Checkbox
-                              onChange={(event) =>
-                                handleCheckboxChange(event, index)
-                              }
+                              onChange={(e) => handleCheckboxChange(e, index)}
                               sx={{
                                 color: '#00529B',
                                 '&.Mui-checked': { color: '#00529B' },
@@ -1352,7 +1214,6 @@ function UpdateInvoiceModal({
                   ? 'Upload replacement documents:'
                   : 'Upload new documents:'}
               </Typography>
-
               <Stack spacing={2}>
                 {getUploadList().map((index) => (
                   <Box key={index} sx={style.uploadBox}>
@@ -1368,7 +1229,7 @@ function UpdateInvoiceModal({
                         id={`file-upload-${index}`}
                         type="file"
                         style={{ display: 'none' }}
-                        onChange={(event) => handleFileSelect(event, index)}
+                        onChange={(e) => handleFileSelect(e, index)}
                       />
                       <Box
                         sx={{
@@ -1413,7 +1274,6 @@ function UpdateInvoiceModal({
                     </label>
                   </Box>
                 ))}
-
                 {getUploadList().length === 0 && (
                   <Box
                     sx={{
@@ -1435,6 +1295,7 @@ function UpdateInvoiceModal({
           </Paper>
         </Box>
 
+        {/* Footer */}
         <Box sx={style.footer}>
           <Button
             variant="outlined"
@@ -1443,7 +1304,6 @@ function UpdateInvoiceModal({
           >
             Cancel
           </Button>
-
           <Button
             variant="contained"
             onClick={submit}
@@ -1457,9 +1317,7 @@ function UpdateInvoiceModal({
             }
             sx={{
               bgcolor: '#00529B',
-              '&:hover': {
-                bgcolor: '#003a6d',
-              },
+              '&:hover': { bgcolor: '#003a6d' },
               borderRadius: '8px',
             }}
           >

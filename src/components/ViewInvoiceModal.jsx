@@ -19,7 +19,10 @@ import PersonIcon from '@mui/icons-material/Person';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import AttachmentIcon from '@mui/icons-material/Attachment';
 
-// List of payment terms options
+// ── COA data from DB instead of Excel file ────────────────────────────────────
+import useCOAData from '../hooks/useCOAData';
+
+// Payment terms — kept for getDescriptiveValue lookup (no API equivalent)
 const paymentTermsOptions = [
   { value: 'net_30', label: 'Net 30 - Payment due within 30 days' },
   { value: 'net_45', label: 'Net 45 - Payment due within 45 days' },
@@ -72,25 +75,10 @@ const style = {
     gap: 2,
     bgcolor: 'white',
   },
-  section: {
-    p: 3,
-    mb: 2,
-    bgcolor: 'white',
-  },
-  fieldContainer: {
-    mb: 2,
-  },
-  fieldLabel: {
-    fontWeight: 600,
-    color: '#666',
-    fontSize: '0.875rem',
-    mb: 0.5,
-  },
-  fieldValue: {
-    color: '#333',
-    fontSize: '0.95rem',
-    fontWeight: 500,
-  },
+  section: { p: 3, mb: 2, bgcolor: 'white' },
+  fieldContainer: { mb: 2 },
+  fieldLabel: { fontWeight: 600, color: '#666', fontSize: '0.875rem', mb: 0.5 },
+  fieldValue: { color: '#333', fontSize: '0.95rem', fontWeight: 500 },
   documentCard: {
     border: '1px solid #e0e0e0',
     borderRadius: '8px',
@@ -110,7 +98,6 @@ const style = {
   },
 };
 
-// Helper function to get status color
 const getStatusColor = (status) => {
   switch (status?.toLowerCase()) {
     case 'approved':
@@ -130,230 +117,78 @@ const getStatusColor = (status) => {
   }
 };
 
-// Helper function to format currency
 const formatCurrency = (amount, currency) => {
   if (!amount) return 'N/A';
   return `${currency || ''} ${parseFloat(amount).toLocaleString()}`;
 };
 
 function ViewInvoiceModal({ defaultValues, open, handleClose }) {
-  console.log('defaultValues', defaultValues);
+  // ── COA data from DB (replaces loadExcelData + excelData state) ────────────
+  // enabled: open  → only fetch when the modal is actually open,
+  //                  matching the old "if (open) loadExcelData()" behaviour.
+  const { excelData, isLoading: coaLoading } = useCOAData({ enabled: open });
 
-  // State for Excel data
-  const [excelData, setExcelData] = useState({
-    suppliers: [],
-    costCenters: [],
-    glCodes: [],
-    locations: [],
-    aircraftTypes: [],
-    routes: [],
-  });
-  const [dataLoading, setDataLoading] = useState(false);
+  // ── value helpers ──────────────────────────────────────────────────────────
+  const getValue = (field) => defaultValues?.[field] || 'N/A';
 
-  // Function to load Excel data
-  const loadExcelData = async () => {
-    try {
-      const XLSX = await import('xlsx');
-
-      const response = await fetch('/6. COA.xlsx');
-      if (!response.ok) {
-        throw new Error(`Failed to fetch Excel file: ${response.statusText}`);
-      }
-
-      const arrayBuffer = await response.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer, {
-        cellStyles: true,
-        cellFormulas: true,
-        cellDates: true,
-        cellNF: true,
-        sheetStubs: true,
-      });
-
-      const processSheet = (
-        sheetName,
-        valueColumn,
-        labelColumn,
-        combinedLabel = false
-      ) => {
-        try {
-          const worksheet = workbook.Sheets[sheetName];
-          if (!worksheet) {
-            console.warn(`Sheet "${sheetName}" not found`);
-            return [];
-          }
-
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-          return jsonData
-            .slice(1)
-            .filter(
-              (row) =>
-                row[valueColumn] !== undefined &&
-                row[valueColumn] !== null &&
-                row[valueColumn] !== ''
-            )
-            .map((row) => {
-              const value = String(row[valueColumn]).trim();
-              const label = row[labelColumn]
-                ? String(row[labelColumn]).trim()
-                : value;
-
-              return {
-                value: value,
-                label: combinedLabel ? `${value} - ${label}` : label,
-                description: label,
-              };
-            })
-            .filter((item) => item.value && item.label);
-        } catch (error) {
-          console.error(`Error processing sheet ${sheetName}:`, error);
-          return [];
-        }
-      };
-
-      const suppliers = processSheet('Supplier Details', 0, 1, true);
-      const costCenters = processSheet('Cost Center', 0, 1, true);
-      const glCodes = processSheet('GL Code', 0, 1, true);
-      const locations = processSheet('Location Code', 0, 1, true);
-      const aircraftTypes = processSheet('Aircraft Type', 0, 1, true);
-      const routes = processSheet('Route', 0, 1, true);
-
-      return {
-        suppliers,
-        costCenters,
-        glCodes,
-        locations,
-        aircraftTypes: aircraftTypes.length > 0 ? aircraftTypes : [],
-        routes: routes.length > 0 ? routes : [],
-      };
-    } catch (error) {
-      console.error('Error loading Excel data:', error);
-
-      return {
-        suppliers: [
-          {
-            value: '00001',
-            label: '00001 - Sample Supplier',
-            description: 'Sample Supplier',
-          },
-        ],
-        costCenters: [
-          {
-            value: '1000',
-            label: '1000 - Sample Cost Center',
-            description: 'Sample Cost Center',
-          },
-        ],
-        glCodes: [
-          {
-            value: '1011',
-            label: '1011 - Sample GL Code',
-            description: 'Sample GL Code',
-          },
-        ],
-        locations: [
-          {
-            value: '0000',
-            label: '0000 - Default Location',
-            description: 'Default Location',
-          },
-        ],
-        aircraftTypes: [],
-        routes: [],
-      };
-    }
-  };
-
-  // Load Excel data when component mounts or when modal opens
-  useEffect(() => {
-    if (open) {
-      const loadData = async () => {
-        setDataLoading(true);
-        try {
-          const data = await loadExcelData();
-          setExcelData(data);
-        } catch (error) {
-          console.error('Failed to load Excel data:', error);
-        } finally {
-          setDataLoading(false);
-        }
-      };
-
-      loadData();
-    }
-  }, [open]);
-
-  // Helper function to get value - now only supports flat structure
-  const getValue = (field) => {
-    return defaultValues?.[field] || 'N/A';
-  };
-
-  // Helper function to get descriptive label for a field
+  // Resolve a stored code/key to its human-readable label using excelData.
+  // Unchanged from original — only data source is different.
   const getDescriptiveValue = (field, value) => {
     if (!value || value === 'N/A') return 'N/A';
 
     switch (field) {
-      case 'location':
-        const location = excelData.locations.find(
-          (item) => item.value === value
-        );
-        return location ? location.label : value;
-
-      case 'aircraft_type':
-        const aircraftType = excelData.aircraftTypes.find(
-          (item) => item.value === value
-        );
-        return aircraftType ? aircraftType.label : value;
-
-      case 'route':
+      case 'location': {
+        const loc = excelData.locations.find((item) => item.value === value);
+        return loc ? loc.label : value;
+      }
+      case 'aircraft_type': {
+        const ac = excelData.aircraftTypes.find((item) => item.value === value);
+        return ac ? ac.label : value;
+      }
+      case 'route': {
         const route = excelData.routes.find((item) => item.value === value);
         return route ? route.label : value;
-
-      case 'payment_terms':
-        const paymentTerm = paymentTermsOptions.find(
-          (option) => option.value === value
-        );
-        return paymentTerm ? paymentTerm.label : value;
-
-      case 'supplier_number':
+      }
+      case 'payment_terms': {
+        const pt = paymentTermsOptions.find((option) => option.value === value);
+        return pt ? pt.label : value;
+      }
+      case 'supplier_number': {
         const supplier = excelData.suppliers.find(
-          (item) => item.value === value
+          (item) => item.value === value,
         );
         return supplier ? supplier.label : value;
-
+      }
       default:
         return value;
     }
   };
 
-  // Helper function to get GL Code description
   const getGLCodeDescription = (glCode) => {
     if (!glCode || glCode === 'N/A') return 'N/A';
-    const glItem = excelData.glCodes.find((item) => item.value === glCode);
-    return glItem ? glItem.label : glCode;
+    const gl = excelData.glCodes.find((item) => item.value === glCode);
+    return gl ? gl.label : glCode;
   };
 
-  // Helper function to get Cost Center description
   const getCostCenterDescription = (costCenter) => {
     if (!costCenter || costCenter === 'N/A') return 'N/A';
-    const ccItem = excelData.costCenters.find(
-      (item) => item.value === costCenter
-    );
-    return ccItem ? ccItem.label : costCenter;
+    const cc = excelData.costCenters.find((item) => item.value === costCenter);
+    return cc ? cc.label : costCenter;
   };
 
-  // Get GL Lines data - now only flat structure
+  // ── data ───────────────────────────────────────────────────────────────────
   const glLines = defaultValues?.gl_lines || [];
-
-  // Get documents - now only flat structure
   const documents = defaultValues?.documents || [];
 
-  // Get invoice owner info - now only flat structure
   const invoiceOwner = defaultValues?.invoice_owner;
   const ownerName = invoiceOwner
     ? `${invoiceOwner.firstname || ''} ${invoiceOwner.lastname || ''}`.trim()
     : 'N/A';
 
+  // Placeholder shown while COA data is still loading from the API
+  const loading = (text = 'Loading...') => (coaLoading ? 'Loading...' : text);
+
+  // ── render ─────────────────────────────────────────────────────────────────
   return (
     <Modal
       open={open}
@@ -377,9 +212,8 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
           </IconButton>
         </Box>
 
-        {/* Content */}
         <Box sx={style.content}>
-          {/* Basic Information Section */}
+          {/* ── Basic Information ──────────────────────────────────────────── */}
           <Paper elevation={0} sx={style.section}>
             <Typography
               variant="subtitle1"
@@ -431,13 +265,66 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
 
               <Grid item xs={12} md={6}>
                 <Box sx={style.fieldContainer}>
-                  <Typography sx={style.fieldLabel}>Supplier Number</Typography>
+                  <Typography sx={style.fieldLabel}>Status</Typography>
+                  <Chip
+                    label={(getValue('status') || 'N/A').toUpperCase()}
+                    color={getStatusColor(getValue('status'))}
+                    variant="outlined"
+                    size="small"
+                    sx={{ fontWeight: 600 }}
+                  />
+                </Box>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Box sx={style.fieldContainer}>
+                  <Typography sx={style.fieldLabel}>Created By</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <PersonIcon sx={{ color: '#00529B', fontSize: 18 }} />
+                    <Typography sx={style.fieldValue}>{ownerName}</Typography>
+                  </Box>
+                </Box>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Box sx={style.fieldContainer}>
+                  <Typography sx={style.fieldLabel}>Created At</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CalendarTodayIcon
+                      sx={{ color: '#00529B', fontSize: 16 }}
+                    />
+                    <Typography sx={style.fieldValue}>
+                      {getValue('created_at') !== 'N/A'
+                        ? new Date(getValue('created_at')).toLocaleString()
+                        : 'N/A'}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Grid>
+            </Grid>
+          </Paper>
+
+          {/* ── Supplier & Financial Information ───────────────────────────── */}
+          <Paper elevation={0} sx={style.section}>
+            <Typography
+              variant="subtitle1"
+              fontWeight="600"
+              color="#00529B"
+              sx={{ mb: 3 }}
+            >
+              Supplier & Financial Information
+            </Typography>
+
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Box sx={style.fieldContainer}>
+                  <Typography sx={style.fieldLabel}>Supplier</Typography>
                   <Typography sx={style.fieldValue}>
-                    {dataLoading
+                    {coaLoading
                       ? 'Loading...'
                       : getDescriptiveValue(
                           'supplier_number',
-                          getValue('supplier_number')
+                          getValue('supplier_number'),
                         )}
                   </Typography>
                 </Box>
@@ -448,15 +335,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                   <Typography sx={style.fieldLabel}>Supplier Name</Typography>
                   <Typography sx={style.fieldValue}>
                     {getValue('supplier_name')}
-                  </Typography>
-                </Box>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Box sx={style.fieldContainer}>
-                  <Typography sx={style.fieldLabel}>Quantity</Typography>
-                  <Typography sx={style.fieldValue}>
-                    {getValue('quantity')}
                   </Typography>
                 </Box>
               </Grid>
@@ -482,10 +360,19 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                   </Typography>
                 </Box>
               </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Box sx={style.fieldContainer}>
+                  <Typography sx={style.fieldLabel}>Quantity</Typography>
+                  <Typography sx={style.fieldValue}>
+                    {getValue('quantity')}
+                  </Typography>
+                </Box>
+              </Grid>
             </Grid>
           </Paper>
 
-          {/* GL Lines Section */}
+          {/* ── GL Lines ───────────────────────────────────────────────────── */}
           {glLines.length > 0 && (
             <Paper elevation={0} sx={style.section}>
               <Typography
@@ -509,11 +396,12 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                     </Typography>
 
                     <Grid container spacing={2}>
+                      {/* Row 1: GL Code | GL Description | Cost Center | Amount */}
                       <Grid item xs={12} md={3}>
                         <Box sx={style.fieldContainer}>
                           <Typography sx={style.fieldLabel}>GL Code</Typography>
                           <Typography sx={style.fieldValue}>
-                            {dataLoading
+                            {coaLoading
                               ? 'Loading...'
                               : getGLCodeDescription(line.gl_code)}
                           </Typography>
@@ -537,7 +425,7 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                             Cost Center
                           </Typography>
                           <Typography sx={style.fieldValue}>
-                            {dataLoading
+                            {coaLoading
                               ? 'Loading...'
                               : getCostCenterDescription(line.cost_center)}
                           </Typography>
@@ -550,20 +438,20 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                           <Typography sx={style.fieldValue} fontWeight="bold">
                             {formatCurrency(
                               line.gl_amount,
-                              getValue('currency')
+                              getValue('currency'),
                             )}
                           </Typography>
                         </Box>
                       </Grid>
 
-                      {/* New GL Line fields */}
+                      {/* Row 2: Location | Aircraft Type | Route */}
                       <Grid item xs={12} md={4}>
                         <Box sx={style.fieldContainer}>
                           <Typography sx={style.fieldLabel}>
                             Location
                           </Typography>
                           <Typography sx={style.fieldValue}>
-                            {dataLoading
+                            {coaLoading
                               ? 'Loading...'
                               : getDescriptiveValue('location', line.location)}
                           </Typography>
@@ -576,11 +464,11 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                             Aircraft Type
                           </Typography>
                           <Typography sx={style.fieldValue}>
-                            {dataLoading
+                            {coaLoading
                               ? 'Loading...'
                               : getDescriptiveValue(
                                   'aircraft_type',
-                                  line.aircraft_type
+                                  line.aircraft_type,
                                 )}
                           </Typography>
                         </Box>
@@ -590,7 +478,7 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                         <Box sx={style.fieldContainer}>
                           <Typography sx={style.fieldLabel}>Route</Typography>
                           <Typography sx={style.fieldValue}>
-                            {dataLoading
+                            {coaLoading
                               ? 'Loading...'
                               : getDescriptiveValue('route', line.route)}
                           </Typography>
@@ -603,7 +491,7 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
             </Paper>
           )}
 
-          {/* Payment Information Section */}
+          {/* ── Payment Information ────────────────────────────────────────── */}
           <Paper elevation={0} sx={style.section}>
             <Typography
               variant="subtitle1"
@@ -619,11 +507,11 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                 <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>Payment Terms</Typography>
                   <Typography sx={style.fieldValue}>
-                    {dataLoading
+                    {coaLoading
                       ? 'Loading...'
                       : getDescriptiveValue(
                           'payment_terms',
-                          getValue('payment_terms')
+                          getValue('payment_terms'),
                         )}
                   </Typography>
                 </Box>
@@ -637,7 +525,7 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                   <Typography sx={style.fieldValue}>
                     {getValue('payment_due_date') !== 'N/A'
                       ? new Date(
-                          getValue('payment_due_date')
+                          getValue('payment_due_date'),
                         ).toLocaleDateString()
                       : 'N/A'}
                   </Typography>
@@ -646,81 +534,11 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
             </Grid>
           </Paper>
 
-          {/* Status and Tracking Section */}
-          <Paper elevation={0} sx={style.section}>
-            <Typography
-              variant="subtitle1"
-              fontWeight="600"
-              color="#00529B"
-              sx={{ mb: 3 }}
-            >
-              Status & Tracking
-            </Typography>
-
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Box sx={style.fieldContainer}>
-                  <Typography sx={style.fieldLabel}>Status</Typography>
-                  <Chip
-                    label={getValue('status').toUpperCase()}
-                    color={getStatusColor(getValue('status'))}
-                    variant="outlined"
-                    size="small"
-                    sx={{ mt: 0.5, fontWeight: 600 }}
-                  />
-                </Box>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Box sx={style.fieldContainer}>
-                  <Typography sx={style.fieldLabel}>Created By</Typography>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1,
-                      mt: 0.5,
-                    }}
-                  >
-                    <PersonIcon fontSize="small" color="action" />
-                    <Typography sx={style.fieldValue}>{ownerName}</Typography>
-                  </Box>
-                </Box>
-              </Grid>
-
-              <Grid item xs={12}>
-                <Box sx={style.fieldContainer}>
-                  <Typography sx={style.fieldLabel}>Created At</Typography>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1,
-                      mt: 0.5,
-                    }}
-                  >
-                    <CalendarTodayIcon fontSize="small" color="action" />
-                    <Typography sx={style.fieldValue}>
-                      {getValue('created_at') !== 'N/A'
-                        ? new Date(getValue('created_at')).toLocaleString()
-                        : 'N/A'}
-                    </Typography>
-                  </Box>
-                </Box>
-              </Grid>
-            </Grid>
-          </Paper>
-
-          {/* Documents Section */}
+          {/* ── Documents ─────────────────────────────────────────────────── */}
           {documents.length > 0 && (
             <Paper elevation={0} sx={style.section}>
               <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  mb: 3,
-                }}
+                sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}
               >
                 <AttachmentIcon sx={{ color: '#00529B' }} />
                 <Typography
@@ -757,9 +575,7 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                         sx={{
                           color: '#00529B',
                           borderColor: '#00529B',
-                          '&:hover': {
-                            bgcolor: 'rgba(0, 82, 155, 0.05)',
-                          },
+                          '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.05)' },
                           borderRadius: '8px',
                         }}
                       >
@@ -780,9 +596,7 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
             onClick={handleClose}
             sx={{
               bgcolor: '#00529B',
-              '&:hover': {
-                bgcolor: '#003a6d',
-              },
+              '&:hover': { bgcolor: '#003a6d' },
               borderRadius: '8px',
             }}
           >

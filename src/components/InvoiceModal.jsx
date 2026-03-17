@@ -17,9 +17,10 @@ import {
   FormHelperText,
   Switch,
   FormControlLabel,
+  Box,
+  Typography,
+  Chip,
 } from '@mui/material';
-import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
 import Modal from '@mui/material/Modal';
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
@@ -30,26 +31,17 @@ import { addInvoice, getInvoiceByUser } from '../features/invoice/invoiceSlice';
 import { checkHeadDepartment } from '../features/department/departmentSlice';
 import { getAllSigners } from '../features/user/userSlice';
 
-// Import the Yup resolver and validation schemas
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { getInvoiceValidationSchema } from '../validations/invoice';
 
-// Import currencies from separate file
 import currencies from '../utils/currencies';
+import useCOAData from '../hooks/useCOAData';
+import useInvoiceNumberCheck from '../hooks/useInvoiceNumberCheck';
 
 const ITEM_HEIGHT = 48;
 const ITEM_PADDING_TOP = 8;
-const MenuProps = {
-  PaperProps: {
-    style: {
-      maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
-      width: 250,
-    },
-  },
-};
 
-// List of payment terms options
 const paymentTermsOptions = [
   { value: 'net_30', label: 'Net 30 - Payment due within 30 days' },
   { value: 'net_45', label: 'Net 45 - Payment due within 45 days' },
@@ -71,7 +63,7 @@ const style = {
     top: '50%',
     left: '50%',
     transform: 'translate(-50%, -50%)',
-    width: 900,
+    width: 960,
     maxHeight: '90vh',
     bgcolor: 'background.paper',
     borderRadius: '8px',
@@ -89,37 +81,24 @@ const style = {
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  content: {
-    padding: '24px',
-  },
-  closeButton: {
-    color: 'white',
-  },
-  section: {
-    marginBottom: '24px',
-  },
+  content: { padding: '24px' },
+  closeButton: { color: 'white' },
+  section: { marginBottom: '24px' },
   sectionTitle: {
     fontSize: '16px',
     fontWeight: 500,
     marginBottom: '16px',
     color: '#444',
   },
-  inputLabel: {
-    fontSize: '14px',
-  },
+  inputLabel: { fontSize: '14px' },
   formInputNumber: {
-    '& input': {
-      '-moz-appearance': 'textfield',
-    },
+    '& input': { '-moz-appearance': 'textfield' },
     '& input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button': {
       '-webkit-appearance': 'none',
       margin: 0,
     },
   },
-  fileInputContainer: {
-    marginTop: '8px',
-    marginBottom: '8px',
-  },
+  fileInputContainer: { marginTop: '8px', marginBottom: '8px' },
   fileInput: {
     width: '100%',
     padding: '8px',
@@ -134,17 +113,118 @@ const style = {
   },
   sendButton: {
     backgroundColor: '#00529B',
-    '&:hover': {
-      backgroundColor: '#003a6d',
-    },
-  },
-  errorText: {
-    color: 'error.main',
-    fontSize: '0.75rem',
-    marginTop: '3px',
-    marginLeft: '14px',
+    '&:hover': { backgroundColor: '#003a6d' },
   },
 };
+
+// ─── COA Autocomplete ─────────────────────────────────────────────────────────
+//
+// Splits each option label "CODE - Description" into two parts:
+//   • The input field shows:  "CODE — Description" (full label, no clipping
+//     because the field is now full-width md={12})
+//   • The dropdown renders a two-line item:
+//       [CODE chip]  Description
+//
+// value / onChange work with the raw code string ("1310") so react-hook-form
+// Controller stores the primitive value unchanged.
+// ─────────────────────────────────────────────────────────────────────────────
+function COAAutocomplete({
+  options = [],
+  value,
+  onChange,
+  label,
+  disabled,
+  error,
+  helperText,
+  required = false,
+  placeholder = 'Type to search...',
+}) {
+  const selectedOption = options.find((o) => o.value === value) || null;
+
+  return (
+    <Autocomplete
+      options={options}
+      value={selectedOption}
+      disabled={disabled}
+      onChange={(_, newOption) => onChange(newOption ? newOption.value : '')}
+      isOptionEqualToValue={(option, val) => option.value === val?.value}
+      // Full label in the input so nothing is hidden
+      getOptionLabel={(option) => option.label || ''}
+      // Two-line dropdown item: code chip + description
+      renderOption={(props, option) => {
+        const dashIndex = option.label.indexOf(' - ');
+        const code =
+          dashIndex !== -1 ? option.label.slice(0, dashIndex) : option.label;
+        const description =
+          dashIndex !== -1 ? option.label.slice(dashIndex + 3) : '';
+
+        return (
+          <Box
+            component="li"
+            {...props}
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start !important',
+              py: '10px !important',
+            }}
+          >
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.25 }}
+            >
+              <Chip
+                label={code}
+                size="small"
+                sx={{
+                  backgroundColor: '#e8f0fe',
+                  color: '#00529B',
+                  fontWeight: 600,
+                  fontSize: '11px',
+                  height: 20,
+                  borderRadius: '4px',
+                }}
+              />
+            </Box>
+            {description && (
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ fontSize: '12px', lineHeight: 1.3 }}
+              >
+                {description}
+              </Typography>
+            )}
+          </Box>
+        );
+      }}
+      // Wider dropdown so long descriptions are fully visible
+      ListboxProps={{ style: { maxHeight: 280 } }}
+      componentsProps={{
+        paper: { sx: { minWidth: 380 } },
+      }}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          label={required ? `${label} *` : label}
+          variant="outlined"
+          fullWidth
+          error={error}
+          helperText={helperText}
+          placeholder={placeholder}
+          InputLabelProps={{
+            shrink: true,
+            style: {
+              backgroundColor: 'white',
+              paddingLeft: 5,
+              paddingRight: 5,
+            },
+          }}
+        />
+      )}
+      noOptionsText={`No ${label.toLowerCase()} found`}
+    />
+  );
+}
 
 export default function InvoiceModal() {
   const dispatch = useDispatch();
@@ -155,7 +235,6 @@ export default function InvoiceModal() {
   const { users } = useSelector((state) => state.user);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
-  // Check if user is a supplier
   const isSupplier = user?.role === 'supplier';
 
   const [open, setOpen] = useState(false);
@@ -176,34 +255,21 @@ export default function InvoiceModal() {
     },
   ]);
 
-  // State for Excel data
-  const [excelData, setExcelData] = useState({
-    suppliers: [],
-    costCenters: [],
-    glCodes: [],
-    locations: [],
-    aircraftTypes: [],
-    routes: [],
-  });
-  const [dataLoading, setDataLoading] = useState(false);
+  const { excelData, isLoading: coaLoading } = useCOAData({ enabled: open });
 
-  // Get the validation schema with context
   const validationSchema = getInvoiceValidationSchema(user?.role);
 
-  // Initialize the form with react-hook-form and yup resolver
   const {
     control,
     handleSubmit,
     reset,
     setValue,
-    register,
     formState: { errors },
     watch,
-    clearErrors,
   } = useForm({
     resolver: yupResolver(validationSchema),
     mode: 'onSubmit',
-    context: { useMultipleGL }, // Pass context for conditional validation
+    context: { useMultipleGL },
     defaultValues: {
       supplier_number: '',
       supplier_name: '',
@@ -227,118 +293,17 @@ export default function InvoiceModal() {
     },
   });
 
-  // Watch payment terms field to handle custom payment terms logic
   const payment_terms = watch('payment_terms');
 
-  // Function to load Excel data
-  const loadExcelData = async () => {
-    try {
-      const XLSX = await import('xlsx');
-      const response = await fetch('/6. COA.xlsx');
-      if (!response.ok) {
-        throw new Error(`Failed to fetch Excel file: ${response.statusText}`);
-      }
-
-      const arrayBuffer = await response.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer, {
-        cellStyles: true,
-        cellFormulas: true,
-        cellDates: true,
-        cellNF: true,
-        sheetStubs: true,
-      });
-
-      const processSheet = (
-        sheetName,
-        valueColumn,
-        labelColumn,
-        combinedLabel = false
-      ) => {
-        try {
-          const worksheet = workbook.Sheets[sheetName];
-          if (!worksheet) {
-            console.warn(`Sheet "${sheetName}" not found`);
-            return [];
-          }
-
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-          return jsonData
-            .slice(1)
-            .filter(
-              (row) =>
-                row[valueColumn] !== undefined &&
-                row[valueColumn] !== null &&
-                row[valueColumn] !== ''
-            )
-            .map((row) => {
-              const value = String(row[valueColumn]).trim();
-              const label = row[labelColumn]
-                ? String(row[labelColumn]).trim()
-                : value;
-
-              return {
-                value: value,
-                label: combinedLabel ? `${value} - ${label}` : label,
-              };
-            })
-            .filter((item) => item.value && item.label);
-        } catch (error) {
-          console.error(`Error processing sheet ${sheetName}:`, error);
-          return [];
-        }
-      };
-
-      const suppliers = processSheet('Supplier Details', 0, 1, true);
-      const costCenters = processSheet('Cost Center', 0, 1, true);
-      const glCodes = processSheet('GL Code', 0, 1, true);
-      const locations = processSheet('Location Code', 0, 1, true);
-      const aircraftTypes = processSheet('Aircraft Type', 0, 1, true);
-      const routes = processSheet('Route', 0, 1, true);
-
-      return {
-        suppliers,
-        costCenters,
-        glCodes,
-        locations,
-        aircraftTypes: aircraftTypes.length > 0 ? aircraftTypes : [],
-        routes: routes.length > 0 ? routes : [],
-      };
-    } catch (error) {
-      console.error('Error loading Excel data:', error);
-      return {
-        suppliers: [{ value: '00001', label: '00001 - Sample Supplier' }],
-        costCenters: [{ value: '1000', label: '1000 - Sample Cost Center' }],
-        glCodes: [{ value: '1011', label: '1011 - Sample GL Code' }],
-        locations: [{ value: '0000', label: '0000 - Default Location' }],
-        aircraftTypes: [],
-        routes: [],
-      };
-    }
-  };
-
-  // Load Excel data when component mounts
-  useEffect(() => {
-    const loadData = async () => {
-      setDataLoading(true);
-      try {
-        const data = await loadExcelData();
-        setExcelData(data);
-      } catch (error) {
-        console.error('Failed to load Excel data:', error);
-        toast.error('Failed to load reference data');
-      } finally {
-        setDataLoading(false);
-      }
-    };
-
-    loadData();
-  }, []);
+  // ── Invoice number uniqueness check ─────────────────────────────────────────
+  // supplier_number is watched so the check carries the correct supplier context.
+  const watchedSupplierNumber = watch('supplier_number');
+  const { invoiceNumStatus, checkInvoiceNum, resetInvoiceNumCheck } =
+    useInvoiceNumberCheck(watchedSupplierNumber || null);
 
   useEffect(() => {
-    if (next_signers.length > 0) {
+    if (next_signers.length > 0)
       setValue('next_signers_validator', next_signers.join(','));
-    }
   }, [next_signers, setValue]);
 
   useEffect(() => {
@@ -376,6 +341,7 @@ export default function InvoiceModal() {
         route: '',
       },
     ]);
+    resetInvoiceNumCheck();
   };
 
   const handleCustomTermsChange = (e) => {
@@ -389,19 +355,16 @@ export default function InvoiceModal() {
   const handleChangeDocument = (e, idx) => {
     const files = [...documents];
     const file = e.target.files[0];
-
     if (file && !file.name.toLowerCase().endsWith('.pdf')) {
       toast.error('Only PDF files are allowed');
       e.target.value = null;
       return;
     }
-
     if (file && file.size > 10 * 1024 * 1024) {
       toast.error('File size must not exceed 10MB');
       e.target.value = null;
       return;
     }
-
     files[idx] = file;
     setDocuments(files);
   };
@@ -416,13 +379,13 @@ export default function InvoiceModal() {
 
   const handleSupplierChange = (selectedValue) => {
     if (selectedValue) {
-      const selectedSupplier = excelData.suppliers.find(
-        (s) => s.value === selectedValue
-      );
-      if (selectedSupplier) {
-        const [number, name] = selectedSupplier.label.split(' - ');
+      const s = excelData.suppliers.find((x) => x.value === selectedValue);
+      if (s) {
         setValue('supplier_number', selectedValue);
-        setValue('supplier_name', name || '');
+        setValue(
+          'supplier_name',
+          s.label.split(' - ').slice(1).join(' - ') || '',
+        );
       }
     } else {
       setValue('supplier_number', '');
@@ -432,13 +395,13 @@ export default function InvoiceModal() {
 
   const handleGLCodeChange = (selectedValue) => {
     if (selectedValue) {
-      const selectedGL = excelData.glCodes.find(
-        (gl) => gl.value === selectedValue
-      );
-      if (selectedGL) {
-        const description = selectedGL.label.split(' - ').slice(1).join(' - ');
+      const gl = excelData.glCodes.find((x) => x.value === selectedValue);
+      if (gl) {
         setValue('gl_code', selectedValue);
-        setValue('gl_description', description || '');
+        setValue(
+          'gl_description',
+          gl.label.split(' - ').slice(1).join(' - ') || '',
+        );
       }
     } else {
       setValue('gl_code', '');
@@ -446,15 +409,11 @@ export default function InvoiceModal() {
     }
   };
 
-  const calculateTotalAmount = (entries) => {
-    return entries.reduce(
-      (sum, entry) => sum + (parseFloat(entry.gl_amount) || 0),
-      0
-    );
-  };
+  const calculateTotalAmount = (entries) =>
+    entries.reduce((sum, e) => sum + (parseFloat(e.gl_amount) || 0), 0);
 
-  const handleAddGLEntry = () => {
-    const newEntries = [
+  const handleAddGLEntry = () =>
+    setGLEntries([
       ...glEntries,
       {
         gl_code: '',
@@ -465,76 +424,54 @@ export default function InvoiceModal() {
         aircraft_type: '',
         route: '',
       },
-    ];
-    setGLEntries(newEntries);
-  };
+    ]);
 
   const handleRemoveGLEntry = (index) => {
     if (glEntries.length > 1) {
-      const updatedEntries = glEntries.filter((_, idx) => idx !== index);
-      setGLEntries(updatedEntries);
-      const totalAmount = calculateTotalAmount(updatedEntries);
-      setValue('amount', totalAmount.toString());
+      const updated = glEntries.filter((_, i) => i !== index);
+      setGLEntries(updated);
+      setValue('amount', calculateTotalAmount(updated).toString());
     }
   };
 
   const handleGLEntryChange = (index, field, value) => {
-    const updatedEntries = [...glEntries];
-    updatedEntries[index][field] = value;
-
+    const updated = [...glEntries];
+    updated[index][field] = value;
     if (field === 'gl_code' && value) {
-      const selectedGL = excelData.glCodes.find((gl) => gl.value === value);
-      if (selectedGL) {
-        const description = selectedGL.label.split(' - ').slice(1).join(' - ');
-        updatedEntries[index]['gl_description'] = description;
-      }
+      const gl = excelData.glCodes.find((x) => x.value === value);
+      if (gl)
+        updated[index]['gl_description'] = gl.label
+          .split(' - ')
+          .slice(1)
+          .join(' - ');
     }
-
-    setGLEntries(updatedEntries);
-
-    if (field === 'gl_amount') {
-      const totalAmount = calculateTotalAmount(updatedEntries);
-      setValue('amount', totalAmount.toString());
-    }
+    setGLEntries(updated);
+    if (field === 'gl_amount')
+      setValue('amount', calculateTotalAmount(updated).toString());
   };
 
-  // Updated validation function for multiple GL mode
-  const validateMultipleGLEntries = () => {
-    if (!isSupplier && useMultipleGL) {
-      const hasValidEntries = glEntries.every(
-        (entry) =>
-          entry.gl_code &&
-          entry.gl_amount &&
-          entry.cost_center &&
-          entry.location
-      );
-      return hasValidEntries;
-    }
-    return true;
-  };
+  const validateMultipleGLEntries = () =>
+    !isSupplier && useMultipleGL
+      ? glEntries.every(
+          (e) => e.gl_code && e.gl_amount && e.cost_center && e.location,
+        )
+      : true;
 
   const onSubmit = async (data) => {
-    console.log('Form submitted with data:', data);
-    console.log('Form errors:', errors);
-
     try {
-      // Additional validation for multiple GL mode
       if (!isSupplier && useMultipleGL) {
         if (!validateMultipleGLEntries()) {
           toast.error(
-            'Please fill in all required GL entry fields: GL Code, Amount, Cost Center, and Location'
+            'Please fill in all required GL entry fields: GL Code, Amount, Cost Center, and Location',
           );
           return;
         }
-
-        const totalGLAmount = calculateTotalAmount(glEntries);
-        if (totalGLAmount <= 0) {
+        if (calculateTotalAmount(glEntries) <= 0) {
           toast.error('Total GL amount must be greater than 0');
           return;
         }
       }
 
-      // Validate signers for staff users
       const shouldValidateSigners =
         !isSupplier &&
         (isHeadDepartment.is_head_of_department ||
@@ -543,51 +480,41 @@ export default function InvoiceModal() {
         toast.error('Please select at least one next signer');
         return;
       }
-
-      // Check documents
       if (documents.every((doc) => !doc || !doc.name)) {
         toast.error('Please attach at least one document');
         return;
       }
 
-      // Validate file types and sizes
       const hasInvalidFiles = documents.some((doc) => {
         if (doc && doc.name) {
           if (!doc.name.toLowerCase().endsWith('.pdf')) {
             toast.error('Only PDF files are allowed');
             return true;
           }
-          const maxSize = 10 * 1024 * 1024;
-          if (doc.size > maxSize) {
+          if (doc.size > 10 * 1024 * 1024) {
             toast.error('File size must not exceed 10MB');
             return true;
           }
         }
         return false;
       });
+      if (hasInvalidFiles) return;
 
-      if (hasInvalidFiles) {
-        return;
-      }
-
-      // Format the data
       const formattedData = { ...data };
       delete formattedData.next_signers_validator;
+      if (formattedData.payment_due_date)
+        formattedData.payment_due_date = new Date(
+          formattedData.payment_due_date,
+        )
+          .toISOString()
+          .split('T')[0];
+      if (formattedData.invoice_date)
+        formattedData.invoice_date = new Date(formattedData.invoice_date)
+          .toISOString()
+          .split('T')[0];
 
-      if (formattedData.payment_due_date) {
-        const date = new Date(formattedData.payment_due_date);
-        formattedData.payment_due_date = date.toISOString().split('T')[0];
-      }
-
-      if (formattedData.invoice_date) {
-        const date = new Date(formattedData.invoice_date);
-        formattedData.invoice_date = date.toISOString().split('T')[0];
-      }
-
-      // Prepare FormData
       const formData = new FormData();
-
-      const basicFields = [
+      [
         'supplier_number',
         'supplier_name',
         'invoice_number',
@@ -599,72 +526,57 @@ export default function InvoiceModal() {
         'payment_terms',
         'payment_due_date',
         'quantity',
-      ];
-
-      basicFields.forEach((key) => {
-        if (
-          formattedData[key] !== undefined &&
-          formattedData[key] !== null &&
-          formattedData[key] !== ''
-        ) {
+      ].forEach((key) => {
+        if (formattedData[key] != null && formattedData[key] !== '')
           formData.append(key, formattedData[key]);
-        }
       });
 
-      // Handle GL Lines
       if (!isSupplier && useMultipleGL) {
         const validEntries = glEntries.filter(
-          (entry) => entry.gl_code && entry.gl_amount && entry.cost_center
+          (e) => e.gl_code && e.gl_amount && e.cost_center,
         );
-
-        const glLines = validEntries.map((entry) => ({
-          gl_code: entry.gl_code,
-          gl_description: entry.gl_description || '',
-          cost_center: entry.cost_center,
-          gl_amount: parseFloat(entry.gl_amount).toFixed(2),
-          location: entry.location || '',
-          aircraft_type: entry.aircraft_type || '',
-          route: entry.route || '',
-        }));
-
-        formData.append('gl_lines', JSON.stringify(glLines));
+        formData.append(
+          'gl_lines',
+          JSON.stringify(
+            validEntries.map((e) => ({
+              gl_code: e.gl_code,
+              gl_description: e.gl_description || '',
+              cost_center: e.cost_center,
+              gl_amount: parseFloat(e.gl_amount).toFixed(2),
+              location: e.location || '',
+              aircraft_type: e.aircraft_type || '',
+              route: e.route || '',
+            })),
+          ),
+        );
       } else if (!isSupplier && !useMultipleGL) {
-        const glLines = [
-          {
-            gl_code: formattedData.gl_code,
-            gl_description: formattedData.gl_description || '',
-            cost_center: formattedData.cost_center,
-            gl_amount: parseFloat(formattedData.amount).toFixed(2),
-            location: formattedData.location || '',
-            aircraft_type: formattedData.aircraft_type || '',
-            route: formattedData.route || '',
-          },
-        ];
-
-        formData.append('gl_lines', JSON.stringify(glLines));
+        formData.append(
+          'gl_lines',
+          JSON.stringify([
+            {
+              gl_code: formattedData.gl_code,
+              gl_description: formattedData.gl_description || '',
+              cost_center: formattedData.cost_center,
+              gl_amount: parseFloat(formattedData.amount).toFixed(2),
+              location: formattedData.location || '',
+              aircraft_type: formattedData.aircraft_type || '',
+              route: formattedData.route || '',
+            },
+          ]),
+        );
       }
 
-      if (next_signers.length > 0) {
+      if (next_signers.length > 0)
         formData.append('next_signers', next_signers.join(','));
-      }
-
       documents.forEach((doc) => {
-        if (doc && doc.name) {
-          formData.append('documents', doc);
-        }
+        if (doc && doc.name) formData.append('documents', doc);
       });
-
-      console.log('FormData contents:');
-      for (let pair of formData.entries()) {
-        console.log(pair[0] + ': ' + pair[1]);
-      }
 
       await dispatch(addInvoice(formData)).unwrap();
       toast.success('Invoice Added Successfully');
       handleClose();
       dispatch(getInvoiceByUser({ page: 1 }));
     } catch (err) {
-      console.error('Submit error:', err);
       toast.error(err.toString());
     }
   };
@@ -695,7 +607,7 @@ export default function InvoiceModal() {
 
           <Box sx={style.content}>
             <form onSubmit={handleSubmit(onSubmit)} ref={formRef}>
-              {/* Debug section - Remove this in production */}
+              {/* Validation errors debug block */}
               {Object.keys(errors).length > 0 && (
                 <Box
                   sx={{ mb: 2, p: 2, bgcolor: 'error.light', borderRadius: 1 }}
@@ -711,59 +623,35 @@ export default function InvoiceModal() {
                 </Box>
               )}
 
-              {/* Supplier section for non-suppliers */}
+              {/* ══ NON-SUPPLIER SECTIONS ══════════════════════════════════════ */}
               {!isSupplier && (
                 <>
+                  {/* ── Supplier Information ─────────────────────────────────── */}
                   <Box sx={style.section}>
                     <Typography variant="h6" sx={style.sectionTitle}>
                       Supplier Information
                     </Typography>
                     <Grid container spacing={3}>
-                      <Grid item xs={12} md={6}>
+                      {/* Full width — label is long ("vendor_id - vendor_name") */}
+                      <Grid item xs={12}>
                         <Controller
                           name="supplier_number"
                           control={control}
                           render={({ field }) => (
-                            <FormControl
-                              fullWidth
-                              variant="outlined"
+                            <COAAutocomplete
+                              options={excelData.suppliers}
+                              value={field.value}
+                              onChange={(val) => {
+                                field.onChange(val);
+                                handleSupplierChange(val);
+                              }}
+                              label="Supplier"
+                              required
+                              disabled={coaLoading}
                               error={!!errors.supplier_number}
-                            >
-                              <TextField
-                                {...field}
-                                select
-                                label="Supplier *"
-                                variant="outlined"
-                                fullWidth
-                                disabled={dataLoading}
-                                error={!!errors.supplier_number}
-                                helperText={errors.supplier_number?.message}
-                                onChange={(e) => {
-                                  field.onChange(e.target.value);
-                                  handleSupplierChange(e.target.value);
-                                }}
-                                InputLabelProps={{
-                                  shrink: true,
-                                  style: {
-                                    backgroundColor: 'white',
-                                    paddingLeft: 5,
-                                    paddingRight: 5,
-                                  },
-                                }}
-                              >
-                                <MenuItem value="">
-                                  <em>Select supplier</em>
-                                </MenuItem>
-                                {excelData.suppliers.map((option) => (
-                                  <MenuItem
-                                    key={option.value}
-                                    value={option.value}
-                                  >
-                                    {option.label}
-                                  </MenuItem>
-                                ))}
-                              </TextField>
-                            </FormControl>
+                              helperText={errors.supplier_number?.message}
+                              placeholder="Type vendor ID or name to search..."
+                            />
                           )}
                         />
                       </Grid>
@@ -772,7 +660,7 @@ export default function InvoiceModal() {
 
                   <Divider sx={{ my: 2 }} />
 
-                  {/* GL Code Configuration */}
+                  {/* ── GL Code Configuration ─────────────────────────────────── */}
                   <Box sx={style.section}>
                     <Typography variant="h6" sx={style.sectionTitle}>
                       GL Code Configuration
@@ -798,13 +686,15 @@ export default function InvoiceModal() {
                               ]);
                               setValue('amount', '0');
                             } else {
-                              setValue('gl_code', '');
-                              setValue('gl_description', '');
-                              setValue('cost_center', '');
-                              setValue('location', '');
-                              setValue('aircraft_type', '');
-                              setValue('route', '');
-                              setValue('amount', '');
+                              [
+                                'gl_code',
+                                'gl_description',
+                                'cost_center',
+                                'location',
+                                'aircraft_type',
+                                'route',
+                                'amount',
+                              ].forEach((f) => setValue(f, ''));
                             }
                           }}
                         />
@@ -814,248 +704,142 @@ export default function InvoiceModal() {
                     />
 
                     {!useMultipleGL ? (
-                      // Single GL Code Mode
-                      <>
-                        <Grid container spacing={3}>
-                          <Grid item xs={12} md={6}>
-                            <Controller
-                              name="gl_code"
-                              control={control}
-                              render={({ field }) => (
-                                <FormControl
-                                  fullWidth
-                                  variant="outlined"
-                                  error={!!errors.gl_code}
-                                >
-                                  <TextField
-                                    {...field}
-                                    select
-                                    label="GL Code *"
-                                    variant="outlined"
-                                    fullWidth
-                                    disabled={dataLoading}
-                                    error={!!errors.gl_code}
-                                    helperText={errors.gl_code?.message}
-                                    onChange={(e) => {
-                                      field.onChange(e.target.value);
-                                      handleGLCodeChange(e.target.value);
-                                    }}
-                                    InputLabelProps={{
-                                      shrink: true,
-                                      style: {
-                                        backgroundColor: 'white',
-                                        paddingLeft: 5,
-                                        paddingRight: 5,
-                                      },
-                                    }}
-                                  >
-                                    <MenuItem value="">
-                                      <em>Select GL code</em>
-                                    </MenuItem>
-                                    {excelData.glCodes.map((option) => (
-                                      <MenuItem
-                                        key={option.value}
-                                        value={option.value}
-                                      >
-                                        {option.label}
-                                      </MenuItem>
-                                    ))}
-                                  </TextField>
-                                </FormControl>
-                              )}
-                            />
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            <Controller
-                              name="gl_description"
-                              control={control}
-                              render={({ field }) => (
-                                <TextField
-                                  {...field}
-                                  label="GL Description"
-                                  variant="outlined"
-                                  fullWidth
-                                  disabled
-                                  InputLabelProps={{
-                                    shrink: true,
-                                    style: {
-                                      backgroundColor: 'white',
-                                      paddingLeft: 5,
-                                      paddingRight: 5,
-                                    },
-                                  }}
-                                />
-                              )}
-                            />
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            <Controller
-                              name="cost_center"
-                              control={control}
-                              render={({ field }) => (
-                                <FormControl
-                                  fullWidth
-                                  variant="outlined"
-                                  error={!!errors.cost_center}
-                                >
-                                  <TextField
-                                    {...field}
-                                    select
-                                    label="Cost Center *"
-                                    variant="outlined"
-                                    fullWidth
-                                    disabled={dataLoading}
-                                    error={!!errors.cost_center}
-                                    helperText={errors.cost_center?.message}
-                                    InputLabelProps={{
-                                      shrink: true,
-                                      style: {
-                                        backgroundColor: 'white',
-                                        paddingLeft: 5,
-                                        paddingRight: 5,
-                                      },
-                                    }}
-                                  >
-                                    <MenuItem value="">
-                                      <em>Select cost center</em>
-                                    </MenuItem>
-                                    {excelData.costCenters.map((option) => (
-                                      <MenuItem
-                                        key={option.value}
-                                        value={option.value}
-                                      >
-                                        {option.label}
-                                      </MenuItem>
-                                    ))}
-                                  </TextField>
-                                </FormControl>
-                              )}
-                            />
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            <Controller
-                              name="location"
-                              control={control}
-                              render={({ field }) => (
-                                <FormControl
-                                  fullWidth
-                                  variant="outlined"
-                                  error={!!errors.location}
-                                >
-                                  <TextField
-                                    {...field}
-                                    select
-                                    label="Location *"
-                                    variant="outlined"
-                                    fullWidth
-                                    disabled={dataLoading}
-                                    error={!!errors.location}
-                                    helperText={errors.location?.message}
-                                    InputLabelProps={{
-                                      shrink: true,
-                                      style: {
-                                        backgroundColor: 'white',
-                                        paddingLeft: 5,
-                                        paddingRight: 5,
-                                      },
-                                    }}
-                                  >
-                                    <MenuItem value="">
-                                      <em>Select location</em>
-                                    </MenuItem>
-                                    {excelData.locations.map((option) => (
-                                      <MenuItem
-                                        key={option.value}
-                                        value={option.value}
-                                      >
-                                        {option.label}
-                                      </MenuItem>
-                                    ))}
-                                  </TextField>
-                                </FormControl>
-                              )}
-                            />
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            <Controller
-                              name="aircraft_type"
-                              control={control}
-                              render={({ field }) => (
-                                <FormControl fullWidth variant="outlined">
-                                  <TextField
-                                    {...field}
-                                    select
-                                    label="Aircraft Type"
-                                    variant="outlined"
-                                    fullWidth
-                                    disabled={dataLoading}
-                                    InputLabelProps={{
-                                      shrink: true,
-                                      style: {
-                                        backgroundColor: 'white',
-                                        paddingLeft: 5,
-                                        paddingRight: 5,
-                                      },
-                                    }}
-                                  >
-                                    <MenuItem value="">
-                                      <em>Select aircraft type</em>
-                                    </MenuItem>
-                                    {excelData.aircraftTypes.map((option) => (
-                                      <MenuItem
-                                        key={option.value}
-                                        value={option.value}
-                                      >
-                                        {option.label}
-                                      </MenuItem>
-                                    ))}
-                                  </TextField>
-                                </FormControl>
-                              )}
-                            />
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            <Controller
-                              name="route"
-                              control={control}
-                              render={({ field }) => (
-                                <FormControl fullWidth variant="outlined">
-                                  <TextField
-                                    {...field}
-                                    select
-                                    label="Route"
-                                    variant="outlined"
-                                    fullWidth
-                                    disabled={dataLoading}
-                                    InputLabelProps={{
-                                      shrink: true,
-                                      style: {
-                                        backgroundColor: 'white',
-                                        paddingLeft: 5,
-                                        paddingRight: 5,
-                                      },
-                                    }}
-                                  >
-                                    <MenuItem value="">
-                                      <em>Select route</em>
-                                    </MenuItem>
-                                    {excelData.routes.map((option) => (
-                                      <MenuItem
-                                        key={option.value}
-                                        value={option.value}
-                                      >
-                                        {option.label}
-                                      </MenuItem>
-                                    ))}
-                                  </TextField>
-                                </FormControl>
-                              )}
-                            />
-                          </Grid>
+                      /* ── Single GL mode ──────────────────────────────────────
+                         Layout: 3-column row for the most important fields,
+                         then optional fields below so nothing is squeezed.     */
+                      <Grid container spacing={3}>
+                        {/* GL Code — full width so long labels show cleanly */}
+                        <Grid item xs={12} md={6}>
+                          <Controller
+                            name="gl_code"
+                            control={control}
+                            render={({ field }) => (
+                              <COAAutocomplete
+                                options={excelData.glCodes}
+                                value={field.value}
+                                onChange={(val) => {
+                                  field.onChange(val);
+                                  handleGLCodeChange(val);
+                                }}
+                                label="GL Code"
+                                required
+                                disabled={coaLoading}
+                                error={!!errors.gl_code}
+                                helperText={errors.gl_code?.message}
+                                placeholder="Type GL code or description..."
+                              />
+                            )}
+                          />
                         </Grid>
-                      </>
+
+                        {/* GL Description — auto-filled, read-only */}
+                        <Grid item xs={12} md={6}>
+                          <Controller
+                            name="gl_description"
+                            control={control}
+                            render={({ field }) => (
+                              <TextField
+                                {...field}
+                                label="GL Description"
+                                variant="outlined"
+                                fullWidth
+                                disabled
+                                InputLabelProps={{
+                                  shrink: true,
+                                  style: {
+                                    backgroundColor: 'white',
+                                    paddingLeft: 5,
+                                    paddingRight: 5,
+                                  },
+                                }}
+                              />
+                            )}
+                          />
+                        </Grid>
+
+                        {/* Cost Center — full width */}
+                        <Grid item xs={12} md={6}>
+                          <Controller
+                            name="cost_center"
+                            control={control}
+                            render={({ field }) => (
+                              <COAAutocomplete
+                                options={excelData.costCenters}
+                                value={field.value}
+                                onChange={field.onChange}
+                                label="Cost Center"
+                                required
+                                disabled={coaLoading}
+                                error={!!errors.cost_center}
+                                helperText={errors.cost_center?.message}
+                                placeholder="Type code or description..."
+                              />
+                            )}
+                          />
+                        </Grid>
+
+                        {/* Location — full width */}
+                        <Grid item xs={12} md={6}>
+                          <Controller
+                            name="location"
+                            control={control}
+                            render={({ field }) => (
+                              <COAAutocomplete
+                                options={excelData.locations}
+                                value={field.value}
+                                onChange={field.onChange}
+                                label="Location"
+                                required
+                                disabled={coaLoading}
+                                error={!!errors.location}
+                                helperText={errors.location?.message}
+                                placeholder="Type code or name..."
+                              />
+                            )}
+                          />
+                        </Grid>
+
+                        {/* Aircraft Type — optional, half width */}
+                        <Grid item xs={12} md={6}>
+                          <Controller
+                            name="aircraft_type"
+                            control={control}
+                            render={({ field }) => (
+                              <COAAutocomplete
+                                options={excelData.aircraftTypes}
+                                value={field.value}
+                                onChange={field.onChange}
+                                label="Aircraft Type"
+                                disabled={coaLoading}
+                                placeholder="Type code or description..."
+                              />
+                            )}
+                          />
+                        </Grid>
+
+                        {/* Route — optional, half width */}
+                        <Grid item xs={12} md={6}>
+                          <Controller
+                            name="route"
+                            control={control}
+                            render={({ field }) => (
+                              <COAAutocomplete
+                                options={excelData.routes}
+                                value={field.value}
+                                onChange={field.onChange}
+                                label="Route"
+                                disabled={coaLoading}
+                                placeholder="Type code or description..."
+                              />
+                            )}
+                          />
+                        </Grid>
+                      </Grid>
                     ) : (
-                      // Multiple GL Codes Mode
+                      /* ── Multiple GL mode ────────────────────────────────────
+                         Each entry card uses a clear 2-row layout:
+                           Row 1: GL Code (full) | GL Description (full) | Amount
+                           Row 2: Cost Center | Location | Aircraft Type | Route  */
                       <Box>
                         <Typography
                           variant="subtitle1"
@@ -1098,46 +882,21 @@ export default function InvoiceModal() {
                             </Box>
 
                             <Grid container spacing={2}>
-                              <Grid item xs={12} md={4}>
-                                <TextField
-                                  select
-                                  label="GL Code *"
+                              {/* Row 1: GL Code | GL Description | Amount */}
+                              <Grid item xs={12} md={5}>
+                                <COAAutocomplete
+                                  options={excelData.glCodes}
                                   value={entry.gl_code}
-                                  onChange={(e) =>
-                                    handleGLEntryChange(
-                                      index,
-                                      'gl_code',
-                                      e.target.value
-                                    )
+                                  onChange={(val) =>
+                                    handleGLEntryChange(index, 'gl_code', val)
                                   }
-                                  variant="outlined"
-                                  fullWidth
+                                  label="GL Code"
                                   required
-                                  disabled={dataLoading}
-                                  InputLabelProps={{
-                                    shrink: true,
-                                    style: {
-                                      backgroundColor: 'white',
-                                      paddingLeft: 5,
-                                      paddingRight: 5,
-                                    },
-                                  }}
-                                >
-                                  <MenuItem value="">
-                                    <em>Select GL code</em>
-                                  </MenuItem>
-                                  {excelData.glCodes.map((option) => (
-                                    <MenuItem
-                                      key={option.value}
-                                      value={option.value}
-                                    >
-                                      {option.label}
-                                    </MenuItem>
-                                  ))}
-                                </TextField>
+                                  disabled={coaLoading}
+                                  placeholder="Type GL code or description..."
+                                />
                               </Grid>
-
-                              <Grid item xs={12} md={4}>
+                              <Grid item xs={12} md={5}>
                                 <TextField
                                   label="GL Description"
                                   value={entry.gl_description}
@@ -1154,8 +913,7 @@ export default function InvoiceModal() {
                                   }}
                                 />
                               </Grid>
-
-                              <Grid item xs={12} md={4}>
+                              <Grid item xs={12} md={2}>
                                 <TextField
                                   label="Amount *"
                                   type="number"
@@ -1164,7 +922,7 @@ export default function InvoiceModal() {
                                     handleGLEntryChange(
                                       index,
                                       'gl_amount',
-                                      e.target.value
+                                      e.target.value,
                                     )
                                   }
                                   variant="outlined"
@@ -1182,158 +940,64 @@ export default function InvoiceModal() {
                                 />
                               </Grid>
 
+                              {/* Row 2: Cost Center | Location | Aircraft Type | Route */}
                               <Grid item xs={12} md={3}>
-                                <TextField
-                                  select
-                                  label="Cost Center *"
+                                <COAAutocomplete
+                                  options={excelData.costCenters}
                                   value={entry.cost_center}
-                                  onChange={(e) =>
+                                  onChange={(val) =>
                                     handleGLEntryChange(
                                       index,
                                       'cost_center',
-                                      e.target.value
+                                      val,
                                     )
                                   }
-                                  variant="outlined"
-                                  fullWidth
+                                  label="Cost Center"
                                   required
-                                  disabled={dataLoading}
-                                  InputLabelProps={{
-                                    shrink: true,
-                                    style: {
-                                      backgroundColor: 'white',
-                                      paddingLeft: 5,
-                                      paddingRight: 5,
-                                    },
-                                  }}
-                                >
-                                  <MenuItem value="">
-                                    <em>Select cost center</em>
-                                  </MenuItem>
-                                  {excelData.costCenters.map((option) => (
-                                    <MenuItem
-                                      key={option.value}
-                                      value={option.value}
-                                    >
-                                      {option.label}
-                                    </MenuItem>
-                                  ))}
-                                </TextField>
+                                  disabled={coaLoading}
+                                  placeholder="Search cost center..."
+                                />
                               </Grid>
-
                               <Grid item xs={12} md={3}>
-                                <TextField
-                                  select
-                                  label="Location *"
+                                <COAAutocomplete
+                                  options={excelData.locations}
                                   value={entry.location}
-                                  onChange={(e) =>
-                                    handleGLEntryChange(
-                                      index,
-                                      'location',
-                                      e.target.value
-                                    )
+                                  onChange={(val) =>
+                                    handleGLEntryChange(index, 'location', val)
                                   }
-                                  variant="outlined"
-                                  fullWidth
+                                  label="Location"
                                   required
-                                  disabled={dataLoading}
-                                  InputLabelProps={{
-                                    shrink: true,
-                                    style: {
-                                      backgroundColor: 'white',
-                                      paddingLeft: 5,
-                                      paddingRight: 5,
-                                    },
-                                  }}
-                                >
-                                  <MenuItem value="">
-                                    <em>Select location</em>
-                                  </MenuItem>
-                                  {excelData.locations.map((option) => (
-                                    <MenuItem
-                                      key={option.value}
-                                      value={option.value}
-                                    >
-                                      {option.label}
-                                    </MenuItem>
-                                  ))}
-                                </TextField>
+                                  disabled={coaLoading}
+                                  placeholder="Search location..."
+                                />
                               </Grid>
-
                               <Grid item xs={12} md={3}>
-                                <TextField
-                                  select
-                                  label="Aircraft Type"
+                                <COAAutocomplete
+                                  options={excelData.aircraftTypes}
                                   value={entry.aircraft_type}
-                                  onChange={(e) =>
+                                  onChange={(val) =>
                                     handleGLEntryChange(
                                       index,
                                       'aircraft_type',
-                                      e.target.value
+                                      val,
                                     )
                                   }
-                                  variant="outlined"
-                                  fullWidth
-                                  disabled={dataLoading}
-                                  InputLabelProps={{
-                                    shrink: true,
-                                    style: {
-                                      backgroundColor: 'white',
-                                      paddingLeft: 5,
-                                      paddingRight: 5,
-                                    },
-                                  }}
-                                >
-                                  <MenuItem value="">
-                                    <em>Select aircraft type</em>
-                                  </MenuItem>
-                                  {excelData.aircraftTypes.map((option) => (
-                                    <MenuItem
-                                      key={option.value}
-                                      value={option.value}
-                                    >
-                                      {option.label}
-                                    </MenuItem>
-                                  ))}
-                                </TextField>
+                                  label="Aircraft Type"
+                                  disabled={coaLoading}
+                                  placeholder="Search aircraft type..."
+                                />
                               </Grid>
-
                               <Grid item xs={12} md={3}>
-                                <TextField
-                                  select
-                                  label="Route"
+                                <COAAutocomplete
+                                  options={excelData.routes}
                                   value={entry.route}
-                                  onChange={(e) =>
-                                    handleGLEntryChange(
-                                      index,
-                                      'route',
-                                      e.target.value
-                                    )
+                                  onChange={(val) =>
+                                    handleGLEntryChange(index, 'route', val)
                                   }
-                                  variant="outlined"
-                                  fullWidth
-                                  disabled={dataLoading}
-                                  InputLabelProps={{
-                                    shrink: true,
-                                    style: {
-                                      backgroundColor: 'white',
-                                      paddingLeft: 5,
-                                      paddingRight: 5,
-                                    },
-                                  }}
-                                >
-                                  <MenuItem value="">
-                                    <em>Select route</em>
-                                  </MenuItem>
-                                  {excelData.routes.map((option) => (
-                                    <MenuItem
-                                      key={option.value}
-                                      value={option.value}
-                                    >
-                                      {option.label}
-                                    </MenuItem>
-                                  ))}
-                                </TextField>
+                                  label="Route"
+                                  disabled={coaLoading}
+                                  placeholder="Search route..."
+                                />
                               </Grid>
                             </Grid>
                           </Paper>
@@ -1349,7 +1013,6 @@ export default function InvoiceModal() {
                           Add Another GL Entry
                         </Button>
 
-                        {/* Display total amount */}
                         <Box
                           sx={{
                             mt: 2,
@@ -1376,7 +1039,7 @@ export default function InvoiceModal() {
                 </>
               )}
 
-              {/* Invoice Details section */}
+              {/* ── Invoice Details ─────────────────────────────────────────── */}
               <Box sx={style.section}>
                 <Typography variant="h6" sx={style.sectionTitle}>
                   Invoice Details
@@ -1390,17 +1053,45 @@ export default function InvoiceModal() {
                         <FormControl
                           fullWidth
                           variant="outlined"
-                          error={!!errors.invoice_number}
+                          error={
+                            !!errors.invoice_number ||
+                            invoiceNumStatus === 'taken'
+                          }
                         >
                           <InputLabel sx={style.inputLabel}>
                             Invoice Number *
                           </InputLabel>
-                          <Input {...field} type="text" required />
+                          <Input
+                            {...field}
+                            type="text"
+                            required
+                            onChange={(e) => {
+                              field.onChange(e);
+                              checkInvoiceNum(e.target.value);
+                            }}
+                            endAdornment={
+                              invoiceNumStatus === 'checking' ? (
+                                <CircularProgress size={16} sx={{ mr: 1 }} />
+                              ) : undefined
+                            }
+                          />
                           {errors.invoice_number && (
                             <FormHelperText error>
                               {errors.invoice_number.message}
                             </FormHelperText>
                           )}
+                          {!errors.invoice_number &&
+                            invoiceNumStatus === 'taken' && (
+                              <FormHelperText error>
+                                This invoice number has already been used.
+                              </FormHelperText>
+                            )}
+                          {!errors.invoice_number &&
+                            invoiceNumStatus === 'available' && (
+                              <FormHelperText sx={{ color: 'success.main' }}>
+                                Invoice number is available.
+                              </FormHelperText>
+                            )}
                         </FormControl>
                       )}
                     />
@@ -1428,7 +1119,6 @@ export default function InvoiceModal() {
                       )}
                     />
                   </Grid>
-
                   <Grid item xs={12} md={6}>
                     <Controller
                       name="invoice_date"
@@ -1477,7 +1167,6 @@ export default function InvoiceModal() {
                       )}
                     />
                   </Grid>
-
                   <Grid item xs={12} md={6}>
                     <Controller
                       name="quantity"
@@ -1506,7 +1195,7 @@ export default function InvoiceModal() {
 
               <Divider sx={{ my: 2 }} />
 
-              {/* Financial Information */}
+              {/* ── Financial Information ──────────────────────────────────── */}
               <Box sx={style.section}>
                 <Typography variant="h6" sx={style.sectionTitle}>
                   Financial Information
@@ -1555,7 +1244,6 @@ export default function InvoiceModal() {
                       )}
                     />
                   </Grid>
-
                   <Grid item xs={12} md={6}>
                     <Controller
                       name="amount"
@@ -1600,7 +1288,7 @@ export default function InvoiceModal() {
 
               <Divider sx={{ my: 2 }} />
 
-              {/* Payment Terms Section - only shown to non-suppliers */}
+              {/* ── Payment Terms (non-suppliers) ──────────────────────────── */}
               {!isSupplier && (
                 <>
                   <Box sx={style.section}>
@@ -1673,7 +1361,6 @@ export default function InvoiceModal() {
                           />
                         </Grid>
                       )}
-
                       <Grid item xs={12} md={6}>
                         <Controller
                           name="payment_due_date"
@@ -1705,7 +1392,7 @@ export default function InvoiceModal() {
                 </>
               )}
 
-              {/* Approval Workflow */}
+              {/* ── Approval Workflow ──────────────────────────────────────── */}
               {!isSupplier &&
                 (isHeadDepartment.is_head_of_department ||
                   user.role === 'signer_admin') && (
@@ -1723,13 +1410,12 @@ export default function InvoiceModal() {
                           }
                           value={next_signers
                             .map((id) =>
-                              users.results?.find((u) => u.id === id)
+                              users.results?.find((u) => u.id === id),
                             )
                             .filter(Boolean)}
-                          onChange={(_, newValues) => {
-                            const newSignerIds = newValues.map((opt) => opt.id);
-                            setNextSigners(newSignerIds);
-                          }}
+                          onChange={(_, newValues) =>
+                            setNextSigners(newValues.map((opt) => opt.id))
+                          }
                           renderInput={(params) => (
                             <TextField
                               {...params}
@@ -1751,12 +1437,11 @@ export default function InvoiceModal() {
                   </>
                 )}
 
-              {/* Attachments */}
+              {/* ── Attachments ────────────────────────────────────────────── */}
               <Box sx={style.section}>
                 <Typography variant="h6" sx={style.sectionTitle}>
                   Attachments
                 </Typography>
-
                 {documents.map((doc, idx) => (
                   <Box
                     key={idx}
@@ -1792,7 +1477,6 @@ export default function InvoiceModal() {
                     )}
                   </Box>
                 ))}
-
                 <Button
                   startIcon={<AddIcon />}
                   onClick={handleAddMore}
@@ -1804,6 +1488,7 @@ export default function InvoiceModal() {
                 </Button>
               </Box>
 
+              {/* ── Actions ───────────────────────────────────────────────── */}
               <Box sx={style.actionButtons}>
                 <Button variant="outlined" onClick={handleClose}>
                   Cancel

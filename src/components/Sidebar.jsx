@@ -8,8 +8,6 @@ import {
   Collapse,
   Divider,
   Avatar,
-  Tooltip,
-  IconButton,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import Logo from '../assets/images/logo.jpg';
@@ -21,13 +19,13 @@ import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined
 import CorporateFareOutlinedIcon from '@mui/icons-material/CorporateFareOutlined';
 import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
-import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
-import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import AssignmentTurnedInOutlinedIcon from '@mui/icons-material/AssignmentTurnedInOutlined';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
+import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 
 // Redux actions
 import { setIndex } from '../features/invoice/invoiceSlice';
@@ -39,21 +37,19 @@ import {
 // Components
 import ReportingSidebar from '../components/ReportingSidebar';
 
-// Color constants
 const COLORS = {
-  primary: '#00529B', // RwandAir blue (primary brand color)
-  sidebar: '#192a45', // Dark blue sidebar background
-  textPrimary: '#FFFFFF', // White text
-  textSecondary: 'rgba(255, 255, 255, 0.7)', // Dimmed white text
-  textMuted: 'rgba(255, 255, 255, 0.5)', // More dimmed white text
-  divider: 'rgba(255, 255, 255, 0.1)', // Very subtle white
-  hoverBg: 'rgba(255, 255, 255, 0.1)', // Subtle white hover background
-  activeBg: '#00529B', // Active item background (primary)
-  activeSubBg: 'rgba(0, 82, 155, 0.2)', // Translucent primary for sub-items
-  shadow: 'rgba(0, 82, 155, 0.3)', // Shadow color
+  primary: '#00529B',
+  sidebar: '#192a45',
+  textPrimary: '#FFFFFF',
+  textSecondary: 'rgba(255, 255, 255, 0.7)',
+  textMuted: 'rgba(255, 255, 255, 0.5)',
+  divider: 'rgba(255, 255, 255, 0.1)',
+  hoverBg: 'rgba(255, 255, 255, 0.1)',
+  activeBg: '#00529B',
+  activeSubBg: 'rgba(0, 82, 155, 0.2)',
+  shadow: 'rgba(0, 82, 155, 0.3)',
 };
 
-// Styled components
 const SidebarContainer = styled(Box)(({ theme }) => ({
   height: '100vh',
   width: '280px',
@@ -185,106 +181,121 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
-  // State variables
   const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false);
   const [invoiceMenuOpen, setInvoiceMenuOpen] = useState(false);
+  const [coaMenuOpen, setCoaMenuOpen] = useState(false);
+  const [signingFlowMenuOpen, setSigningFlowMenuOpen] = useState(false);
   const [reportingSidebarOpen, setReportingSidebarOpen] = useState(false);
 
-  // Local state for active menu tracking
   const [activeInvoiceOption, setActiveInvoiceOption] = useState(null);
   const [activeDashboardOption, setActiveDashboardOption] = useState(null);
+  const [activeCoaOption, setActiveCoaOption] = useState(null);
+  const [activeSigningFlowOption, setActiveSigningFlowOption] = useState(null);
 
-  // User data
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const username = JSON.parse(localStorage.getItem('username') || '""');
 
-  // Get names from user object (preferred) or fallback to username parsing
   const firstName = user?.firstname || username.split('.')[0] || '';
   const lastName = user?.lastname || username.split('.')[1] || '';
 
-  // Set initial active menu based on URL path
   useEffect(() => {
     const path = location.pathname;
-
     if (path === '/dashboard') {
       setDashboardMenuOpen(true);
     } else if (path === '/') {
       setInvoiceMenuOpen(true);
+    } else if (path.startsWith('/coa')) {
+      setCoaMenuOpen(true);
+      setActiveCoaOption(path);
+    } else if (path.startsWith('/signing-flow')) {
+      setSigningFlowMenuOpen(true);
+      setActiveSigningFlowOption(path);
     }
   }, [location.pathname]);
 
-  // Menu toggle handlers
   const toggleDashboardMenu = (e) => {
     if (e) e.preventDefault();
     setDashboardMenuOpen(!dashboardMenuOpen);
-    // If we're opening this menu, close the other
     if (!dashboardMenuOpen) {
       setInvoiceMenuOpen(false);
+      setCoaMenuOpen(false);
+      setSigningFlowMenuOpen(false);
     }
   };
 
   const toggleInvoiceMenu = (e) => {
     if (e) e.preventDefault();
     setInvoiceMenuOpen(!invoiceMenuOpen);
-    // If we're opening this menu, close the other
     if (!invoiceMenuOpen) {
       setDashboardMenuOpen(false);
+      setCoaMenuOpen(false);
+      setSigningFlowMenuOpen(false);
     }
   };
 
-  // Navigation handlers
+  const toggleCoaMenu = (e) => {
+    if (e) e.preventDefault();
+    setCoaMenuOpen(!coaMenuOpen);
+    if (!coaMenuOpen) {
+      setDashboardMenuOpen(false);
+      setInvoiceMenuOpen(false);
+      setSigningFlowMenuOpen(false);
+    }
+  };
+
+  const toggleSigningFlowMenu = (e) => {
+    if (e) e.preventDefault();
+    setSigningFlowMenuOpen(!signingFlowMenuOpen);
+    if (!signingFlowMenuOpen) {
+      setDashboardMenuOpen(false);
+      setInvoiceMenuOpen(false);
+      setCoaMenuOpen(false);
+    }
+  };
+
+  const handleSigningFlowOption = (path) => {
+    setActiveSigningFlowOption(path);
+    navigate(path);
+  };
+
   const handleInvoiceOption = (index) => {
     dispatch(setIndex(index));
-    dispatch(setCardIndex(null)); // Reset card index when changing main menu
+    dispatch(setCardIndex(null));
     setActiveInvoiceOption(index);
     navigate('/');
   };
 
   const handleDashboardOption = (index) => {
     dispatch(setDashboardIndex(index));
-    dispatch(setIndex(index)); // This was missing - we need to set both indices
-    dispatch(setCardIndex(null)); // Reset card index when changing main menu
+    dispatch(setIndex(index));
+    dispatch(setCardIndex(null));
     setActiveDashboardOption(index);
     navigate('/dashboard');
   };
 
-  // Reporting sidebar handlers
-  const handleOpenReporting = () => {
-    setReportingSidebarOpen(true);
+  const handleCoaOption = (path) => {
+    setActiveCoaOption(path);
+    navigate(path);
   };
 
-  const handleCloseReporting = () => {
-    setReportingSidebarOpen(false);
-  };
+  const handleOpenReporting = () => setReportingSidebarOpen(true);
+  const handleCloseReporting = () => setReportingSidebarOpen(false);
 
-  // Logout handler
   const handleLogout = () => {
-    // Clear all authentication data
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('username');
     localStorage.removeItem('index');
-
-    // Force navigation to login page
     navigate('/login', { replace: true });
   };
 
-  // Get initials for avatar
   const getInitials = () => {
-    // Trim and handle names with spaces
     const first = firstName.trim();
     const last = lastName.trim();
-
     if (!first && !last) return 'U';
-
-    // Get first character of first name and last name
-    const firstInitial = first.charAt(0).toUpperCase();
-    const lastInitial = last.charAt(0).toUpperCase();
-
-    return `${firstInitial}${lastInitial}`;
+    return `${first.charAt(0).toUpperCase()}${last.charAt(0).toUpperCase()}`;
   };
 
-  // Helper function to capitalize the first letter of a string safely
   const capitalizeFirstLetter = (string) => {
     if (!string || typeof string !== 'string') return 'User';
     return string.charAt(0).toUpperCase() + string.slice(1);
@@ -293,28 +304,23 @@ export default function Sidebar() {
   return (
     <>
       <SidebarContainer>
-        {/* Scrollable Content Area */}
         <Box
           sx={{
             flex: 1,
             overflowY: 'auto',
             overflowX: 'hidden',
-            '&::-webkit-scrollbar': {
-              width: '6px',
-            },
+            '&::-webkit-scrollbar': { width: '6px' },
             '&::-webkit-scrollbar-track': {
               backgroundColor: 'rgba(255, 255, 255, 0.05)',
             },
             '&::-webkit-scrollbar-thumb': {
               backgroundColor: 'rgba(255, 255, 255, 0.2)',
               borderRadius: '3px',
-              '&:hover': {
-                backgroundColor: 'rgba(255, 255, 255, 0.3)',
-              },
+              '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.3)' },
             },
           }}
         >
-          {/* Logo Section */}
+          {/* Logo */}
           <LogoContainer>
             <Box
               component="img"
@@ -419,7 +425,7 @@ export default function Sidebar() {
               </Collapse>
             </Box>
 
-            {/* Petty Cash Menu Item - Only show if user has petty cash access */}
+            {/* Petty Cash */}
             {user?.is_petty_cash_user && (
               <StyledNavLink to="/petty-cash">
                 <MenuIcon>
@@ -429,7 +435,7 @@ export default function Sidebar() {
               </StyledNavLink>
             )}
 
-            {/* Reports Menu Item */}
+            {/* Reports */}
             <MenuLink onClick={handleOpenReporting}>
               <MenuIcon>
                 <AssessmentIcon fontSize="small" />
@@ -447,7 +453,7 @@ export default function Sidebar() {
               </StyledNavLink>
             )}
 
-            {/* Admin Section */}
+            {/* Administration */}
             {(user?.role === 'admin' || user?.role === 'signer_admin') && (
               <>
                 <MenuHeading>Administration</MenuHeading>
@@ -481,23 +487,151 @@ export default function Sidebar() {
                   </>
                 )}
 
-                <StyledNavLink to="/signing-flow">
+                {/* Signing Flow Menu */}
+                <Box>
+                  <MenuLink onClick={toggleSigningFlowMenu}>
+                    <MenuIcon>
+                      <AssignmentTurnedInOutlinedIcon fontSize="small" />
+                    </MenuIcon>
+                    <Typography sx={{ flexGrow: 1, fontSize: '15px' }}>
+                      Signing Flow
+                    </Typography>
+                    {signingFlowMenuOpen ? (
+                      <KeyboardArrowUpIcon fontSize="small" />
+                    ) : (
+                      <KeyboardArrowDownIcon fontSize="small" />
+                    )}
+                  </MenuLink>
+
+                  <Collapse
+                    in={signingFlowMenuOpen}
+                    timeout="auto"
+                    unmountOnExit
+                  >
+                    <SubMenuItem
+                      className={
+                        activeSigningFlowOption === '/signing-flow/department'
+                          ? 'active'
+                          : ''
+                      }
+                      onClick={() =>
+                        handleSigningFlowOption('/signing-flow/department')
+                      }
+                    >
+                      Department / Section
+                    </SubMenuItem>
+                    <SubMenuItem
+                      className={
+                        activeSigningFlowOption === '/signing-flow/cost-center'
+                          ? 'active'
+                          : ''
+                      }
+                      onClick={() =>
+                        handleSigningFlowOption('/signing-flow/cost-center')
+                      }
+                    >
+                      Cost Center
+                    </SubMenuItem>
+                    <SubMenuItem
+                      className={
+                        activeSigningFlowOption === '/signing-flow/location'
+                          ? 'active'
+                          : ''
+                      }
+                      onClick={() =>
+                        handleSigningFlowOption('/signing-flow/location')
+                      }
+                    >
+                      Location
+                    </SubMenuItem>
+                  </Collapse>
+                </Box>
+
+                {/* Delegation */}
+                <StyledNavLink to="/delegation">
                   <MenuIcon>
-                    <AssignmentTurnedInOutlinedIcon fontSize="small" />
+                    <SwapHorizIcon fontSize="small" />
                   </MenuIcon>
-                  <Typography sx={{ fontSize: '15px' }}>
-                    Signing Flow
-                  </Typography>
+                  <Typography sx={{ fontSize: '15px' }}>Delegation</Typography>
                 </StyledNavLink>
+
+                {/* Chart of Accounts */}
+                <Box>
+                  <MenuLink onClick={toggleCoaMenu}>
+                    <MenuIcon>
+                      <TableChartOutlinedIcon fontSize="small" />
+                    </MenuIcon>
+                    <Typography sx={{ flexGrow: 1, fontSize: '15px' }}>
+                      Chart of Accounts
+                    </Typography>
+                    {coaMenuOpen ? (
+                      <KeyboardArrowUpIcon fontSize="small" />
+                    ) : (
+                      <KeyboardArrowDownIcon fontSize="small" />
+                    )}
+                  </MenuLink>
+
+                  <Collapse in={coaMenuOpen} timeout="auto" unmountOnExit>
+                    <SubMenuItem
+                      className={
+                        activeCoaOption === '/coa/suppliers' ? 'active' : ''
+                      }
+                      onClick={() => handleCoaOption('/coa/suppliers')}
+                    >
+                      Supplier Details
+                    </SubMenuItem>
+                    <SubMenuItem
+                      className={
+                        activeCoaOption === '/coa/cost-centers' ? 'active' : ''
+                      }
+                      onClick={() => handleCoaOption('/coa/cost-centers')}
+                    >
+                      Cost Center
+                    </SubMenuItem>
+                    <SubMenuItem
+                      className={
+                        activeCoaOption === '/coa/gl-accounts' ? 'active' : ''
+                      }
+                      onClick={() => handleCoaOption('/coa/gl-accounts')}
+                    >
+                      GL Account
+                    </SubMenuItem>
+                    <SubMenuItem
+                      className={
+                        activeCoaOption === '/coa/locations' ? 'active' : ''
+                      }
+                      onClick={() => handleCoaOption('/coa/locations')}
+                    >
+                      Location
+                    </SubMenuItem>
+                    <SubMenuItem
+                      className={
+                        activeCoaOption === '/coa/aircraft-types'
+                          ? 'active'
+                          : ''
+                      }
+                      onClick={() => handleCoaOption('/coa/aircraft-types')}
+                    >
+                      Aircraft Type
+                    </SubMenuItem>
+                    <SubMenuItem
+                      className={
+                        activeCoaOption === '/coa/routes' ? 'active' : ''
+                      }
+                      onClick={() => handleCoaOption('/coa/routes')}
+                    >
+                      Route
+                    </SubMenuItem>
+                  </Collapse>
+                </Box>
               </>
             )}
           </List>
 
-          {/* Bottom padding to ensure content doesn't get hidden behind fixed footer */}
           <Box sx={{ height: '120px' }} />
         </Box>
 
-        {/* Fixed Bottom Section - Logout and User Profile */}
+        {/* Bottom - Logout + Profile */}
         <Box
           sx={{
             position: 'sticky',
@@ -507,7 +641,6 @@ export default function Sidebar() {
             zIndex: 10,
           }}
         >
-          {/* Logout Button */}
           <Box sx={{ px: 2, pt: 2, pb: 1 }}>
             <MenuLink onClick={handleLogout}>
               <MenuIcon>
@@ -517,15 +650,8 @@ export default function Sidebar() {
             </MenuLink>
           </Box>
 
-          {/* User Profile Section */}
           <UserProfileSection>
-            <Avatar
-              sx={{
-                bgcolor: COLORS.primary,
-                width: 38,
-                height: 38,
-              }}
-            >
+            <Avatar sx={{ bgcolor: COLORS.primary, width: 38, height: 38 }}>
               {getInitials()}
             </Avatar>
             <UserInfo>
@@ -553,7 +679,6 @@ export default function Sidebar() {
         </Box>
       </SidebarContainer>
 
-      {/* Reporting Sidebar */}
       <ReportingSidebar
         open={reportingSidebarOpen}
         onClose={handleCloseReporting}

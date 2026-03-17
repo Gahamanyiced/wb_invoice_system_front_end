@@ -12,7 +12,10 @@ import {
 import qrcode from 'qrcode';
 import backgroundImage from '../assets/images/background_download_form.jpg';
 
-// List of payment terms options (same as UpdateInvoiceModal)
+// ── COA data from DB instead of Excel file ────────────────────────────────────
+import useCOAData from '../hooks/useCOAData';
+
+// Payment terms — kept for getDescriptiveValue lookup (no API equivalent)
 const paymentTermsOptions = [
   { value: 'net_30', label: 'Net 30 - Payment due within 30 days' },
   { value: 'net_45', label: 'Net 45 - Payment due within 45 days' },
@@ -32,11 +35,11 @@ const styles = StyleSheet.create({
   page: {
     position: 'relative',
     padding: 40,
-    paddingTop: 100, // Leave space for the logo
+    paddingTop: 100,
     fontSize: 12,
     fontFamily: 'Helvetica',
     lineHeight: 1.5,
-    paddingBottom: 80, // Reduced padding to maximize space
+    paddingBottom: 80,
   },
   backgroundImage: {
     position: 'absolute',
@@ -47,26 +50,15 @@ const styles = StyleSheet.create({
     objectFit: 'cover',
     zIndex: -1,
   },
-  contentWrapper: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  headerSection: {
-    marginBottom: 20,
-  },
+  contentWrapper: { flex: 1, display: 'flex', flexDirection: 'column' },
+  headerSection: { marginBottom: 20 },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 5,
   },
-  headerLabel: {
-    fontWeight: 'bold',
-    width: '40%',
-  },
-  headerValue: {
-    width: '60%',
-  },
+  headerLabel: { fontWeight: 'bold', width: '40%' },
+  headerValue: { width: '60%' },
   title: {
     fontSize: 16,
     fontFamily: 'Helvetica-Bold',
@@ -74,9 +66,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: 'center',
   },
-  section: {
-    marginBottom: 20,
-  },
+  section: { marginBottom: 20 },
   sectionTitle: {
     fontSize: 14,
     fontFamily: 'Helvetica-Bold',
@@ -84,21 +74,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
     padding: 5,
   },
-  detailRow: {
-    flexDirection: 'row',
-    marginBottom: 6,
-  },
-  detailLabel: {
-    width: '40%',
-    fontWeight: 'bold',
-  },
-  detailValue: {
-    width: '60%',
-  },
-  // New GL Lines styles
-  glLinesSection: {
-    marginBottom: 20,
-  },
+  detailRow: { flexDirection: 'row', marginBottom: 6 },
+  detailLabel: { width: '40%', fontWeight: 'bold' },
+  detailValue: { width: '60%' },
+  glLinesSection: { marginBottom: 20 },
   glLineBlock: {
     border: '1pt solid #CCCCCC',
     marginBottom: 10,
@@ -111,44 +90,29 @@ const styles = StyleSheet.create({
     marginBottom: 5,
     color: '#00529B',
   },
-  glLineRow: {
-    flexDirection: 'row',
-    marginBottom: 4,
-  },
-  glLineLabel: {
-    width: '35%',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  glLineValue: {
-    width: '65%',
-    fontSize: 10,
-  },
-  // Payment info styles
-  paymentSection: {
-    marginBottom: 20,
-  },
-  approvalWrapper: {
-    marginTop: 20,
-  },
+  glLineRow: { flexDirection: 'row', marginBottom: 4 },
+  glLineLabel: { width: '35%', fontSize: 10, fontWeight: 'bold' },
+  glLineValue: { width: '65%', fontSize: 10 },
+  paymentSection: { marginBottom: 20 },
+  approvalWrapper: { marginTop: 20 },
   approvalSection: {
-    flexDirection: 'row', // All approval blocks in one row
-    flexWrap: 'wrap', // Allow wrapping to next line
-    justifyContent: 'space-between', // Changed to space-between for better distribution
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
   approvalBlockWrapper: {
-    width: '30%', // Slightly reduced from 32% to give more margin between blocks
-    marginBottom: 20, // Keep vertical spacing between rows
-    marginHorizontal: '1.5%', // Add horizontal margin for better spacing
-    break: 'avoid', // Prevents the block from splitting across pages
+    width: '30%',
+    marginBottom: 20,
+    marginHorizontal: '1.5%',
+    break: 'avoid',
   },
   approvalBlock: {
-    height: 200, // Increased height to accommodate QR codes better
+    height: 200,
     flexDirection: 'column',
     border: '1pt solid #CCCCCC',
-    padding: 10, // Increased padding for better visual separation
+    padding: 10,
     backgroundColor: '#FFFFFF',
-    borderRadius: 4, // Slight rounding of corners for more modern look
+    borderRadius: 4,
   },
   approvalInfo: {
     flexDirection: 'column',
@@ -156,37 +120,25 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     width: '100%',
     padding: 5,
-    minHeight: 60, // Slightly reduced to give more space to QR
-    marginBottom: 10, // Increased space between info and QR
+    minHeight: 60,
+    marginBottom: 10,
   },
-  approvalContent: {
-    breakInside: 'avoid',
-  },
+  approvalContent: { breakInside: 'avoid' },
   approvalTitle: {
     fontFamily: 'Helvetica-Bold',
     fontSize: 12,
-    marginBottom: 8, // Increased spacing
-  },
-  approvalName: {
-    fontSize: 11,
-    fontWeight: 'bold',
     marginBottom: 8,
   },
-  approvalDate: {
-    fontSize: 10,
-  },
+  approvalName: { fontSize: 11, fontWeight: 'bold', marginBottom: 8 },
+  approvalDate: { fontSize: 10 },
   qrContainer: {
-    height: 120, // Fixed height for QR container
+    height: 120,
     width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 5, // Add a little padding at top
+    paddingTop: 5,
   },
-  qrImage: {
-    width: 110, // Increased QR code size
-    height: 110, // Increased QR code size
-    objectFit: 'contain', // Ensure QR code fits within container
-  },
+  qrImage: { width: 110, height: 110, objectFit: 'contain' },
   pageNumber: {
     position: 'absolute',
     bottom: 30,
@@ -194,15 +146,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontStyle: 'italic',
   },
-  documentsSection: {
-    marginBottom: 20,
-  },
-  documentItem: {
-    marginBottom: 5,
-  },
+  documentsSection: { marginBottom: 20 },
+  documentItem: { marginBottom: 5 },
 });
 
-// Updated ApprovalBlock with improved QR code handling and non-wrapping container
+// ── ApprovalBlock — unchanged ─────────────────────────────────────────────────
 const ApprovalBlock = ({ title, name, date, qrDataURL }) => (
   <View style={styles.approvalBlockWrapper} wrap={false}>
     <View style={styles.approvalBlock}>
@@ -214,15 +162,11 @@ const ApprovalBlock = ({ title, name, date, qrDataURL }) => (
         </View>
         <View style={styles.qrContainer}>
           {qrDataURL ? (
-            <Image
-              style={styles.qrImage}
-              src={qrDataURL}
-              cache={false} // Disable caching for better rendering
-            />
+            <Image style={styles.qrImage} src={qrDataURL} cache={false} />
           ) : (
             <Text
               style={{ fontSize: 10, color: '#999999', textAlign: 'center' }}
-            ></Text>
+            />
           )}
         </View>
       </View>
@@ -230,18 +174,15 @@ const ApprovalBlock = ({ title, name, date, qrDataURL }) => (
   </View>
 );
 
-// Modified helper function to include time (HH:MM) in the formatted string
 const formatDateNoSlash = (dateString) => {
   try {
     const d = new Date(dateString);
-    if (isNaN(d.getTime())) return ''; // Return empty string if date is invalid
-
+    if (isNaN(d.getTime())) return '';
     const month = (d.getMonth() + 1).toString().padStart(2, '0');
     const day = d.getDate().toString().padStart(2, '0');
     const year = d.getFullYear();
     const hours = d.getHours().toString().padStart(2, '0');
     const minutes = d.getMinutes().toString().padStart(2, '0');
-    // Returns string as MMDDYYYY HH:MM
     return `${month}${day}${year}${hours}${minutes}`;
   } catch (error) {
     console.error('Error formatting date:', error);
@@ -249,141 +190,116 @@ const formatDateNoSlash = (dateString) => {
   }
 };
 
-// Helper function to format currency for PDF
 const formatCurrency = (amount, currency) => {
   if (!amount) return '-';
   try {
     const numAmount = parseFloat(amount);
     if (isNaN(numAmount)) return '-';
-    const formattedAmount = numAmount.toFixed(2);
-    return currency ? `${currency} ${formattedAmount}` : formattedAmount;
+    return currency
+      ? `${currency} ${numAmount.toFixed(2)}`
+      : numAmount.toFixed(2);
   } catch (error) {
-    console.error('Error formatting currency:', error);
     return '-';
   }
 };
 
+// ── MyDocument — excelData now comes from Redux via the parent component prop.
+//   All lookup helpers and JSX are completely unchanged.
+// ─────────────────────────────────────────────────────────────────────────────
 const MyDocument = ({ invoice, user, excelData }) => {
-  // Make sure we have valid data before processing
   if (!invoice) return null;
 
-  // Helper function to get descriptive label for a field
   const getDescriptiveValue = (field, value) => {
     if (!value || value === '-') return '-';
-
     switch (field) {
-      case 'location':
-        const location = excelData?.locations?.find(
-          (item) => item.value === value
+      case 'location': {
+        const loc = excelData?.locations?.find((item) => item.value === value);
+        return loc ? loc.label : value;
+      }
+      case 'aircraft_type': {
+        const ac = excelData?.aircraftTypes?.find(
+          (item) => item.value === value,
         );
-        return location ? location.label : value;
-
-      case 'aircraft_type':
-        const aircraftType = excelData?.aircraftTypes?.find(
-          (item) => item.value === value
-        );
-        return aircraftType ? aircraftType.label : value;
-
-      case 'route':
+        return ac ? ac.label : value;
+      }
+      case 'route': {
         const route = excelData?.routes?.find((item) => item.value === value);
         return route ? route.label : value;
-
-      case 'payment_terms':
-        const paymentTerm = paymentTermsOptions.find(
-          (option) => option.value === value
-        );
-        return paymentTerm ? paymentTerm.label : value;
-
-      case 'supplier_number':
+      }
+      case 'payment_terms': {
+        const pt = paymentTermsOptions.find((option) => option.value === value);
+        return pt ? pt.label : value;
+      }
+      case 'supplier_number': {
         const supplier = excelData?.suppliers?.find(
-          (item) => item.value === value
+          (item) => item.value === value,
         );
         return supplier ? supplier.label : value;
-
+      }
       default:
         return value;
     }
   };
 
-  // Helper function to get GL Code description
   const getGLCodeDescription = (glCode) => {
     if (!glCode || glCode === '-') return '-';
-    const glItem = excelData?.glCodes?.find((item) => item.value === glCode);
-    return glItem ? glItem.label : glCode;
+    const gl = excelData?.glCodes?.find((item) => item.value === glCode);
+    return gl ? gl.label : glCode;
   };
 
-  // Helper function to get Cost Center description
   const getCostCenterDescription = (costCenter) => {
     if (!costCenter || costCenter === '-') return '-';
-    const ccItem = excelData?.costCenters?.find(
-      (item) => item.value === costCenter
+    const cc = excelData?.costCenters?.find(
+      (item) => item.value === costCenter,
     );
-    return ccItem ? ccItem.label : costCenter;
+    return cc ? cc.label : costCenter;
   };
 
   let allHistoryItems = invoice?.invoice_histories || [];
 
-  // Filter out items with CEO or DCEO office emails
   const hasCeoOfficeEmail = allHistoryItems.some(
-    (item) => item?.signer?.email === process.env.REACT_APP_CEO_OFFICE_EMAIL
+    (item) => item?.signer?.email === process.env.REACT_APP_CEO_OFFICE_EMAIL,
   );
   const hasDceoOfficeEmail = allHistoryItems.some(
-    (item) => item?.signer?.email === process.env.REACT_APP_DCEO_OFFICE_EMAIL
+    (item) => item?.signer?.email === process.env.REACT_APP_DCEO_OFFICE_EMAIL,
   );
-  if (hasCeoOfficeEmail) {
+  if (hasCeoOfficeEmail)
     allHistoryItems = allHistoryItems.filter(
-      (item) => item?.signer?.email !== process.env.REACT_APP_CEO_OFFICE_EMAIL
+      (item) => item?.signer?.email !== process.env.REACT_APP_CEO_OFFICE_EMAIL,
     );
-  }
-  if (hasDceoOfficeEmail) {
+  if (hasDceoOfficeEmail)
     allHistoryItems = allHistoryItems.filter(
-      (item) => item?.signer?.email !== process.env.REACT_APP_DCEO_OFFICE_EMAIL
+      (item) => item?.signer?.email !== process.env.REACT_APP_DCEO_OFFICE_EMAIL,
     );
-  }
 
-  // Get all signed items
   const signedItems =
     allHistoryItems?.filter((item) => item.status === 'signed') || [];
 
-  // Find the current approver - the last person in the workflow
-  const toApprover =
-    allHistoryItems.length > 0
-      ? allHistoryItems[allHistoryItems.length - 1]
-      : null;
-
-  // Find the final approver - should be the last person in the workflow
-  // AND they must have signed status
   const lastPersonInWorkflow = allHistoryItems[allHistoryItems.length - 1];
   const finalApprover =
     lastPersonInWorkflow && lastPersonInWorkflow.status === 'signed'
       ? lastPersonInWorkflow
       : null;
 
-  // The intermediate approvers should be all signed items except the final approver
   let intermediateApprovers = signedItems;
   if (finalApprover) {
     intermediateApprovers = signedItems.filter(
-      (item) => item.id !== finalApprover.id
+      (item) => item.id !== finalApprover.id,
     );
   }
 
-  // Safely prepare approval blocks
-  // Always add prepared by first
   const preparedBy = {
     title: 'Prepared by',
     name: invoice?.invoice?.invoice_owner
-      ? `${invoice.invoice.invoice_owner.firstname || ''} ${
-          invoice.invoice.invoice_owner.lastname || ''
-        }`
+      ? `${invoice.invoice.invoice_owner.firstname || ''} ${invoice.invoice.invoice_owner.lastname || ''}`
       : '',
     date: invoice?.invoice?.created_at
       ? new Date(invoice.invoice.created_at).toLocaleString()
       : '',
   };
 
-  // Add intermediate approvers - MODIFIED: First approver is now "Verifier"
   const approvers = intermediateApprovers.map((item, index) => ({
-    title: index === 0 ? 'Verifier' : `Approver ${index}`, // First approver is "Verifier", others are "Approver X"
+    title: index === 0 ? 'Verifier' : `Approver ${index}`,
     name: item?.signer
       ? `${item.signer.firstname || ''} ${item.signer.lastname || ''}`
       : '',
@@ -391,14 +307,11 @@ const MyDocument = ({ invoice, user, excelData }) => {
     qrDataURL: item?.qrDataURL || null,
   }));
 
-  // Add final approver if exists and has signed
   const finalApproverBlock = finalApprover
     ? {
         title: 'Final Approver',
         name: finalApprover?.signer
-          ? `${finalApprover.signer.firstname || ''} ${
-              finalApprover.signer.lastname || ''
-            }`
+          ? `${finalApprover.signer.firstname || ''} ${finalApprover.signer.lastname || ''}`
           : '',
         date: finalApprover?.updated_at
           ? new Date(finalApprover.updated_at).toLocaleString()
@@ -407,28 +320,18 @@ const MyDocument = ({ invoice, user, excelData }) => {
       }
     : null;
 
-  // Combine all approvers into one array for rendering
   const allApprovers = [preparedBy, ...approvers];
-  if (finalApproverBlock) {
-    allApprovers.push(finalApproverBlock);
-  }
+  if (finalApproverBlock) allApprovers.push(finalApproverBlock);
 
-  // Helper to chunk array into groups of 3 for better layout control
   const chunkArray = (array, size) => {
     const chunked = [];
-    for (let i = 0; i < array.length; i += size) {
+    for (let i = 0; i < array.length; i += size)
       chunked.push(array.slice(i, i + size));
-    }
     return chunked;
   };
 
-  // Group approvers into rows of 3
   const approverRows = chunkArray(allApprovers, 3);
-
-  // Access the actual invoice data (handles both response structures)
   const invoiceData = invoice?.invoice || invoice;
-
-  // Get GL Lines data
   const glLines = invoiceData?.gl_lines || [];
 
   return (
@@ -438,6 +341,7 @@ const MyDocument = ({ invoice, user, excelData }) => {
         <View style={styles.contentWrapper}>
           <Text style={styles.title}>INVOICE DETAILS</Text>
 
+          {/* Supplier Information */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Supplier Information</Text>
             <View style={styles.detailRow}>
@@ -445,7 +349,7 @@ const MyDocument = ({ invoice, user, excelData }) => {
               <Text style={styles.detailValue}>
                 {getDescriptiveValue(
                   'supplier_number',
-                  invoiceData?.supplier_number
+                  invoiceData?.supplier_number,
                 ) || '-'}
               </Text>
             </View>
@@ -457,6 +361,7 @@ const MyDocument = ({ invoice, user, excelData }) => {
             </View>
           </View>
 
+          {/* Invoice Information */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Invoice Information</Text>
             <View style={styles.detailRow}>
@@ -471,7 +376,6 @@ const MyDocument = ({ invoice, user, excelData }) => {
                 {invoiceData?.reference || '-'}
               </Text>
             </View>
-
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Invoice Date:</Text>
               <Text style={styles.detailValue}>
@@ -480,13 +384,12 @@ const MyDocument = ({ invoice, user, excelData }) => {
                     return invoiceData?.invoice_date
                       ? new Date(invoiceData.invoice_date).toLocaleDateString()
                       : '-';
-                  } catch (error) {
+                  } catch {
                     return invoiceData?.invoice_date || '-';
                   }
                 })()}
               </Text>
             </View>
-
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Service Period:</Text>
               <Text style={styles.detailValue}>
@@ -504,7 +407,7 @@ const MyDocument = ({ invoice, user, excelData }) => {
               <Text style={styles.detailValue}>
                 {getDescriptiveValue(
                   'aircraft_type',
-                  invoiceData?.aircraft_type
+                  invoiceData?.aircraft_type,
                 ) || '-'}
               </Text>
             </View>
@@ -516,7 +419,7 @@ const MyDocument = ({ invoice, user, excelData }) => {
             </View>
           </View>
 
-          {/* GL Lines Section - New Addition with descriptive labels */}
+          {/* GL Lines */}
           {glLines && glLines.length > 0 && (
             <View style={styles.glLinesSection}>
               <Text style={styles.sectionTitle}>
@@ -554,7 +457,7 @@ const MyDocument = ({ invoice, user, excelData }) => {
             </View>
           )}
 
-          {/* Legacy GL Information - Show only if no GL Lines with descriptive labels */}
+          {/* Legacy GL Information */}
           {(!glLines || glLines.length === 0) && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>GL Information</Text>
@@ -579,6 +482,7 @@ const MyDocument = ({ invoice, user, excelData }) => {
             </View>
           )}
 
+          {/* Financial Details */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Financial Details</Text>
             <View style={styles.detailRow}>
@@ -601,7 +505,7 @@ const MyDocument = ({ invoice, user, excelData }) => {
             </View>
           </View>
 
-          {/* Payment Information Section - New Addition with descriptive labels */}
+          {/* Payment Information */}
           {(invoiceData?.payment_terms || invoiceData?.payment_due_date) && (
             <View style={styles.paymentSection}>
               <Text style={styles.sectionTitle}>Payment Information</Text>
@@ -611,7 +515,7 @@ const MyDocument = ({ invoice, user, excelData }) => {
                   <Text style={styles.detailValue}>
                     {getDescriptiveValue(
                       'payment_terms',
-                      invoiceData.payment_terms
+                      invoiceData.payment_terms,
                     )}
                   </Text>
                 </View>
@@ -623,9 +527,9 @@ const MyDocument = ({ invoice, user, excelData }) => {
                     {(() => {
                       try {
                         return new Date(
-                          invoiceData.payment_due_date
+                          invoiceData.payment_due_date,
                         ).toLocaleDateString();
-                      } catch (error) {
+                      } catch {
                         return invoiceData.payment_due_date;
                       }
                     })()}
@@ -635,6 +539,7 @@ const MyDocument = ({ invoice, user, excelData }) => {
             </View>
           )}
 
+          {/* Status Information */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Status Information</Text>
             <View style={styles.detailRow}>
@@ -651,7 +556,7 @@ const MyDocument = ({ invoice, user, excelData }) => {
                     return invoiceData?.created_at
                       ? new Date(invoiceData.created_at).toLocaleString()
                       : '-';
-                  } catch (error) {
+                  } catch {
                     return invoiceData?.created_at || '-';
                   }
                 })()}
@@ -661,48 +566,36 @@ const MyDocument = ({ invoice, user, excelData }) => {
               <Text style={styles.detailLabel}>Prepared By:</Text>
               <Text style={styles.detailValue}>
                 {invoiceData?.invoice_owner
-                  ? `${invoiceData.invoice_owner.firstname || ''} ${
-                      invoiceData.invoice_owner.lastname || ''
-                    }`
+                  ? `${invoiceData.invoice_owner.firstname || ''} ${invoiceData.invoice_owner.lastname || ''}`
                   : '-'}
               </Text>
             </View>
           </View>
 
-          {/* Documents section - Safely display only filename */}
+          {/* Documents */}
           {invoiceData?.documents && invoiceData.documents.length > 0 && (
             <View style={styles.documentsSection}>
               <Text style={styles.sectionTitle}>Attached Documents</Text>
               {invoiceData.documents.map((doc, index) => {
-                // Safely extract only the filename from the file_data path
                 let displayName = `Document ${index + 1}`;
-
                 try {
                   if (doc.filename) {
-                    // If filename property exists, use it directly
                     displayName = doc.filename;
                   } else if (
                     doc.file_data &&
                     typeof doc.file_data === 'string'
                   ) {
-                    // Try to extract just the filename from the path
                     const pathParts = doc.file_data.split('/');
                     if (pathParts.length > 0) {
                       let fileName = pathParts[pathParts.length - 1];
-                      // If the path contains query parameters, remove them
-                      if (fileName && fileName.includes('?')) {
+                      if (fileName && fileName.includes('?'))
                         fileName = fileName.split('?')[0];
-                      }
-                      if (fileName) {
-                        displayName = fileName;
-                      }
+                      if (fileName) displayName = fileName;
                     }
                   }
                 } catch (error) {
                   console.error('Error processing document name:', error);
-                  // Fall back to default name on error
                 }
-
                 return (
                   <View key={index} style={styles.documentItem}>
                     <Text>{`Document ${index + 1}: ${displayName}`}</Text>
@@ -712,7 +605,7 @@ const MyDocument = ({ invoice, user, excelData }) => {
             </View>
           )}
 
-          {/* Approvals section with improved layout and error handling */}
+          {/* Approvals */}
           <View style={styles.approvalWrapper}>
             <Text style={styles.sectionTitle}>Approvals</Text>
             {approverRows.map((row, rowIndex) => (
@@ -726,7 +619,6 @@ const MyDocument = ({ invoice, user, excelData }) => {
                     qrDataURL={approver.qrDataURL}
                   />
                 ))}
-                {/* Add empty blocks to maintain grid if row is not complete */}
                 {row.length < 3 &&
                   Array(3 - row.length)
                     .fill()
@@ -753,156 +645,38 @@ const MyDocument = ({ invoice, user, excelData }) => {
   );
 };
 
+// ══ DownloadPdf page component ════════════════════════════════════════════════
 const DownloadPdf = () => {
   const location = useLocation();
   const { invoice } = location.state || {};
+
   const [preparedInvoice, setPreparedInvoice] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [invoiceLoading, setInvoiceLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [excelData, setExcelData] = useState({
-    suppliers: [],
-    costCenters: [],
-    glCodes: [],
-    locations: [],
-    aircraftTypes: [],
-    routes: [],
-  });
+
   const user = JSON?.parse(localStorage?.getItem('user') || '{}');
 
-  // Function to load Excel data (same as other components)
-  const loadExcelData = async () => {
-    try {
-      // Import XLSX library dynamically
-      const XLSX = await import('xlsx');
+  // ── COA data from DB (replaces loadExcelData + excelData state) ────────────
+  // This is a standalone page (not a modal), so enabled is always true.
+  // useCOAData only dispatches thunks when data is not already in Redux.
+  const { excelData, isLoading: coaLoading } = useCOAData();
 
-      // Read the Excel file from public folder using fetch
-      const response = await fetch('/6. COA.xlsx');
-      if (!response.ok) {
-        throw new Error(`Failed to fetch Excel file: ${response.statusText}`);
-      }
-
-      const arrayBuffer = await response.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer, {
-        cellStyles: true,
-        cellFormulas: true,
-        cellDates: true,
-        cellNF: true,
-        sheetStubs: true,
-      });
-
-      // Helper function to process sheet data
-      const processSheet = (
-        sheetName,
-        valueColumn,
-        labelColumn,
-        combinedLabel = false
-      ) => {
-        try {
-          const worksheet = workbook.Sheets[sheetName];
-          if (!worksheet) {
-            console.warn(`Sheet "${sheetName}" not found`);
-            return [];
-          }
-
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-          // Skip header row and process data
-          return jsonData
-            .slice(1)
-            .filter(
-              (row) =>
-                row[valueColumn] !== undefined &&
-                row[valueColumn] !== null &&
-                row[valueColumn] !== ''
-            )
-            .map((row) => {
-              const value = String(row[valueColumn]).trim();
-              const label = row[labelColumn]
-                ? String(row[labelColumn]).trim()
-                : value;
-
-              return {
-                value: value,
-                label: combinedLabel ? `${value} - ${label}` : label,
-                description: label,
-              };
-            })
-            .filter((item) => item.value && item.label); // Remove empty entries
-        } catch (error) {
-          console.error(`Error processing sheet ${sheetName}:`, error);
-          return [];
-        }
-      };
-
-      // Process each sheet according to your Excel structure
-      const suppliers = processSheet('Supplier Details', 0, 1, true); // Vendor ID + Vendor Name
-      const costCenters = processSheet('Cost Center', 0, 1, true); // CC Code + CC Description
-      const glCodes = processSheet('GL Code', 0, 1, true); // GL Code + GL Description
-      const locations = processSheet('Location Code', 0, 1, true); // Loc Code + LOC Name
-      const aircraftTypes = processSheet('Aircraft Type', 0, 1, true); // Code + Description
-      const routes = processSheet('Route', 0, 1, true); // Code + Description
-
-      return {
-        suppliers,
-        costCenters,
-        glCodes,
-        locations,
-        aircraftTypes: aircraftTypes.length > 0 ? aircraftTypes : [],
-        routes: routes.length > 0 ? routes : [],
-      };
-    } catch (error) {
-      console.error('Error loading Excel data:', error);
-
-      // Return fallback data in case of error
-      return {
-        suppliers: [
-          {
-            value: '00001',
-            label: '00001 - Sample Supplier',
-            description: 'Sample Supplier',
-          },
-        ],
-        costCenters: [
-          {
-            value: '1000',
-            label: '1000 - Sample Cost Center',
-            description: 'Sample Cost Center',
-          },
-        ],
-        glCodes: [
-          {
-            value: '1011',
-            label: '1011 - Sample GL Code',
-            description: 'Sample GL Code',
-          },
-        ],
-        locations: [
-          {
-            value: '0000',
-            label: '0000 - Default Location',
-            description: 'Default Location',
-          },
-        ],
-        aircraftTypes: [],
-        routes: [],
-      };
-    }
-  };
+  // Overall loading = waiting for invoice QR prep OR COA data from API
+  const isLoading = invoiceLoading || coaLoading;
 
   useEffect(() => {
     const prepareData = async () => {
       if (!invoice) {
         setError('No invoice data available');
-        setIsLoading(false);
+        setInvoiceLoading(false);
         return;
       }
 
       try {
-        setIsLoading(true);
+        setInvoiceLoading(true);
 
-        // Load Excel data first
-        const data = await loadExcelData();
-        setExcelData(data);
+        // No more loadExcelData() call here — useCOAData handles it above.
+        // prepareData now only handles QR code generation for signed items.
 
         if (
           invoice?.invoice_histories &&
@@ -920,15 +694,10 @@ const DownloadPdf = () => {
 
                     if (!public_key) return item;
 
-                    const url = `${
-                      process.env.REACT_APP_URL
-                    }/verify-signature/${
+                    const url = `${process.env.REACT_APP_URL}/verify-signature/${
                       invoice?.invoice?.id || invoice?.id
-                    }/${encodeURIComponent(public_key)}/${encodeURIComponent(
-                      item.signature
-                    )}`;
+                    }/${encodeURIComponent(public_key)}/${encodeURIComponent(item.signature)}`;
 
-                    // Generate QR code with improved settings
                     try {
                       const qrDataURL = await qrcode.toDataURL(url, {
                         errorCorrectionLevel: 'H',
@@ -947,7 +716,7 @@ const DownloadPdf = () => {
                   }
                 }
                 return item;
-              })
+              }),
             );
             setPreparedInvoice({
               ...invoice,
@@ -956,7 +725,7 @@ const DownloadPdf = () => {
           } catch (historiesError) {
             console.error(
               'Error processing invoice histories:',
-              historiesError
+              historiesError,
             );
             setPreparedInvoice(invoice);
           }
@@ -964,12 +733,12 @@ const DownloadPdf = () => {
           setPreparedInvoice(invoice);
         }
 
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error preparing invoice data:', error);
+        setInvoiceLoading(false);
+      } catch (err) {
+        console.error('Error preparing invoice data:', err);
         setError('Failed to prepare PDF data');
         setPreparedInvoice(invoice);
-        setIsLoading(false);
+        setInvoiceLoading(false);
       }
     };
 
@@ -991,7 +760,7 @@ const DownloadPdf = () => {
       >
         <div>Loading PDF...</div>
         <div style={{ fontSize: '14px', color: '#666' }}>
-          Loading Excel data and preparing invoice...
+          {coaLoading ? 'Loading reference data...' : 'Preparing invoice...'}
         </div>
       </div>
     );
@@ -1031,7 +800,6 @@ const DownloadPdf = () => {
     );
   }
 
-  // Wrap the PDF rendering in an error boundary
   try {
     return (
       <div style={{ width: '100%', height: '100vh' }}>

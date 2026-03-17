@@ -19,7 +19,8 @@ const initialState = {
   },
 };
 
-//get all invoices by admin
+// ── Standard invoice thunks ───────────────────────────────────────────────────
+
 export const getAllInvoice = createAsyncThunk(
   'invoice/getAllInvoice',
   async (data, thunkAPI) => {
@@ -28,10 +29,9 @@ export const getAllInvoice = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get all pending invoices by admin
 export const getAllPendingInvoices = createAsyncThunk(
   'invoice/getAllPendingInvoices',
   async (data, thunkAPI) => {
@@ -40,10 +40,9 @@ export const getAllPendingInvoices = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get all approved invoices by admin
 export const getAllApprovedInvoices = createAsyncThunk(
   'invoice/getAllApprovedInvoices',
   async (data, thunkAPI) => {
@@ -52,10 +51,9 @@ export const getAllApprovedInvoices = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get all denied invoices by admin
 export const getAllDeniedInvoices = createAsyncThunk(
   'invoice/getAllDeniedInvoices',
   async (data, thunkAPI) => {
@@ -64,10 +62,9 @@ export const getAllDeniedInvoices = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get all rollbacked invoices by admin
 export const getAllRollBackedInvoices = createAsyncThunk(
   'invoice/getAllRollbackedInvoices',
   async (data, thunkAPI) => {
@@ -76,10 +73,9 @@ export const getAllRollBackedInvoices = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get all processing invoices by admin
 export const getAllProcessingInvoices = createAsyncThunk(
   'invoice/getAllProcessingInvoices',
   async (data, thunkAPI) => {
@@ -88,10 +84,9 @@ export const getAllProcessingInvoices = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get all forwarded invoices by admin
 export const getAllForwardedInvoices = createAsyncThunk(
   'invoice/getAllForwardedInvoices',
   async (data, thunkAPI) => {
@@ -100,10 +95,9 @@ export const getAllForwardedInvoices = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get invoice by user
 export const getInvoiceByUser = createAsyncThunk(
   'invoice/getInvoiceByUser',
   async (data, thunkAPI) => {
@@ -112,10 +106,9 @@ export const getInvoiceByUser = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get user pending invoice
 export const getUserPendingInvoices = createAsyncThunk(
   'invoice/getPendingInvoiceByUser',
   async (data, thunkAPI) => {
@@ -124,10 +117,9 @@ export const getUserPendingInvoices = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get user approved invoice
 export const getUserApprovedInvoices = createAsyncThunk(
   'invoice/getApprovedInvoiceByUser',
   async (data, thunkAPI) => {
@@ -136,10 +128,9 @@ export const getUserApprovedInvoices = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get user denied invoice
 export const getUserDeniedInvoices = createAsyncThunk(
   'invoice/getDeniedInvoiceByUser',
   async (data, thunkAPI) => {
@@ -148,10 +139,9 @@ export const getUserDeniedInvoices = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get user rollbacked invoice
 export const getUserRollBackedInvoices = createAsyncThunk(
   'invoice/getRollbackInvoiceByUser',
   async (data, thunkAPI) => {
@@ -160,10 +150,9 @@ export const getUserRollBackedInvoices = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get user processing invoice
 export const getUserProcessingInvoices = createAsyncThunk(
   'invoice/getProcessingInvoiceByUser',
   async (data, thunkAPI) => {
@@ -172,10 +161,9 @@ export const getUserProcessingInvoices = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get user forwarded invoice
 export const getUserForwardedInvoices = createAsyncThunk(
   'invoice/getForwardedInvoiceByUser',
   async (data, thunkAPI) => {
@@ -184,10 +172,9 @@ export const getUserForwardedInvoices = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//add invoice
 export const addInvoice = createAsyncThunk(
   'invoice/addInvoice',
   async (data, thunkAPI) => {
@@ -196,10 +183,9 @@ export const addInvoice = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//update invoice
 export const updateInvoice = createAsyncThunk(
   'invoice/updateInvoice',
   async (data, thunkAPI) => {
@@ -208,10 +194,9 @@ export const updateInvoice = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get invoice by id
 export const getInvoiceById = createAsyncThunk(
   'invoice/getInvoiceById',
   async (id, thunkAPI) => {
@@ -220,10 +205,9 @@ export const getInvoiceById = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//delete invoice
 export const deleteInvoice = createAsyncThunk(
   'invoice/deleteInvoice',
   async (id, thunkAPI) => {
@@ -232,10 +216,9 @@ export const deleteInvoice = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//track invoice by id
 export const trackInvoiceById = createAsyncThunk(
   'invoice/trackInvoiceById',
   async (id, thunkAPI) => {
@@ -244,10 +227,9 @@ export const trackInvoiceById = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//update invoice
 export const signInvoice = createAsyncThunk(
   'invoice/signInvoice',
   async (data, thunkAPI) => {
@@ -256,10 +238,9 @@ export const signInvoice = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get all own invoices assigned to a signer
 export const getInvoiceToSign = createAsyncThunk(
   'invoice/getInvoiceToSign',
   async (data, thunkAPI) => {
@@ -268,10 +249,9 @@ export const getInvoiceToSign = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get all own invoices with to sign status
 export const getAllInvoicesWithToSignStatus = createAsyncThunk(
   'invoice/getInvoicesWithToSignStatus',
   async (data, thunkAPI) => {
@@ -280,10 +260,9 @@ export const getAllInvoicesWithToSignStatus = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get all own invoices with signed status
 export const getAllSignedInvoices = createAsyncThunk(
   'invoice/getInvoicesWithSignedStatus',
   async (data, thunkAPI) => {
@@ -292,10 +271,9 @@ export const getAllSignedInvoices = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get all own pending invoices to sign
 export const getAllOwnPendingInvoicesToSign = createAsyncThunk(
   'invoice/getPendingInvoiceToSign',
   async (data, thunkAPI) => {
@@ -304,10 +282,9 @@ export const getAllOwnPendingInvoicesToSign = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get all own approved invoices to sign
 export const getAllOwnApprovedInvoicesToSign = createAsyncThunk(
   'invoice/getApprovedInvoiceToSign',
   async (page, thunkAPI) => {
@@ -316,10 +293,9 @@ export const getAllOwnApprovedInvoicesToSign = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get all own Denied invoices by signer
 export const getAllOwnDeniedInvoicesToSign = createAsyncThunk(
   'invoice/getDeniedInvoicesBySigner',
   async (data, thunkAPI) => {
@@ -328,10 +304,9 @@ export const getAllOwnDeniedInvoicesToSign = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get all own RollBacked invoices to sign
 export const getAllOwnRollbackedInvoicesToSign = createAsyncThunk(
   'invoice/getRollbackedInvoiceToSign',
   async (page, thunkAPI) => {
@@ -340,10 +315,9 @@ export const getAllOwnRollbackedInvoicesToSign = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get all own Processing invoices to sign
 export const getAllOwnProcessingInvoicesToSign = createAsyncThunk(
   'invoice/getProcessingInvoiceToSign',
   async (page, thunkAPI) => {
@@ -352,10 +326,9 @@ export const getAllOwnProcessingInvoicesToSign = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-// comment invoice
 export const commentInvoice = createAsyncThunk(
   'invoice/commentInvoice',
   async (data, thunkAPI) => {
@@ -364,10 +337,9 @@ export const commentInvoice = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-// deny invoice
 export const denyInvoice = createAsyncThunk(
   'invoice/denyInvoice',
   async (data, thunkAPI) => {
@@ -376,10 +348,9 @@ export const denyInvoice = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-// deny invoice
 export const rollbackInvoice = createAsyncThunk(
   'invoice/rollInvoice',
   async (data, thunkAPI) => {
@@ -388,10 +359,9 @@ export const rollbackInvoice = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-// get invoice Comments
 export const invoiceComment = createAsyncThunk(
   'invoice/invoiceComment',
   async (data, thunkAPI) => {
@@ -400,10 +370,9 @@ export const invoiceComment = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//update index
 export const updateIndex = createAsyncThunk(
   'invoice/updateIndex',
   async (data, thunkAPI) => {
@@ -412,10 +381,9 @@ export const updateIndex = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//verify signature
 export const verifySignature = createAsyncThunk(
   'invoice/verifySignature',
   async (data, thunkAPI) => {
@@ -424,10 +392,9 @@ export const verifySignature = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//verify and Track Invoice
 export const verifyAndTrackInvoice = createAsyncThunk(
   'invoice/verifyAndTrackInvoice',
   async (invoiceId, thunkAPI) => {
@@ -436,8 +403,96 @@ export const verifyAndTrackInvoice = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
+
+// ── Chain Override thunks ─────────────────────────────────────────────────────
+// All dispatched as: dispatch(thunk({ invoiceId, data }))
+
+// Replace an existing signer in the chain
+// data: { history_id, new_signer_id, reason }
+export const chainReplaceSigner = createAsyncThunk(
+  'invoice/chainReplaceSigner',
+  async ({ invoiceId, data }, thunkAPI) => {
+    try {
+      return await invoiceService.chainReplaceSigner(invoiceId, data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+// Change invoice or history entry status
+// data (invoice): { target: 'invoice', new_status, reason }
+// data (history): { target: 'history', history_id, new_status, reason }
+export const chainChangeStatus = createAsyncThunk(
+  'invoice/chainChangeStatus',
+  async ({ invoiceId, data }, thunkAPI) => {
+    try {
+      return await invoiceService.chainChangeStatus(invoiceId, data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+// Reorder the signing chain
+// data: { order: [history_id, ...], reason }
+export const chainReorder = createAsyncThunk(
+  'invoice/chainReorder',
+  async ({ invoiceId, data }, thunkAPI) => {
+    try {
+      return await invoiceService.chainReorder(invoiceId, data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+// Insert a new signer into the chain
+// data: { signer_id, insert_after_history_id (null = beginning), reason }
+export const chainInsertSigner = createAsyncThunk(
+  'invoice/chainInsertSigner',
+  async ({ invoiceId, data }, thunkAPI) => {
+    try {
+      return await invoiceService.chainInsertSigner(invoiceId, data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+// Remove a signer from the chain
+// data: { history_id, reason }
+export const chainRemoveSigner = createAsyncThunk(
+  'invoice/chainRemoveSigner',
+  async ({ invoiceId, data }, thunkAPI) => {
+    try {
+      return await invoiceService.chainRemoveSigner(invoiceId, data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+// ── Invoice Number Validation thunk ───────────────────────────────────────────
+// dispatch(checkInvoiceNumber({ invoice_number: 'INV-001', supplier_id: 3 }))
+// Returns plain boolean: true = already used, false = available
+export const checkInvoiceNumber = createAsyncThunk(
+  'invoice/checkInvoiceNumber',
+  async ({ invoice_number, supplier_id }, thunkAPI) => {
+    try {
+      return await invoiceService.checkInvoiceNumber({
+        invoice_number,
+        supplier_id,
+      });
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+// ── Slice ─────────────────────────────────────────────────────────────────────
 
 const invoiceSlice = createSlice({
   name: 'invoice',
@@ -449,7 +504,7 @@ const invoiceSlice = createSlice({
     clearFilters: (state) => {
       state.filters = {
         title: '',
-         invoice_number: '', 
+        invoice_number: '',
         invoice_owner: '',
         created_date: '',
         status: '',
@@ -482,7 +537,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Get all pending invoices
       .addCase(getAllPendingInvoices.pending, (state) => {
         state.isLoading = true;
@@ -499,7 +554,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Get all approved invoices
       .addCase(getAllApprovedInvoices.pending, (state) => {
         state.isLoading = true;
@@ -516,7 +571,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Get all denied invoices
       .addCase(getAllDeniedInvoices.pending, (state) => {
         state.isLoading = true;
@@ -533,7 +588,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Get all rollbacked invoices
       .addCase(getAllRollBackedInvoices.pending, (state) => {
         state.isLoading = true;
@@ -550,7 +605,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Get all processing invoices
       .addCase(getAllProcessingInvoices.pending, (state) => {
         state.isLoading = true;
@@ -567,7 +622,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Get all forwarded invoices
       .addCase(getAllForwardedInvoices.pending, (state) => {
         state.isLoading = true;
@@ -584,7 +639,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Get invoice by user
       .addCase(getInvoiceByUser.pending, (state) => {
         state.isLoading = true;
@@ -601,7 +656,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Get user pending invoices
       .addCase(getUserPendingInvoices.pending, (state) => {
         state.isLoading = true;
@@ -618,7 +673,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Get user approved invoices
       .addCase(getUserApprovedInvoices.pending, (state) => {
         state.isLoading = true;
@@ -635,7 +690,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Get user denied invoices
       .addCase(getUserDeniedInvoices.pending, (state) => {
         state.isLoading = true;
@@ -652,7 +707,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Get user rollbacked invoices
       .addCase(getUserRollBackedInvoices.pending, (state) => {
         state.isLoading = true;
@@ -669,7 +724,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Get user processing invoices
       .addCase(getUserProcessingInvoices.pending, (state) => {
         state.isLoading = true;
@@ -686,7 +741,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Get user forwarded invoices
       .addCase(getUserForwardedInvoices.pending, (state) => {
         state.isLoading = true;
@@ -703,7 +758,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Add invoice
       .addCase(addInvoice.pending, (state) => {
         state.isLoading = true;
@@ -720,7 +775,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoice = '';
       })
-      
+
       // Update invoice
       .addCase(updateInvoice.pending, (state) => {
         state.isLoading = true;
@@ -737,7 +792,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoice = '';
       })
-      
+
       // Get invoice by ID
       .addCase(getInvoiceById.pending, (state) => {
         state.isLoading = true;
@@ -754,12 +809,12 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoice = '';
       })
-      
+
       // Delete invoice
       .addCase(deleteInvoice.pending, (state) => {
         state.isLoading = true;
         state.error = null;
-        state.invoce = '';
+        state.invoice = '';
       })
       .addCase(deleteInvoice.fulfilled, (state, action) => {
         state.isLoading = false;
@@ -771,7 +826,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoice = '';
       })
-      
+
       // Track invoice by ID
       .addCase(trackInvoiceById.pending, (state) => {
         state.isLoading = true;
@@ -788,7 +843,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoice = '';
       })
-      
+
       // Sign invoice
       .addCase(signInvoice.pending, (state) => {
         state.isLoading = true;
@@ -805,7 +860,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoice = '';
       })
-      
+
       // Get invoice to sign
       .addCase(getInvoiceToSign.pending, (state) => {
         state.isLoading = true;
@@ -822,7 +877,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Get all invoices with to sign status
       .addCase(getAllInvoicesWithToSignStatus.pending, (state) => {
         state.isLoading = true;
@@ -839,7 +894,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Get all signed invoices
       .addCase(getAllSignedInvoices.pending, (state) => {
         state.isLoading = true;
@@ -856,7 +911,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Get all own pending invoices to sign
       .addCase(getAllOwnPendingInvoicesToSign.pending, (state) => {
         state.isLoading = true;
@@ -873,7 +928,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Get all own approved invoices to sign
       .addCase(getAllOwnApprovedInvoicesToSign.pending, (state) => {
         state.isLoading = true;
@@ -890,7 +945,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Get all own denied invoices to sign
       .addCase(getAllOwnDeniedInvoicesToSign.pending, (state) => {
         state.isLoading = true;
@@ -907,7 +962,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Get all own rollbacked invoices to sign
       .addCase(getAllOwnRollbackedInvoicesToSign.pending, (state) => {
         state.isLoading = true;
@@ -924,7 +979,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Get all own processing invoices to sign
       .addCase(getAllOwnProcessingInvoicesToSign.pending, (state) => {
         state.isLoading = true;
@@ -941,7 +996,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Comment invoice
       .addCase(commentInvoice.pending, (state) => {
         state.isLoading = true;
@@ -958,7 +1013,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoice = [];
       })
-      
+
       // Deny invoice
       .addCase(denyInvoice.pending, (state) => {
         state.isLoading = true;
@@ -975,7 +1030,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.denyInvoice = [];
       })
-      
+
       // Rollback invoice
       .addCase(rollbackInvoice.pending, (state) => {
         state.isLoading = true;
@@ -992,8 +1047,8 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.rollbackInvoice = [];
       })
-      
-      // Invoice comment
+
+      // Invoice comment (get comments)
       .addCase(invoiceComment.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -1009,7 +1064,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoices = [];
       })
-      
+
       // Verify signature
       .addCase(verifySignature.pending, (state) => {
         state.isLoading = true;
@@ -1026,7 +1081,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
         state.invoice = '';
       })
-      
+
       // Verify and track invoice
       .addCase(verifyAndTrackInvoice.pending, (state) => {
         state.isLoading = true;
@@ -1042,9 +1097,94 @@ const invoiceSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
         state.verifyInvoice = '';
+      })
+
+      // ── Chain Override ── (use shared isLoading, no extra state key needed)
+
+      // Replace signer
+      .addCase(chainReplaceSigner.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(chainReplaceSigner.fulfilled, (state) => {
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(chainReplaceSigner.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // Change status
+      .addCase(chainChangeStatus.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(chainChangeStatus.fulfilled, (state) => {
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(chainChangeStatus.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // Reorder chain
+      .addCase(chainReorder.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(chainReorder.fulfilled, (state) => {
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(chainReorder.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // Insert signer
+      .addCase(chainInsertSigner.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(chainInsertSigner.fulfilled, (state) => {
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(chainInsertSigner.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // Remove signer
+      .addCase(chainRemoveSigner.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(chainRemoveSigner.fulfilled, (state) => {
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(chainRemoveSigner.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // ── Invoice Number Check ── (lightweight — no state written, just fires the request)
+
+      .addCase(checkInvoiceNumber.pending, (state) => {
+        state.error = null;
+      })
+      .addCase(checkInvoiceNumber.fulfilled, (state) => {
+        state.error = null;
+      })
+      .addCase(checkInvoiceNumber.rejected, (state, action) => {
+        state.error = action.payload;
       });
   },
 });
 
-export const { setFilters, clearFilters, setIndex, clearInvoice } = invoiceSlice.actions;
+export const { setFilters, clearFilters, setIndex, clearInvoice } =
+  invoiceSlice.actions;
 export default invoiceSlice.reducer;
