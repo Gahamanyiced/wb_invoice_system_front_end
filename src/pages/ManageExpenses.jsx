@@ -6,7 +6,6 @@ import {
   updatePettyCashExpense,
   deletePettyCashExpense,
   getIssuancePettyCashExpenses,
-  trackPettyCashExpense,
   approvePettyCashExpense,
   exportApprovedExpenses,
 } from '../features/pettyCash/pettyCashSlice';
@@ -56,18 +55,7 @@ import ViewExpenseModal from '../components/ViewExpenseModal';
 import TrackAndSignPettyCashDialog from '../components/TrackAndSignPettyCashDialog';
 import EditExpenseModal from '../components/EditExpenseModal';
 import DeleteExpenseDialog from '../components/DeleteExpenseDialog';
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const CURRENCIES = [
-  { code: 'USD', name: 'US Dollar', symbol: '$' },
-  { code: 'EUR', name: 'Euro', symbol: '€' },
-  { code: 'GBP', name: 'British Pound', symbol: '£' },
-  { code: 'RWF', name: 'Rwandan Franc', symbol: 'FRw' },
-  { code: 'KES', name: 'Kenyan Shilling', symbol: 'KSh' },
-  { code: 'UGX', name: 'Ugandan Shilling', symbol: 'USh' },
-  { code: 'TZS', name: 'Tanzanian Shilling', symbol: 'TSh' },
-];
+import PETTY_CASH_CURRENCIES from '../constants/pettyCashCurrencies';
 
 const styles = {
   header: {
@@ -201,7 +189,7 @@ const ManageExpenses = () => {
   const handleExpenseChange = (index, field, value) => {
     const updated = [...formData.expenses];
     updated[index][field] = value;
-    // Propagate currency from first line to all lines
+    // Propagate currency from first expense to all others
     if (index === 0 && field === 'currency') {
       updated.forEach((exp, i) => {
         if (i !== 0) exp.currency = value;
@@ -303,10 +291,13 @@ const ManageExpenses = () => {
     setOpenViewModal(true);
   };
 
+  // FIX: removed dispatch(trackPettyCashExpense(expense.id)) from here.
+  // TrackAndSignPettyCashDialog calls fetchTrackingData() internally via its
+  // useEffect when it opens — calling it here too was causing the approve
+  // endpoint to be hit twice.
   const handleTrackAndSign = (expense) => {
     setSelectedExpense(expense);
     setOpenTrackSignDialog(true);
-    dispatch(trackPettyCashExpense(expense.id));
   };
 
   const handleEdit = (expense) => {
@@ -656,7 +647,7 @@ const ManageExpenses = () => {
         <Paper elevation={2} sx={{ mt: 3 }}>
           <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0' }}>
             <Typography variant="h6" color="#00529B" fontWeight={600}>
-              Expense Lines
+              Expenses
             </Typography>
           </Box>
 
@@ -958,7 +949,7 @@ const ManageExpenses = () => {
                   </Box>
                 </Grid>
 
-                {/* Expense lines */}
+                {/* Expense entries */}
                 <Grid item xs={12}>
                   <Divider sx={{ mb: 2 }} />
                   <Box
@@ -970,7 +961,7 @@ const ManageExpenses = () => {
                     }}
                   >
                     <Typography variant="h6" color="#00529B" fontWeight={600}>
-                      Expense Lines
+                      Expenses
                     </Typography>
                     <Button
                       variant="outlined"
@@ -986,7 +977,7 @@ const ManageExpenses = () => {
                         },
                       }}
                     >
-                      Add Line
+                      Add Expense
                     </Button>
                   </Box>
 
@@ -1007,7 +998,7 @@ const ManageExpenses = () => {
                         }}
                       >
                         <Typography variant="subtitle2" fontWeight={600}>
-                          Line #{index + 1}
+                          Expense #{index + 1}
                         </Typography>
                         {formData.expenses.length > 1 && (
                           <IconButton
@@ -1068,7 +1059,7 @@ const ManageExpenses = () => {
                               label="Currency"
                               disabled={index !== 0}
                             >
-                              {CURRENCIES.map((curr) => (
+                              {PETTY_CASH_CURRENCIES.map((curr) => (
                                 <MenuItem key={curr.code} value={curr.code}>
                                   {curr.symbol} {curr.code} — {curr.name}
                                 </MenuItem>
@@ -1081,7 +1072,7 @@ const ManageExpenses = () => {
                               color="text.secondary"
                               sx={{ mt: 0.5, display: 'block' }}
                             >
-                              Currency is set from line #1
+                              Currency is set from expense #1
                             </Typography>
                           )}
                         </Grid>
@@ -1238,7 +1229,7 @@ const ManageExpenses = () => {
               request={selectedExpense}
               onUpdate={handleEditSubmit}
               signers={signers}
-              currencies={CURRENCIES}
+              currencies={PETTY_CASH_CURRENCIES}
             />
             <DeleteExpenseDialog
               open={openDeleteDialog}

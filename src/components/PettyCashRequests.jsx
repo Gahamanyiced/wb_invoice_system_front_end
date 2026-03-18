@@ -47,6 +47,7 @@ import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import ViewPettyCashRequestModal from './ViewPettyCashRequestModal';
 import TrackAndSignPettyCashDialog from './TrackAndSignPettyCashDialog';
+import PETTY_CASH_CURRENCIES from '../constants/pettyCashCurrencies';
 // Commented out - Edit and Delete modals (functionality disabled)
 // import EditPettyCashRequestModal from './EditPettyCashRequestModal';
 // import DeletePettyCashRequestDialog from './DeletePettyCashRequestDialog';
@@ -87,21 +88,10 @@ const styles = {
   },
 };
 
-// Currency options
-const CURRENCIES = [
-  { code: 'USD', name: 'US Dollar', symbol: '$' },
-  { code: 'EUR', name: 'Euro', symbol: '€' },
-  { code: 'GBP', name: 'British Pound', symbol: '£' },
-  { code: 'RWF', name: 'Rwandan Franc', symbol: 'FRw' },
-  { code: 'KES', name: 'Kenyan Shilling', symbol: 'KSh' },
-  { code: 'UGX', name: 'Ugandan Shilling', symbol: 'USh' },
-  { code: 'TZS', name: 'Tanzanian Shilling', symbol: 'TSh' },
-];
-
 const PettyCashRequests = () => {
   const dispatch = useDispatch();
   const { pettyCashRequests, pettyCashList, isLoading } = useSelector(
-    (state) => state.pettyCash
+    (state) => state.pettyCash,
   );
   const { users: signersData } = useSelector((state) => state.user);
 
@@ -261,12 +251,12 @@ const PettyCashRequests = () => {
 
     const firstCurrency = formData.expenses[0].currency;
     const allSameCurrency = formData.expenses.every(
-      (expense) => expense.currency === firstCurrency
+      (expense) => expense.currency === firstCurrency,
     );
 
     if (!allSameCurrency) {
       setCurrencyError(
-        `All expenses must use the same currency. Please ensure all expenses use ${firstCurrency}.`
+        `All expenses must use the same currency. Please ensure all expenses use ${firstCurrency}.`,
       );
       return false;
     }
@@ -287,7 +277,7 @@ const PettyCashRequests = () => {
       const submitData = new FormData();
       submitData.append(
         'related_petty_cash_id',
-        formData.related_petty_cash_id
+        formData.related_petty_cash_id,
       );
       submitData.append('verifier_id', formData.verifier_id);
 
@@ -304,7 +294,7 @@ const PettyCashRequests = () => {
         if (expense.supporting_document) {
           submitData.append(
             `expense_document_${index}`,
-            expense.supporting_document
+            expense.supporting_document,
           );
         }
       });
@@ -377,7 +367,7 @@ const PettyCashRequests = () => {
   const calculateTotalAmount = () => {
     return formData.expenses.reduce(
       (sum, expense) => sum + (parseFloat(expense.amount) || 0),
-      0
+      0,
     );
   };
 
@@ -663,7 +653,7 @@ const PettyCashRequests = () => {
                                   {parseFloat(pc.amount || 0).toLocaleString()}{' '}
                                   • Remaining: {pc.currency || 'USD'}{' '}
                                   {parseFloat(
-                                    pc.remaining_amount || 0
+                                    pc.remaining_amount || 0,
                                   ).toLocaleString()}
                                 </Typography>
                                 {pc.notes && (
@@ -824,7 +814,7 @@ const PettyCashRequests = () => {
                             handleExpenseChange(
                               index,
                               'item_description',
-                              e.target.value
+                              e.target.value,
                             )
                           }
                           fullWidth
@@ -858,13 +848,13 @@ const PettyCashRequests = () => {
                               handleExpenseChange(
                                 index,
                                 'currency',
-                                e.target.value
+                                e.target.value,
                               )
                             }
                             label="Currency"
                             disabled={index !== 0} // Only first expense can change currency
                           >
-                            {CURRENCIES.map((curr) => (
+                            {PETTY_CASH_CURRENCIES.map((curr) => (
                               <MenuItem key={curr.code} value={curr.code}>
                                 <Box
                                   sx={{ display: 'flex', alignItems: 'center' }}

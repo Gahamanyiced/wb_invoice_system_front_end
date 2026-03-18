@@ -26,6 +26,7 @@ import BlockIcon from '@mui/icons-material/Block';
 import LockPersonIcon from '@mui/icons-material/LockPerson';
 import { toast } from 'react-toastify';
 import { updatePettyCash } from '../features/pettyCash/pettyCashSlice';
+import PETTY_CASH_CURRENCIES from '../constants/pettyCashCurrencies';
 
 const style = {
   modal: {
@@ -83,16 +84,6 @@ const style = {
     },
   },
 };
-
-const CURRENCIES = [
-  { code: 'USD', name: 'US Dollar', symbol: '$' },
-  { code: 'EUR', name: 'Euro', symbol: '€' },
-  { code: 'GBP', name: 'British Pound', symbol: '£' },
-  { code: 'RWF', name: 'Rwandan Franc', symbol: 'FRw' },
-  { code: 'KES', name: 'Kenyan Shilling', symbol: 'KSh' },
-  { code: 'UGX', name: 'Ugandan Shilling', symbol: 'USh' },
-  { code: 'TZS', name: 'Tanzanian Shilling', symbol: 'TSh' },
-];
 
 // Statuses that allow editing
 const EDIT_ALLOWED_STATUSES = ['rollback', 'pending_acknowledgment'];
@@ -441,7 +432,7 @@ const EditTransactionModal = ({
                           onChange={handleInputChange}
                           label="Currency"
                         >
-                          {CURRENCIES.map((curr) => (
+                          {PETTY_CASH_CURRENCIES.map((curr) => (
                             <MenuItem key={curr.code} value={curr.code}>
                               <Box
                                 sx={{ display: 'flex', alignItems: 'center' }}

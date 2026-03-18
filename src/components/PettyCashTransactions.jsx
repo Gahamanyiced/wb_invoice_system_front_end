@@ -56,6 +56,7 @@ import EditTransactionModal from './EditTransactionModal';
 import DeleteTransactionDialog from './DeleteTransactionDialog';
 import RollbackTransactionDialog from './RollbackTransactionDialog';
 import ReplenishTransactionDialog from './ReplenishTransactionDialog';
+import PETTY_CASH_CURRENCIES from '../constants/pettyCashCurrencies';
 
 const styles = {
   header: {
@@ -100,16 +101,6 @@ const styles = {
     },
   },
 };
-
-const CURRENCIES = [
-  { code: 'USD', name: 'US Dollar', symbol: '$' },
-  { code: 'EUR', name: 'Euro', symbol: '€' },
-  { code: 'GBP', name: 'British Pound', symbol: '£' },
-  { code: 'RWF', name: 'Rwandan Franc', symbol: 'FRw' },
-  { code: 'KES', name: 'Kenyan Shilling', symbol: 'KSh' },
-  { code: 'UGX', name: 'Ugandan Shilling', symbol: 'USh' },
-  { code: 'TZS', name: 'Tanzanian Shilling', symbol: 'TSh' },
-];
 
 // Statuses that allow editing — must be issuer AND one of these statuses
 const EDIT_ALLOWED_STATUSES = ['rollback', 'pending_acknowledgment'];
@@ -850,7 +841,7 @@ const PettyCashTransactions = () => {
                         onChange={handleInputChange}
                         label="Currency"
                       >
-                        {CURRENCIES.map((curr) => (
+                        {PETTY_CASH_CURRENCIES.map((curr) => (
                           <MenuItem key={curr.code} value={curr.code}>
                             <Box sx={{ display: 'flex', alignItems: 'center' }}>
                               <Typography variant="body2" sx={{ mr: 1 }}>

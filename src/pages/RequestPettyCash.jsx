@@ -248,9 +248,12 @@ const RequestPettyCash = () => {
     setOpenViewModal(true);
   };
 
-  const handleTrackAndSign = async (request) => {
+  // FIX: removed async/await dispatch(trackPettyCashReplenishRequest(request.id)) from here.
+  // TrackAndSignPettyCashDialog calls fetchTrackingData() internally via its
+  // useEffect when it opens — calling it here too was causing the approve
+  // endpoint to be hit twice.
+  const handleTrackAndSign = (request) => {
     setSelectedRequest(request);
-    await dispatch(trackPettyCashReplenishRequest(request.id));
     setOpenTrackSignDialog(true);
   };
 

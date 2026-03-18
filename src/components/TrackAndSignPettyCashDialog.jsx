@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   trackPettyCashExpense,
@@ -189,6 +189,9 @@ const TrackAndSignPettyCashDialog = ({
   const [nextApproverId, setNextApproverId] = useState('');
   const [nextApproverError, setNextApproverError] = useState('');
 
+  // ── Guard against duplicate submissions ───────────────────────────────────
+  const isSubmitting = useRef(false);
+
   useEffect(() => {
     if (open && request?.id) {
       fetchTrackingData();
@@ -235,6 +238,9 @@ const TrackAndSignPettyCashDialog = ({
   // ── Sign submit ───────────────────────────────────────────────────────────
 
   const handleSignSubmit = async () => {
+    // Block if a submission is already in flight
+    if (isSubmitting.current) return;
+
     if (!signAction) {
       toast.error('Please select an action');
       return;
@@ -270,9 +276,17 @@ const TrackAndSignPettyCashDialog = ({
       payload = { action: signAction, notes: signNotes.trim() };
     }
 
-    const result = await dispatch(
-      approveThunk({ id: request.id, data: payload }),
-    );
+    // Lock — prevents any further calls until this one completes
+    isSubmitting.current = true;
+
+    let result;
+    try {
+      result = await dispatch(approveThunk({ id: request.id, data: payload }));
+    } finally {
+      // Always unlock, whether the call succeeded or failed
+      isSubmitting.current = false;
+    }
+
     if (approveThunk.fulfilled.match(result)) {
       const labels = {
         approve: 'approved',
@@ -343,7 +357,7 @@ const TrackAndSignPettyCashDialog = ({
     }
   })();
 
-  // History field normalisation helpers (defined before canApprove so we can reuse them)
+  // History field normalisation helpers
   const historyUserName = (h) =>
     isRequestContext ? userName(h.user) : h.user?.name || userName(h.user);
 
@@ -356,14 +370,6 @@ const TrackAndSignPettyCashDialog = ({
       : !!h.user?.is_head_of_department;
 
   // ── Check if the logged-in user is the current pending approver ───────────
-  //
-  // We look for a history entry that:
-  //   1. Belongs to the logged-in user (by user.id)
-  //   2. Has a status that means "waiting for this person to act"
-  //      → "to_sign", "to_verify", "to sign", "to verify", or "pending"
-  //
-  // This logic is identical for both expense and request contexts because
-  // both shapes store the approver as history[].user.id.
   const PENDING_APPROVER_STATUSES = new Set([
     'to_sign',
     'to_verify',
@@ -382,10 +388,6 @@ const TrackAndSignPettyCashDialog = ({
       return isPending && h.user?.id === loggedInUser.id;
     });
 
-  // canApprove:
-  //   Expense  → backend's can_approve field (already user-scoped by the API)
-  //   Request  → logged-in user must be the pending approver in history AND
-  //              the request must not be in a terminal state
   const terminalStatuses = ['approved', 'denied', 'rolled_back'];
   const canApprove = isRequestContext
     ? isCurrentApprover &&
@@ -556,7 +558,7 @@ const TrackAndSignPettyCashDialog = ({
                   )}
                 </Grid>
 
-                {/* Requester / Verifier — request context only */}
+                {/* Requester — request context only */}
                 {isRequestContext && entity.requester && (
                   <Grid item xs={12} sm={6}>
                     <Typography sx={style.fieldLabel}>Requester</Typography>
@@ -589,50 +591,57 @@ const TrackAndSignPettyCashDialog = ({
 
                 {/* Request stats — request context only */}
                 {isRequestContext && (
-                  <>
-                    <Grid item xs={6} sm={3}>
-                      <Typography sx={style.fieldLabel}>Expenses</Typography>
-                      <Typography sx={style.fieldValue}>
-                        {entity.expenses_count ?? entity.expenses?.length ?? 0}
-                      </Typography>
-                    </Grid>
-                  </>
+                  <Grid item xs={6} sm={3}>
+                    <Typography sx={style.fieldLabel}>Expenses</Typography>
+                    <Typography sx={style.fieldValue}>
+                      {entity.expenses_count ?? entity.expenses?.length ?? 0}
+                    </Typography>
+                  </Grid>
                 )}
 
-                {/* Supporting documents */}
+                {/* Supporting document */}
                 {isRequestContext
-                  ? // Request: per-expense documents
-                    entity.expenses?.some((e) => e.supporting_document) && (
+                  ? entity.expenses?.some(
+                      (e) => e.supporting_document || e.supporting_document_url,
+                    ) && (
                       <Grid item xs={12}>
                         <Typography sx={style.fieldLabel}>
                           Supporting Documents
                         </Typography>
                         {entity.expenses
-                          .filter((e) => e.supporting_document)
-                          .map((exp, i) => (
+                          .filter(
+                            (e) =>
+                              e.supporting_document ||
+                              e.supporting_document_url,
+                          )
+                          .map((e, i) => (
                             <Box
                               key={i}
                               onClick={() =>
-                                window.open(exp.supporting_document, '_blank')
+                                window.open(
+                                  e.supporting_document_url ||
+                                    e.supporting_document,
+                                  '_blank',
+                                )
                               }
                               sx={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                mb: 0.75,
-                                p: 1.25,
-                                bgcolor: 'rgba(0, 82, 155, 0.05)',
+                                p: 1,
+                                mb: 0.5,
                                 borderRadius: 1,
                                 cursor: 'pointer',
                                 border: '1px solid rgba(0, 82, 155, 0.15)',
-                                '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.1)' },
+                                '&:hover': {
+                                  bgcolor: 'rgba(0, 82, 155, 0.05)',
+                                },
                               }}
                             >
                               <AttachFileIcon
                                 sx={{ mr: 1, color: '#00529B', fontSize: 18 }}
                               />
                               <Typography variant="body2" sx={{ flex: 1 }}>
-                                {exp.item_description} —{' '}
-                                {exp.supporting_document.split('/').pop()}
+                                {e.item_description} — document
                               </Typography>
                               <Typography
                                 variant="caption"
@@ -644,8 +653,7 @@ const TrackAndSignPettyCashDialog = ({
                           ))}
                       </Grid>
                     )
-                  : // Expense: single document
-                    (entity.supporting_document_url ||
+                  : (entity.supporting_document_url ||
                       entity.supporting_document ||
                       request.supporting_document) && (
                       <Grid item xs={12}>
@@ -664,9 +672,7 @@ const TrackAndSignPettyCashDialog = ({
                           sx={{
                             display: 'flex',
                             alignItems: 'center',
-                            mt: 0.75,
-                            p: 1.5,
-                            bgcolor: 'rgba(0, 82, 155, 0.05)',
+                            p: 1,
                             borderRadius: 1,
                             cursor: 'pointer',
                             border: '1px solid rgba(0, 82, 155, 0.15)',
@@ -728,165 +734,68 @@ const TrackAndSignPettyCashDialog = ({
                             }}
                           >
                             {historyIsSigned(history) ? (
-                              <VerifiedUserIcon sx={{ fontSize: 18 }} />
+                              <CheckCircleIcon sx={{ fontSize: 20 }} />
                             ) : (
-                              <PersonIcon sx={{ fontSize: 18 }} />
+                              <PersonIcon sx={{ fontSize: 20 }} />
                             )}
                           </Box>
                         )}
                       >
-                        <Typography variant="subtitle2" fontWeight={600}>
-                          {historyUserName(history)}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {history.user?.position}
-                          {history.approval_level != null
-                            ? ` • Level ${history.approval_level}`
-                            : ''}
-                          {historyIsHOD(history) ? ' • Head of Dept' : ''}
-                        </Typography>
-                      </StepLabel>
-
-                      <StepContent>
-                        <Paper
-                          elevation={0}
+                        <Box
                           sx={{
-                            p: 2,
-                            bgcolor: 'rgba(0, 82, 155, 0.03)',
-                            borderRadius: 1,
-                            border: '1px solid rgba(0, 82, 155, 0.1)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            flexWrap: 'wrap',
                           }}
                         >
-                          <Grid container spacing={1.5}>
-                            <Grid item xs={12} sm={6}>
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                              >
-                                Status
-                              </Typography>
-                              <Box sx={{ mt: 0.5 }}>
-                                <StatusChip status={history.status} />
-                              </Box>
-                            </Grid>
-
-                            <Grid item xs={12} sm={6}>
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                              >
-                                Date
-                              </Typography>
-                              <Typography variant="body2">
-                                {formatDate(
-                                  history.updated_at || history.created_at,
-                                )}
-                              </Typography>
-                            </Grid>
-
-                            <Grid item xs={12} sm={6}>
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                              >
-                                Department
-                              </Typography>
-                              <Typography variant="body2">
-                                {history.user?.department || 'N/A'}
-                              </Typography>
-                            </Grid>
-
-                            {/* Same department badge — request context only */}
-                            {isRequestContext && (
-                              <Grid item xs={12} sm={6}>
-                                <Typography
-                                  variant="caption"
-                                  color="text.secondary"
-                                >
-                                  Same Department
-                                </Typography>
-                                <Box sx={{ mt: 0.5 }}>
-                                  <Chip
-                                    label={
-                                      history.is_in_same_department
-                                        ? 'Yes'
-                                        : 'No'
-                                    }
-                                    size="small"
-                                    sx={{
-                                      bgcolor: history.is_in_same_department
-                                        ? '#66BB6A'
-                                        : '#9E9E9E',
-                                      color: 'white',
-                                      fontSize: '0.7rem',
-                                    }}
-                                  />
-                                </Box>
-                              </Grid>
+                          <Typography variant="body2" fontWeight={600}>
+                            {historyUserName(history)}
+                          </Typography>
+                          {historyIsHOD(history) && (
+                            <Chip
+                              label="HOD"
+                              size="small"
+                              sx={{
+                                bgcolor: '#E3F2FD',
+                                color: '#1565C0',
+                                fontSize: '0.65rem',
+                                height: 18,
+                              }}
+                            />
+                          )}
+                          <StatusChip status={history.status} />
+                        </Box>
+                      </StepLabel>
+                      <StepContent>
+                        <Box sx={{ pb: 1 }}>
+                          {history.notes && (
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                              sx={{ mb: 0.5 }}
+                            >
+                              {history.notes}
+                            </Typography>
+                          )}
+                          <Typography variant="caption" color="text.secondary">
+                            {formatDate(
+                              history.created_at || history.signed_at,
                             )}
-
-                            <Grid item xs={12} sm={6}>
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                              >
-                                Digitally Signed
-                              </Typography>
-                              <Box sx={{ mt: 0.5 }}>
-                                <Chip
-                                  icon={
-                                    historyIsSigned(history) ? (
-                                      <VerifiedUserIcon sx={{ fontSize: 14 }} />
-                                    ) : undefined
-                                  }
-                                  label={
-                                    historyIsSigned(history)
-                                      ? 'Signed'
-                                      : 'Not signed'
-                                  }
-                                  size="small"
-                                  sx={{
-                                    bgcolor: historyIsSigned(history)
-                                      ? '#9C27B0'
-                                      : '#e0e0e0',
-                                    color: historyIsSigned(history)
-                                      ? 'white'
-                                      : '#666',
-                                    fontWeight: 500,
-                                    fontSize: '0.7rem',
-                                  }}
-                                />
-                              </Box>
-                            </Grid>
-
-                            {history.notes && (
-                              <Grid item xs={12}>
-                                <Typography
-                                  variant="caption"
-                                  color="text.secondary"
-                                >
-                                  Notes
-                                </Typography>
-                                <Typography variant="body2">
-                                  {history.notes}
-                                </Typography>
-                              </Grid>
-                            )}
-                          </Grid>
-                        </Paper>
+                          </Typography>
+                        </Box>
                       </StepContent>
                     </Step>
                   ))}
                 </Stepper>
               ) : (
-                <Alert severity="info">
-                  No approval history yet. History will appear once reviewers
-                  act on this {isRequestContext ? 'request' : 'expense'}.
-                </Alert>
+                <Typography variant="body2" color="text.secondary">
+                  No approval history yet.
+                </Typography>
               )}
             </Paper>
 
-            {/* ── Take Action ── */}
+            {/* ── Sign / Review panel ── */}
             {canApprove && (
               <Paper elevation={0} sx={style.section}>
                 <Typography
@@ -895,7 +804,7 @@ const TrackAndSignPettyCashDialog = ({
                   color="#00529B"
                   gutterBottom
                 >
-                  Take Action
+                  Your Action
                 </Typography>
                 <Divider sx={{ mb: 2 }} />
 
@@ -966,7 +875,7 @@ const TrackAndSignPettyCashDialog = ({
                             />
                             <Box>
                               <Typography variant="body2" fontWeight={500}>
-                                Approve & Forward
+                                Approve &amp; Forward
                               </Typography>
                               <Typography
                                 variant="caption"
@@ -996,7 +905,7 @@ const TrackAndSignPettyCashDialog = ({
                                 variant="caption"
                                 color="text.secondary"
                               >
-                                Mark as finally approved
+                                Mark as fully approved
                               </Typography>
                             </Box>
                           </Box>
@@ -1155,7 +1064,9 @@ const TrackAndSignPettyCashDialog = ({
                       <Button
                         variant="contained"
                         onClick={handleSignSubmit}
-                        disabled={isLoading || !signAction}
+                        disabled={
+                          isLoading || isSubmitting.current || !signAction
+                        }
                         startIcon={
                           isLoading ? (
                             <CircularProgress
