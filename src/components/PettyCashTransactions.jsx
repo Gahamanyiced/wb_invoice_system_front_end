@@ -7,6 +7,7 @@ import {
   updatePettyCash,
   deletePettyCash,
   rollbackPettyCash,
+  getPettyCashLedger,
 } from '../features/pettyCash/pettyCashSlice';
 import { getAllSigners } from '../features/user/userSlice';
 import { toast } from 'react-toastify';
@@ -49,6 +50,7 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
 import UndoIcon from '@mui/icons-material/Undo';
 import CurrencyExchangeIcon from '@mui/icons-material/CurrencyExchange';
+import DownloadIcon from '@mui/icons-material/Download';
 import { useNavigate } from 'react-router-dom';
 import ViewTransactionModal from './ViewTransactionModal';
 import AcknowledgeTransactionDialog from './AcknowledgeTransactionDialog';
@@ -102,6 +104,99 @@ const styles = {
   },
 };
 
+// ── CSV generation helper ─────────────────────────────────────────────────────
+// Format mirrors the reference Excel:
+//   Row 1: RWANDAIR PETTY CASH
+//   Row 2: STATION : <station>
+//   Row 3: PERIOD: <period>
+//   Row 4: column headers  — (blank) | Description | Dr | Cr | BALANCE
+//   Row 5: DATE | Opening balance | <dr> | <cr> | (blank)
+//   Row 6: (blank) | Replenishment | <dr> | <cr> | (blank)
+//   Row 7: (blank) | (blank) | (blank) | (blank) | <total>
+//   Rows 8+: <date> | <description> | <dr> | <cr> | <balance>
+//   Last row: (blank) | Closing balance | (blank) | (blank) | <closing_balance>
+
+const generateLedgerCSV = (ledger, transactionId) => {
+  const { header, expenses, closing_balance } = ledger;
+  const fmt = (val) => (val == null ? '' : val);
+  const rows = [];
+
+  // Row 1 — Title
+  rows.push(['RWANDAIR PETTY CASH', '', '', '', '']);
+
+  // Row 2 — Station
+  rows.push([`STATION : ${fmt(header.station)}`, '', '', '', '']);
+
+  // Row 3 — Period
+  rows.push([`PERIOD: ${fmt(header.period)}`, '', '', '', '']);
+
+  // Row 4 — Column headers
+  rows.push(['', 'Description', 'Dr', 'Cr', 'BALANCE']);
+
+  // Row 5 — Opening balance
+  rows.push([
+    'DATE',
+    'Opening balance',
+    fmt(header.opening_balance.dr),
+    fmt(header.opening_balance.cr),
+    '',
+  ]);
+
+  // Row 6 — Replenishment
+  rows.push([
+    '',
+    'Replenishment',
+    fmt(header.replenishment.dr),
+    fmt(header.replenishment.cr),
+    '',
+  ]);
+
+  // Row 7 — Total balance (DR + replenishment combined)
+  rows.push(['', '', '', '', fmt(header.total)]);
+
+  // Rows 8+ — Expense lines
+  expenses.forEach((exp) => {
+    rows.push([
+      fmt(exp.date),
+      fmt(exp.description),
+      fmt(exp.dr),
+      fmt(exp.cr),
+      fmt(exp.balance),
+    ]);
+  });
+
+  // Last row — Closing balance
+  rows.push(['', 'Closing balance', '', '', fmt(closing_balance)]);
+
+  // Serialize to CSV string
+  const csv = rows
+    .map((row) =>
+      row
+        .map((cell) => {
+          const str = String(cell);
+          return str.includes(',') || str.includes('"') || str.includes('\n')
+            ? `"${str.replace(/"/g, '""')}"`
+            : str;
+        })
+        .join(','),
+    )
+    .join('\r\n');
+
+  // Trigger browser download
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute(
+    'download',
+    `petty_cash_ledger_${transactionId}_${header.period?.replace(/\s/g, '_') || 'report'}.csv`,
+  );
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+};
+
 // Statuses that allow editing — must be issuer AND one of these statuses
 const EDIT_ALLOWED_STATUSES = ['rollback', 'pending_acknowledgment'];
 
@@ -116,6 +211,7 @@ const PettyCashTransactions = () => {
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [downloadingLedgerId, setDownloadingLedgerId] = useState(null);
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -320,6 +416,23 @@ const PettyCashTransactions = () => {
     setOpenReplenishDialog(true);
   };
 
+  // ── Download Ledger ──────────────────────────────────────────
+
+  const handleDownloadLedger = async (transaction) => {
+    setDownloadingLedgerId(transaction.id);
+    try {
+      const result = await dispatch(
+        getPettyCashLedger(transaction.id),
+      ).unwrap();
+      generateLedgerCSV(result, transaction.id);
+      toast.success('Ledger report downloaded successfully');
+    } catch (error) {
+      toast.error(error || 'Failed to download ledger report');
+    } finally {
+      setDownloadingLedgerId(null);
+    }
+  };
+
   // ── Submit handlers ──────────────────────────────────────────
 
   const handleAcknowledgeSubmit = async (id, comment, expenseCreatorId) => {
@@ -454,7 +567,7 @@ const PettyCashTransactions = () => {
         elevation={2}
         sx={{ overflowX: 'auto' }}
       >
-        <Table sx={{ ...styles.table, tableLayout: 'fixed', minWidth: 1310 }}>
+        <Table sx={{ ...styles.table, tableLayout: 'fixed', minWidth: 1400 }}>
           <TableHead>
             <TableRow sx={{ bgcolor: 'rgba(0, 82, 155, 0.05)' }}>
               <TableCell sx={{ ...styles.headerCell, width: '40px' }}>
@@ -485,7 +598,7 @@ const PettyCashTransactions = () => {
                 Status
               </TableCell>
               <TableCell
-                sx={{ ...styles.headerCell, minWidth: '330px' }}
+                sx={{ ...styles.headerCell, minWidth: '380px' }}
                 align="center"
               >
                 Actions
@@ -572,7 +685,7 @@ const PettyCashTransactions = () => {
 
                   <TableCell
                     align="center"
-                    sx={{ minWidth: '330px', whiteSpace: 'nowrap' }}
+                    sx={{ minWidth: '380px', whiteSpace: 'nowrap' }}
                   >
                     <Box
                       sx={{
@@ -656,6 +769,24 @@ const PettyCashTransactions = () => {
                           sx={{ color: '#FF9800', padding: '6px' }}
                         >
                           <UndoIcon sx={{ fontSize: '1.1rem' }} />
+                        </IconButton>
+                      </Tooltip>
+
+                      {/* Download Ledger Report */}
+                      <Tooltip title="Download Ledger Report" arrow>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDownloadLedger(transaction)}
+                          disabled={downloadingLedgerId === transaction.id}
+                          sx={{
+                            color:
+                              downloadingLedgerId === transaction.id
+                                ? '#bdbdbd'
+                                : '#546E7A',
+                            padding: '6px',
+                          }}
+                        >
+                          <DownloadIcon sx={{ fontSize: '1.1rem' }} />
                         </IconButton>
                       </Tooltip>
 

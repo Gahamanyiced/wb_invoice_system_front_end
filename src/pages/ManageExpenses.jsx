@@ -189,7 +189,7 @@ const ManageExpenses = () => {
   const handleExpenseChange = (index, field, value) => {
     const updated = [...formData.expenses];
     updated[index][field] = value;
-    // Propagate currency from first expense to all others
+    // Propagate currency from first line to all lines
     if (index === 0 && field === 'currency') {
       updated.forEach((exp, i) => {
         if (i !== 0) exp.currency = value;
@@ -342,22 +342,10 @@ const ManageExpenses = () => {
 
   // ── Approve/Deny/Rollback ─────────────────────────────────────────────────────
 
-  const handleApprove = async (expenseId, action, comment = '') => {
-    const result = await dispatch(
-      approvePettyCashExpense({ id: expenseId, data: { action, comment } }),
-    );
-
-    if (approvePettyCashExpense.fulfilled.match(result)) {
-      const labels = {
-        approve: 'approved',
-        deny: 'denied',
-        rollback: 'rolled back',
-      };
-      toast.success(`Expense ${labels[action] || action} successfully.`);
-      refreshList();
-    } else {
-      toast.error(result.payload || `Failed to ${action} expense.`);
-    }
+  // FIX: dispatch removed — TrackAndSignPettyCashDialog already dispatches
+  // and shows the toast. This callback only needs to refresh the list.
+  const handleApprove = () => {
+    refreshList();
   };
 
   // ── Export CSV ────────────────────────────────────────────────────────────────
@@ -647,7 +635,7 @@ const ManageExpenses = () => {
         <Paper elevation={2} sx={{ mt: 3 }}>
           <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0' }}>
             <Typography variant="h6" color="#00529B" fontWeight={600}>
-              Expenses
+              Expense Lines
             </Typography>
           </Box>
 
@@ -949,7 +937,7 @@ const ManageExpenses = () => {
                   </Box>
                 </Grid>
 
-                {/* Expense entries */}
+                {/* Expense lines */}
                 <Grid item xs={12}>
                   <Divider sx={{ mb: 2 }} />
                   <Box
@@ -961,7 +949,7 @@ const ManageExpenses = () => {
                     }}
                   >
                     <Typography variant="h6" color="#00529B" fontWeight={600}>
-                      Expenses
+                      Expense Lines
                     </Typography>
                     <Button
                       variant="outlined"
@@ -998,7 +986,7 @@ const ManageExpenses = () => {
                         }}
                       >
                         <Typography variant="subtitle2" fontWeight={600}>
-                          Expense #{index + 1}
+                          Line #{index + 1}
                         </Typography>
                         {formData.expenses.length > 1 && (
                           <IconButton
@@ -1072,7 +1060,7 @@ const ManageExpenses = () => {
                               color="text.secondary"
                               sx={{ mt: 0.5, display: 'block' }}
                             >
-                              Currency is set from expense #1
+                              Currency is set from line #1
                             </Typography>
                           )}
                         </Grid>

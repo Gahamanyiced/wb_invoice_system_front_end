@@ -131,7 +131,7 @@ const trackPettyCashRequest = async (id) => {
 
 // 4. Sign Request (Verification & Approval)
 
-// POST /invoice/petty-cash-request/sign/{id}/
+// PUT /invoice/petty-cash-request/sign/{id}/
 // Payload: { action, notes, next_approver_id?, final_approval? }
 const approvePettyCashRequest = async (id, data) => {
   const response = await http.put(
@@ -237,6 +237,15 @@ const getPettyCashIssuanceRequests = async (id, params = {}) => {
   return response.data;
 };
 
+// ==================== 8. Petty Cash Ledger ====================
+
+// Get ledger for a specific petty cash issuance
+// GET /invoice/petty-cash/{id}/ledger/
+const getPettyCashLedger = async (id) => {
+  const response = await http.get(`/invoice/petty-cash/${id}/ledger/`);
+  return response.data;
+};
+
 const pettyCashService = {
   // Petty Cash Issuance
   issuePettyCash,
@@ -277,6 +286,9 @@ const pettyCashService = {
 
   // Issuance-scoped requests
   getPettyCashIssuanceRequests,
+
+  // Ledger
+  getPettyCashLedger,
 };
 
 export default pettyCashService;

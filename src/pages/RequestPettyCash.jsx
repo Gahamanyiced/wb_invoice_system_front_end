@@ -248,7 +248,7 @@ const RequestPettyCash = () => {
     setOpenViewModal(true);
   };
 
-  // FIX: removed async/await dispatch(trackPettyCashReplenishRequest(request.id)) from here.
+  // FIX: removed dispatch(trackPettyCashReplenishRequest(request.id)) from here.
   // TrackAndSignPettyCashDialog calls fetchTrackingData() internally via its
   // useEffect when it opens — calling it here too was causing the approve
   // endpoint to be hit twice.
@@ -293,15 +293,10 @@ const RequestPettyCash = () => {
     }
   };
 
-  const handleApprove = async (id, action, notes) => {
-    try {
-      await dispatch(
-        approvePettyCashRequest({ id, data: { action, notes } }),
-      ).unwrap();
-      refreshList(1);
-    } catch (error) {
-      toast.error(error || 'Failed to process approval');
-    }
+  // FIX: dispatch removed — TrackAndSignPettyCashDialog already dispatches
+  // and shows the toast. This callback only needs to refresh the list.
+  const handleApprove = () => {
+    refreshList(1);
   };
 
   // ── Close handlers ─────────────────────────────────────────────────────────

@@ -15,6 +15,7 @@ const initialState = {
   pettyCashReplenishRequest: null,
   replenishRequestTrackingData: null,
   issuanceRequests: [],
+  pettyCashLedger: null, // ← new
   isLoading: false,
   isExporting: false,
   error: null,
@@ -380,6 +381,19 @@ export const getPettyCashIssuanceRequests = createAsyncThunk(
   },
 );
 
+// ==================== Petty Cash Ledger ====================
+
+export const getPettyCashLedger = createAsyncThunk(
+  'pettyCash/getPettyCashLedger',
+  async (id, thunkAPI) => {
+    try {
+      return await pettyCashService.getPettyCashLedger(id);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
 // ==================== Slice ====================
 
 export const pettyCashSlice = createSlice({
@@ -410,6 +424,10 @@ export const pettyCashSlice = createSlice({
     },
     clearIssuanceRequests: (state) => {
       state.issuanceRequests = [];
+    },
+    clearPettyCashLedger: (state) => {
+      // ← new
+      state.pettyCashLedger = null;
     },
   },
   extraReducers: (builder) => {
@@ -498,7 +516,6 @@ export const pettyCashSlice = createSlice({
         state.error = action.payload;
       })
 
-      // ==================== Replenish Petty Cash ====================
       .addCase(replenishPettyCash.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -818,6 +835,21 @@ export const pettyCashSlice = createSlice({
       .addCase(getPettyCashIssuanceRequests.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
+      })
+
+      // ==================== Petty Cash Ledger ====================
+      .addCase(getPettyCashLedger.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(getPettyCashLedger.fulfilled, (state, action) => {
+        state.pettyCashLedger = action.payload;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(getPettyCashLedger.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
       });
   },
 });
@@ -831,6 +863,7 @@ export const {
   clearIssuancePettyCashExpenses,
   clearExpenseTrackingData,
   clearIssuanceRequests,
+  clearPettyCashLedger, // ← new
 } = pettyCashSlice.actions;
 
 export default pettyCashSlice.reducer;
