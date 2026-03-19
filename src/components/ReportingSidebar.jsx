@@ -51,99 +51,104 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
     const fmt = (val) => (val == null ? '' : val);
     const rows = [];
 
-    // ── Section 1: Report header & summary ─────────────────────────────────
+    // ── Report Title ──────────────────────────────────────────────────────
     rows.push(['RWANDAIR PETTY CASH REPORT']);
-    rows.push(['Generated', new Date().toLocaleString()]);
-    rows.push([]);
-    rows.push(['── SUMMARY ──']);
-    rows.push(['Total Records', fmt(summary?.total_records)]);
-    rows.push(['Total Issued', fmt(summary?.total_issued)]);
-    rows.push(['Total Spent', fmt(summary?.total_spent)]);
-    rows.push(['Total Remaining', fmt(summary?.total_remaining)]);
+    rows.push([`Generated: ${new Date().toLocaleString()}`]);
     rows.push([]);
 
-    // ── Section 2: Per-issuance block + expenses ────────────────────────────
-    data.forEach((record, index) => {
-      rows.push([`── ISSUANCE #${index + 1} ──`]);
-      rows.push(['ID', fmt(record.id)]);
-      rows.push(['Station', fmt(record.station)]);
-      rows.push(['Period', fmt(record.period)]);
-      rows.push(['Currency', fmt(record.currency)]);
-      rows.push(['Status', fmt(record.status)]);
-      rows.push(['Issue Date', fmt(record.issue_date)]);
-      rows.push(['Is Replenished', record.is_replenished ? 'Yes' : 'No']);
-      rows.push(['Is Acknowledged', record.is_acknowledged ? 'Yes' : 'No']);
+    // ── Summary ───────────────────────────────────────────────────────────
+    rows.push(['SUMMARY']);
+    rows.push([
+      'Total Records',
+      'Total Issued',
+      'Total Spent',
+      'Total Remaining',
+    ]);
+    rows.push([
+      fmt(summary?.total_records),
+      fmt(summary?.total_issued),
+      fmt(summary?.total_spent),
+      fmt(summary?.total_remaining),
+    ]);
+    rows.push([]);
+
+    // ── Issuances ─────────────────────────────────────────────────────────
+    rows.push(['ISSUANCES']);
+    rows.push([
+      'ID',
+      'Holder',
+      'Issued By',
+      'Station',
+      'Period',
+      'Currency',
+      'Amount Issued',
+      'Total Available',
+      'Total Spent',
+      'Remaining Amount',
+      'Status',
+      'Is Replenished',
+      'Is Acknowledged',
+      'Issue Date',
+      'Notes',
+    ]);
+
+    data.forEach((record) => {
       rows.push([
-        'Acknowledged At',
-        record.acknowledged_at
-          ? new Date(record.acknowledged_at).toLocaleString()
-          : '',
+        fmt(record.id),
+        fmt(record.holder?.name),
+        fmt(record.issued_by?.name),
+        fmt(record.station),
+        fmt(record.period),
+        fmt(record.currency),
+        fmt(record.amount_issued),
+        fmt(record.total_available),
+        fmt(record.total_spent),
+        fmt(record.remaining_amount),
+        fmt(record.status),
+        record.is_replenished ? 'Yes' : 'No',
+        record.is_acknowledged ? 'Yes' : 'No',
+        fmt(record.issue_date),
+        fmt(record.notes),
       ]);
-      rows.push(['Notes', fmt(record.notes)]);
-      rows.push([]);
-
-      // Holder
-      rows.push(['Holder']);
-      rows.push(['  Name', fmt(record.holder?.name)]);
-      rows.push(['  Email', fmt(record.holder?.email)]);
-      rows.push(['  Station', fmt(record.holder?.station)]);
-      rows.push(['  Department', fmt(record.holder?.department)]);
-      rows.push([]);
-
-      // Issued By
-      rows.push(['Issued By']);
-      rows.push(['  Name', fmt(record.issued_by?.name)]);
-      rows.push(['  Email', fmt(record.issued_by?.email)]);
-      rows.push([]);
-
-      // Expense Creator
-      rows.push(['Expense Creator']);
-      rows.push(['  Name', fmt(record.expense_creator?.name)]);
-      rows.push(['  Email', fmt(record.expense_creator?.email)]);
-      rows.push([]);
-
-      // Financial summary
-      rows.push(['Financial Summary']);
-      rows.push(['  Opening Balance', fmt(record.opening_balance)]);
-      rows.push(['  Amount Issued', fmt(record.amount_issued)]);
-      rows.push(['  Total Available', fmt(record.total_available)]);
-      rows.push(['  Total Spent', fmt(record.total_spent)]);
-      rows.push(['  Remaining Amount', fmt(record.remaining_amount)]);
-      rows.push(['  Expense Count', fmt(record.expense_count)]);
-      rows.push([]);
-
-      // Expenses table
-      if (record.expenses && record.expenses.length > 0) {
-        rows.push(['Expenses']);
-        rows.push([
-          '  Expense ID',
-          'Date',
-          'Description',
-          'Amount (Cr)',
-          'Balance',
-          'Currency',
-          'Status',
-        ]);
-        record.expenses.forEach((exp) => {
-          rows.push([
-            `  ${fmt(exp.id)}`,
-            fmt(exp.date),
-            fmt(exp.description),
-            fmt(exp.cr),
-            fmt(exp.balance),
-            fmt(exp.currency),
-            fmt(exp.status),
-          ]);
-        });
-      }
-
-      // Separator between records
-      rows.push([]);
-      rows.push(['─'.repeat(60)]);
-      rows.push([]);
     });
 
-    // ── Serialize to CSV ────────────────────────────────────────────────────
+    rows.push([]);
+
+    // ── Expenses ──────────────────────────────────────────────────────────
+    rows.push(['EXPENSES']);
+    rows.push([
+      'Petty Cash ID',
+      'Holder',
+      'Station',
+      'Period',
+      'Expense ID',
+      'Date',
+      'Description',
+      'Amount (Cr)',
+      'Balance',
+      'Currency',
+      'Status',
+    ]);
+
+    data.forEach((record) => {
+      (record.expenses || []).forEach((exp) => {
+        rows.push([
+          fmt(record.id),
+          fmt(record.holder?.name),
+          fmt(record.station),
+          fmt(record.period),
+          fmt(exp.id),
+          fmt(exp.date),
+          fmt(exp.description),
+          fmt(exp.cr),
+          fmt(exp.balance),
+          fmt(exp.currency),
+          fmt(exp.status),
+        ]);
+      });
+    });
+
+    // ── Serialize ─────────────────────────────────────────────────────────
     const csvContent = rows
       .map((row) =>
         row
@@ -233,7 +238,7 @@ const ReportingSidebar = ({ open, onClose }) => {
       label: `${u.firstname} ${u.lastname}`,
     })) || [];
 
-  // ── Invoice options & handlers (identical to original) ──
+  // ── Invoice options & handlers ──
   const getAvailableReports = () => [
     {
       id: 'all_invoices',
@@ -319,6 +324,7 @@ const ReportingSidebar = ({ open, onClose }) => {
   const pcStatusOptions = [
     { value: 'active', label: 'Active' },
     { value: 'pending_acknowledgment', label: 'Pending Acknowledgment' },
+    { value: 'exhausted', label: 'Exhausted' },
     { value: 'closed', label: 'Closed' },
     { value: 'rollback', label: 'Rollback' },
   ];
@@ -1128,7 +1134,9 @@ const ReportingSidebar = ({ open, onClose }) => {
 
                 <Box sx={{ mb: 3 }}>
                   <Chip
-                    label={`${pcSummary?.total_records ?? pcRecordCount} records found`}
+                    label={`${
+                      pcSummary?.total_records ?? pcRecordCount
+                    } records found`}
                     color="success"
                     sx={{ mr: 1, mb: 1, fontWeight: '600' }}
                   />
