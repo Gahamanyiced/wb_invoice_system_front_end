@@ -15,7 +15,8 @@ const initialState = {
   pettyCashReplenishRequest: null,
   replenishRequestTrackingData: null,
   issuanceRequests: [],
-  pettyCashLedger: null, // ← new
+  pettyCashLedger: null,
+  pettyCashReport: null,
   isLoading: false,
   isExporting: false,
   error: null,
@@ -394,6 +395,19 @@ export const getPettyCashLedger = createAsyncThunk(
   },
 );
 
+// ==================== Petty Cash Report ====================
+
+export const getPettyCashReport = createAsyncThunk(
+  'pettyCash/getPettyCashReport',
+  async (params, thunkAPI) => {
+    try {
+      return await pettyCashService.getPettyCashReport(params);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
 // ==================== Slice ====================
 
 export const pettyCashSlice = createSlice({
@@ -426,12 +440,15 @@ export const pettyCashSlice = createSlice({
       state.issuanceRequests = [];
     },
     clearPettyCashLedger: (state) => {
-      // ← new
       state.pettyCashLedger = null;
+    },
+    clearPettyCashReport: (state) => {
+      state.pettyCashReport = null;
     },
   },
   extraReducers: (builder) => {
     builder
+      // ==================== Issuance ====================
       .addCase(issuePettyCash.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -530,6 +547,7 @@ export const pettyCashSlice = createSlice({
         state.error = action.payload;
       })
 
+      // ==================== Acknowledgment ====================
       .addCase(acknowledgePettyCash.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -544,6 +562,7 @@ export const pettyCashSlice = createSlice({
         state.error = action.payload;
       })
 
+      // ==================== Requests ====================
       .addCase(createPettyCashRequest.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -628,6 +647,7 @@ export const pettyCashSlice = createSlice({
         state.error = action.payload;
       })
 
+      // ==================== Expenses ====================
       .addCase(createPettyCashExpense.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -712,6 +732,7 @@ export const pettyCashSlice = createSlice({
         state.error = action.payload;
       })
 
+      // ==================== Replenishment Requests ====================
       .addCase(createPettyCashReplenishRequest.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -796,6 +817,7 @@ export const pettyCashSlice = createSlice({
         state.error = action.payload;
       })
 
+      // ==================== Issue Comments ====================
       .addCase(getPettyCashIssueComments.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -810,6 +832,7 @@ export const pettyCashSlice = createSlice({
         state.error = action.payload;
       })
 
+      // ==================== Export ====================
       .addCase(exportApprovedExpenses.pending, (state) => {
         state.isExporting = true;
         state.error = null;
@@ -823,6 +846,7 @@ export const pettyCashSlice = createSlice({
         state.error = action.payload;
       })
 
+      // ==================== Issuance-scoped Requests ====================
       .addCase(getPettyCashIssuanceRequests.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -837,7 +861,7 @@ export const pettyCashSlice = createSlice({
         state.error = action.payload;
       })
 
-      // ==================== Petty Cash Ledger ====================
+      // ==================== Ledger ====================
       .addCase(getPettyCashLedger.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -848,6 +872,21 @@ export const pettyCashSlice = createSlice({
         state.error = null;
       })
       .addCase(getPettyCashLedger.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // ==================== Report ====================
+      .addCase(getPettyCashReport.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(getPettyCashReport.fulfilled, (state, action) => {
+        state.pettyCashReport = action.payload;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(getPettyCashReport.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       });
@@ -863,7 +902,8 @@ export const {
   clearIssuancePettyCashExpenses,
   clearExpenseTrackingData,
   clearIssuanceRequests,
-  clearPettyCashLedger, // ← new
+  clearPettyCashLedger,
+  clearPettyCashReport,
 } = pettyCashSlice.actions;
 
 export default pettyCashSlice.reducer;

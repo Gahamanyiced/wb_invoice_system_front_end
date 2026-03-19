@@ -246,6 +246,21 @@ const getPettyCashLedger = async (id) => {
   return response.data;
 };
 
+// ==================== 9. Petty Cash Report ====================
+
+// GET /invoice/petty-cash/report/
+// Params: station, status, date_from, date_to, petty_cash_id, currency, holder_id, is_replenished
+const getPettyCashReport = async (params = {}) => {
+  const queryParams = new URLSearchParams(
+    Object.fromEntries(
+      Object.entries(params).filter(([_, v]) => v != null && v !== ''),
+    ),
+  ).toString();
+  const url = `/invoice/petty-cash/report/${queryParams ? `?${queryParams}` : ''}`;
+  const response = await http.get(url);
+  return response.data;
+};
+
 const pettyCashService = {
   // Petty Cash Issuance
   issuePettyCash,
@@ -289,6 +304,9 @@ const pettyCashService = {
 
   // Ledger
   getPettyCashLedger,
+
+  // Report
+  getPettyCashReport,
 };
 
 export default pettyCashService;
