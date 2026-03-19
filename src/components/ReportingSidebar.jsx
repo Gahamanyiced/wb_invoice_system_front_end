@@ -44,45 +44,111 @@ import DownloadInvoiceComponent from './DownloadInvoiceComponent';
 import PETTY_CASH_CURRENCIES from '../constants/pettyCashCurrencies';
 
 // ── Petty Cash CSV Download ───────────────────────────────────────────────────
-const PettyCashReportDownload = ({ data, title }) => {
+const PettyCashReportDownload = ({ data, summary, title }) => {
   const handleDownloadCSV = () => {
     if (!data || !data.length) return;
 
-    const headers = [
-      'ID',
-      'Holder',
-      'Station',
-      'Amount',
-      'Currency',
-      'Remaining Amount',
-      'Replenishment Amount',
-      'Status',
-      'Is Replenished',
-      'Issue Date',
-      'Notes',
-    ];
+    const fmt = (val) => (val == null ? '' : val);
+    const rows = [];
 
-    const rows = data.map((row) => [
-      row.id ?? '',
-      row.holder
-        ? `${row.holder.firstname ?? ''} ${row.holder.lastname ?? ''}`.trim()
-        : '',
-      row.station ?? '',
-      row.amount ?? '',
-      row.currency ?? '',
-      row.remaining_amount ?? '',
-      row.replenishment_amount ?? '',
-      row.status ?? '',
-      row.is_replenished ? 'Yes' : 'No',
-      row.issue_date ?? '',
-      row.notes ?? '',
-    ]);
+    // ── Section 1: Report header & summary ─────────────────────────────────
+    rows.push(['RWANDAIR PETTY CASH REPORT']);
+    rows.push(['Generated', new Date().toLocaleString()]);
+    rows.push([]);
+    rows.push(['── SUMMARY ──']);
+    rows.push(['Total Records', fmt(summary?.total_records)]);
+    rows.push(['Total Issued', fmt(summary?.total_issued)]);
+    rows.push(['Total Spent', fmt(summary?.total_spent)]);
+    rows.push(['Total Remaining', fmt(summary?.total_remaining)]);
+    rows.push([]);
 
-    const csvContent = [headers, ...rows]
-      .map((r) =>
-        r
+    // ── Section 2: Per-issuance block + expenses ────────────────────────────
+    data.forEach((record, index) => {
+      rows.push([`── ISSUANCE #${index + 1} ──`]);
+      rows.push(['ID', fmt(record.id)]);
+      rows.push(['Station', fmt(record.station)]);
+      rows.push(['Period', fmt(record.period)]);
+      rows.push(['Currency', fmt(record.currency)]);
+      rows.push(['Status', fmt(record.status)]);
+      rows.push(['Issue Date', fmt(record.issue_date)]);
+      rows.push(['Is Replenished', record.is_replenished ? 'Yes' : 'No']);
+      rows.push(['Is Acknowledged', record.is_acknowledged ? 'Yes' : 'No']);
+      rows.push([
+        'Acknowledged At',
+        record.acknowledged_at
+          ? new Date(record.acknowledged_at).toLocaleString()
+          : '',
+      ]);
+      rows.push(['Notes', fmt(record.notes)]);
+      rows.push([]);
+
+      // Holder
+      rows.push(['Holder']);
+      rows.push(['  Name', fmt(record.holder?.name)]);
+      rows.push(['  Email', fmt(record.holder?.email)]);
+      rows.push(['  Station', fmt(record.holder?.station)]);
+      rows.push(['  Department', fmt(record.holder?.department)]);
+      rows.push([]);
+
+      // Issued By
+      rows.push(['Issued By']);
+      rows.push(['  Name', fmt(record.issued_by?.name)]);
+      rows.push(['  Email', fmt(record.issued_by?.email)]);
+      rows.push([]);
+
+      // Expense Creator
+      rows.push(['Expense Creator']);
+      rows.push(['  Name', fmt(record.expense_creator?.name)]);
+      rows.push(['  Email', fmt(record.expense_creator?.email)]);
+      rows.push([]);
+
+      // Financial summary
+      rows.push(['Financial Summary']);
+      rows.push(['  Opening Balance', fmt(record.opening_balance)]);
+      rows.push(['  Amount Issued', fmt(record.amount_issued)]);
+      rows.push(['  Total Available', fmt(record.total_available)]);
+      rows.push(['  Total Spent', fmt(record.total_spent)]);
+      rows.push(['  Remaining Amount', fmt(record.remaining_amount)]);
+      rows.push(['  Expense Count', fmt(record.expense_count)]);
+      rows.push([]);
+
+      // Expenses table
+      if (record.expenses && record.expenses.length > 0) {
+        rows.push(['Expenses']);
+        rows.push([
+          '  Expense ID',
+          'Date',
+          'Description',
+          'Amount (Cr)',
+          'Balance',
+          'Currency',
+          'Status',
+        ]);
+        record.expenses.forEach((exp) => {
+          rows.push([
+            `  ${fmt(exp.id)}`,
+            fmt(exp.date),
+            fmt(exp.description),
+            fmt(exp.cr),
+            fmt(exp.balance),
+            fmt(exp.currency),
+            fmt(exp.status),
+          ]);
+        });
+      }
+
+      // Separator between records
+      rows.push([]);
+      rows.push(['─'.repeat(60)]);
+      rows.push([]);
+    });
+
+    // ── Serialize to CSV ────────────────────────────────────────────────────
+    const csvContent = rows
+      .map((row) =>
+        row
           .map((cell) => {
-            const s = String(cell);
+            const s = String(cell ?? '');
             return s.includes(',') || s.includes('"') || s.includes('\n')
               ? `"${s.replace(/"/g, '""')}"`
               : s;
@@ -140,6 +206,7 @@ const ReportingSidebar = ({ open, onClose }) => {
 
   // ── Petty Cash state ──
   const [pcReportData, setPcReportData] = useState(null);
+  const [pcSummary, setPcSummary] = useState(null);
   const [pcLoading, setPcLoading] = useState(false);
   const [pcError, setPcError] = useState(null);
   const [pcShowResults, setPcShowResults] = useState(true);
@@ -276,6 +343,8 @@ const ReportingSidebar = ({ open, onClose }) => {
       holder_id: '',
       is_replenished: '',
     });
+    setPcSummary(null);
+    setPcReportData(null);
   };
 
   const generatePcReport = async () => {
@@ -289,11 +358,13 @@ const ReportingSidebar = ({ open, onClose }) => {
         return acc;
       }, {});
       const data = await pettyCashService.getPettyCashReport(filters);
-      // Normalize: support both plain array and paginated { results: [] }
+      // Response shape: { summary: {...}, results: [...] }
+      setPcSummary(data.summary ?? null);
       setPcReportData(Array.isArray(data) ? data : (data.results ?? []));
     } catch (err) {
       setPcError(err.message || 'Failed to generate petty cash report');
       setPcReportData(null);
+      setPcSummary(null);
     } finally {
       setPcLoading(false);
     }
@@ -370,7 +441,7 @@ const ReportingSidebar = ({ open, onClose }) => {
       {/* ══════════════════════ INVOICE TAB ══════════════════════ */}
       {activeTab === 0 && (
         <Box>
-          {/* Filters Section — identical to original */}
+          {/* Filters Section */}
           <Paper
             elevation={2}
             sx={{ mb: 3, p: 2, backgroundColor: 'white', borderRadius: 2 }}
@@ -1057,7 +1128,7 @@ const ReportingSidebar = ({ open, onClose }) => {
 
                 <Box sx={{ mb: 3 }}>
                   <Chip
-                    label={`${pcRecordCount} records found`}
+                    label={`${pcSummary?.total_records ?? pcRecordCount} records found`}
                     color="success"
                     sx={{ mr: 1, mb: 1, fontWeight: '600' }}
                   />
@@ -1084,19 +1155,39 @@ const ReportingSidebar = ({ open, onClose }) => {
                     📊 Report Summary:
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    • Total Records: {pcRecordCount}
+                    • Total Records: {pcSummary?.total_records ?? pcRecordCount}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    • Total Issued:{' '}
+                    {pcSummary?.total_issued?.toLocaleString() ?? '—'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    • Total Spent:{' '}
+                    {pcSummary?.total_spent?.toLocaleString() ?? '—'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    • Total Remaining:{' '}
+                    <Box
+                      component="span"
+                      sx={{
+                        color:
+                          (pcSummary?.total_remaining ?? 0) < 0
+                            ? '#d32f2f'
+                            : '#2e7d32',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {pcSummary?.total_remaining?.toLocaleString() ?? '—'}
+                    </Box>
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     • Generated: {new Date().toLocaleString()}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    • Data includes all matching records without pagination
-                    limits
                   </Typography>
                 </Box>
 
                 <PettyCashReportDownload
                   data={pcReportData}
+                  summary={pcSummary}
                   title="Petty_Cash_Report"
                 />
               </Paper>
