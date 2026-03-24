@@ -23,6 +23,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import LockIcon from '@mui/icons-material/Lock';
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
+import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined';
 
 // ─── Theme tokens ─────────────────────────────────────────────────────────────
 const PRIMARY = '#00529B';
@@ -108,20 +109,6 @@ const style = {
     justifyContent: 'center',
     bgcolor: PRIMARY_LIGHT,
   },
-  groupCard: {
-    border: `1px solid ${BORDER}`,
-    borderRadius: '10px',
-    overflow: 'hidden',
-  },
-  groupHeader: {
-    px: 2,
-    py: 1.2,
-    bgcolor: PRIMARY_LIGHT,
-    borderBottom: `1px solid ${BORDER}`,
-    display: 'flex',
-    alignItems: 'center',
-    gap: 1,
-  },
   toggleRow: {
     display: 'flex',
     alignItems: 'center',
@@ -146,44 +133,57 @@ const style = {
   },
 };
 
-const switchSx = {
-  '& .MuiSwitch-switchBase.Mui-checked': { color: PRIMARY },
-  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-    bgcolor: PRIMARY,
-  },
-};
-
 // ─── Reusable toggle row ──────────────────────────────────────────────────────
-function ToggleRow({ label, description, name, value, onChange }) {
+function ToggleRow({ label, description, name, value, onChange, accentColor }) {
+  const color = accentColor || PRIMARY;
   return (
     <Box sx={style.toggleRow}>
-      <Box>
-        <Typography variant="body2" fontWeight={500} color="text.primary">
-          {label}
-        </Typography>
-        {description && (
-          <Typography variant="caption" color="text.secondary">
-            {description}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Box
+          sx={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            bgcolor: value ? color : 'rgba(0,0,0,0.15)',
+            flexShrink: 0,
+            transition: 'background 0.2s',
+          }}
+        />
+        <Box>
+          <Typography variant="body2" fontWeight={500} color="text.primary">
+            {label}
           </Typography>
-        )}
+          {description && (
+            <Typography variant="caption" color="text.secondary">
+              {description}
+            </Typography>
+          )}
+        </Box>
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography
-          variant="caption"
+        <Chip
+          label={value ? 'ON' : 'OFF'}
+          size="small"
           sx={{
-            minWidth: 24,
-            color: value ? PRIMARY : 'text.disabled',
-            fontWeight: 600,
-            fontSize: '0.7rem',
+            height: 20,
+            fontSize: '0.65rem',
+            fontWeight: 700,
+            bgcolor: value ? color : 'rgba(0,0,0,0.08)',
+            color: value ? 'white' : 'text.disabled',
+            border: 'none',
+            minWidth: 36,
           }}
-        >
-          {value ? 'ON' : 'OFF'}
-        </Typography>
+        />
         <Switch
           checked={!!value}
           onChange={(e) => onChange(name, e.target.checked)}
           size="small"
-          sx={switchSx}
+          sx={{
+            '& .MuiSwitch-switchBase.Mui-checked': { color },
+            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+              bgcolor: color,
+            },
+          }}
         />
       </Box>
     </Box>
@@ -202,17 +202,46 @@ function SectionHeading({ icon, title }) {
   );
 }
 
-// ─── Group card ───────────────────────────────────────────────────────────────
-function ToggleGroup({ icon, title, badge, children }) {
+// ─── Permission group card ────────────────────────────────────────────────────
+function PermissionGroup({ icon, title, badge, accentColor, children }) {
+  const color = accentColor || PRIMARY;
   return (
-    <Box sx={style.groupCard}>
-      <Box sx={style.groupHeader}>
-        {icon}
+    <Box
+      sx={{
+        border: `1px solid ${color}30`,
+        borderRadius: '10px',
+        overflow: 'hidden',
+      }}
+    >
+      <Box
+        sx={{
+          px: 2,
+          py: 1.2,
+          bgcolor: `${color}12`,
+          borderBottom: `1px solid ${color}25`,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+        }}
+      >
+        <Box
+          sx={{
+            width: 24,
+            height: 24,
+            borderRadius: '6px',
+            bgcolor: `${color}20`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {icon}
+        </Box>
         <Typography
           variant="caption"
           fontWeight={700}
-          color={PRIMARY}
           sx={{
+            color,
             letterSpacing: '0.04em',
             textTransform: 'uppercase',
             fontSize: '0.7rem',
@@ -228,7 +257,7 @@ function ToggleGroup({ icon, title, badge, children }) {
               ml: 'auto',
               height: 18,
               fontSize: '0.65rem',
-              bgcolor: badge > 0 ? PRIMARY : 'transparent',
+              bgcolor: badge > 0 ? color : 'transparent',
               color: badge > 0 ? 'white' : 'text.disabled',
               border: badge > 0 ? 'none' : `1px solid rgba(0,0,0,0.15)`,
             }}
@@ -525,7 +554,7 @@ function UpdateUserModel({
             />
 
             <Grid container spacing={2.5}>
-              {/* Role & Approval Status */}
+              {/* ── Role & Approval Status ── */}
               <Grid item xs={12} md={6}>
                 <FormControl fullWidth variant="outlined" size="small">
                   <InputLabel>Role</InputLabel>
@@ -559,75 +588,175 @@ function UpdateUserModel({
                 </FormControl>
               </Grid>
 
-              {/* ── Petty Cash Group (includes Approval Levels) ── */}
+              {/* ── Petty Cash Permissions subsection ── */}
               <Grid item xs={12}>
-                <ToggleGroup
-                  icon={
-                    <AccountBalanceWalletOutlinedIcon
-                      sx={{ fontSize: 14, color: PRIMARY }}
-                    />
-                  }
-                  title="Petty Cash"
-                  badge={pettyCashActiveCount + approvalActiveCount}
+                {/* Subsection container */}
+                <Box
+                  sx={{
+                    border: `1px solid ${BORDER}`,
+                    borderRadius: '12px',
+                    overflow: 'hidden',
+                  }}
                 >
-                  <ToggleRow
-                    label="Petty Cash User"
-                    description="Can access the petty cash module"
-                    name="is_petty_cash_user"
-                    value={formData.is_petty_cash_user}
-                    onChange={handleToggle}
-                  />
-                  <ToggleRow
-                    label="Petty Cash Initiator"
-                    description="Can initiate petty cash requests"
-                    name="is_pettycash_initiator"
-                    value={formData.is_pettycash_initiator}
-                    onChange={handleToggle}
-                  />
-                  <ToggleRow
-                    label="Custodian"
-                    description="Manages and holds the petty cash fund"
-                    name="is_custodian"
-                    value={formData.is_custodian}
-                    onChange={handleToggle}
-                  />
-                  <ToggleRow
-                    label="Expense Creator"
-                    description="Can create and submit expense entries"
-                    name="is_expense_creator"
-                    value={formData.is_expense_creator}
-                    onChange={handleToggle}
-                  />
+                  {/* Subsection header */}
+                  <Box
+                    sx={{
+                      px: 2.5,
+                      py: 1.5,
+                      bgcolor: PRIMARY_LIGHT,
+                      borderBottom: `1px solid ${BORDER}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1.5,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: '8px',
+                        bgcolor: `${PRIMARY}20`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <AccountBalanceWalletOutlinedIcon
+                        sx={{ fontSize: 16, color: PRIMARY }}
+                      />
+                    </Box>
+                    <Typography
+                      variant="subtitle2"
+                      fontWeight={700}
+                      color={PRIMARY}
+                    >
+                      Petty Cash Permissions
+                    </Typography>
+                    <Chip
+                      label={`${pettyCashActiveCount + approvalActiveCount} active`}
+                      size="small"
+                      sx={{
+                        ml: 'auto',
+                        height: 20,
+                        fontSize: '0.65rem',
+                        fontWeight: 700,
+                        bgcolor:
+                          pettyCashActiveCount + approvalActiveCount > 0
+                            ? PRIMARY
+                            : 'transparent',
+                        color:
+                          pettyCashActiveCount + approvalActiveCount > 0
+                            ? 'white'
+                            : 'text.disabled',
+                        border:
+                          pettyCashActiveCount + approvalActiveCount > 0
+                            ? 'none'
+                            : `1px solid rgba(0,0,0,0.15)`,
+                      }}
+                    />
+                  </Box>
 
-                  <ToggleRow
-                    label="Approver"
-                    description="General approval permission"
-                    name="is_approver"
-                    value={formData.is_approver}
-                    onChange={handleToggle}
-                  />
-                  <ToggleRow
-                    label="First Approver"
-                    description="First in the approval chain"
-                    name="is_first_approver"
-                    value={formData.is_first_approver}
-                    onChange={handleToggle}
-                  />
-                  <ToggleRow
-                    label="Second Approver"
-                    description="Second in the approval chain"
-                    name="is_second_approver"
-                    value={formData.is_second_approver}
-                    onChange={handleToggle}
-                  />
-                  <ToggleRow
-                    label="Last Approver"
-                    description="Final sign-off authority"
-                    name="is_last_approver"
-                    value={formData.is_last_approver}
-                    onChange={handleToggle}
-                  />
-                </ToggleGroup>
+                  {/* Two groups side by side inside the subsection */}
+                  <Box
+                    sx={{
+                      p: 2,
+                      bgcolor: '#fafcff',
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+                      gap: 2,
+                    }}
+                  >
+                    {/* Petty Cash Roles */}
+                    <PermissionGroup
+                      icon={
+                        <AccountBalanceWalletOutlinedIcon
+                          sx={{ fontSize: 13, color: PRIMARY }}
+                        />
+                      }
+                      title="Petty Cash Roles"
+                      badge={pettyCashActiveCount}
+                      accentColor={PRIMARY}
+                    >
+                      <ToggleRow
+                        label="Petty Cash User"
+                        description="Can access the petty cash module"
+                        name="is_petty_cash_user"
+                        value={formData.is_petty_cash_user}
+                        onChange={handleToggle}
+                        accentColor={PRIMARY}
+                      />
+                      <ToggleRow
+                        label="Petty Cash Initiator"
+                        description="Can initiate petty cash requests"
+                        name="is_pettycash_initiator"
+                        value={formData.is_pettycash_initiator}
+                        onChange={handleToggle}
+                        accentColor={PRIMARY}
+                      />
+                      <ToggleRow
+                        label="Custodian"
+                        description="Manages and holds the petty cash fund"
+                        name="is_custodian"
+                        value={formData.is_custodian}
+                        onChange={handleToggle}
+                        accentColor={PRIMARY}
+                      />
+                      <ToggleRow
+                        label="Expense Creator"
+                        description="Can create and submit expense entries"
+                        name="is_expense_creator"
+                        value={formData.is_expense_creator}
+                        onChange={handleToggle}
+                        accentColor={PRIMARY}
+                      />
+                    </PermissionGroup>
+
+                    {/* Approval Levels */}
+                    <PermissionGroup
+                      icon={
+                        <VerifiedUserOutlinedIcon
+                          sx={{ fontSize: 13, color: '#2e7d32' }}
+                        />
+                      }
+                      title="Approval Levels"
+                      badge={approvalActiveCount}
+                      accentColor="#2e7d32"
+                    >
+                      <ToggleRow
+                        label="Approver"
+                        description="General approval permission"
+                        name="is_approver"
+                        value={formData.is_approver}
+                        onChange={handleToggle}
+                        accentColor="#2e7d32"
+                      />
+                      <ToggleRow
+                        label="First Approver"
+                        description="First in the approval chain"
+                        name="is_first_approver"
+                        value={formData.is_first_approver}
+                        onChange={handleToggle}
+                        accentColor="#2e7d32"
+                      />
+                      <ToggleRow
+                        label="Second Approver"
+                        description="Second in the approval chain"
+                        name="is_second_approver"
+                        value={formData.is_second_approver}
+                        onChange={handleToggle}
+                        accentColor="#2e7d32"
+                      />
+                      <ToggleRow
+                        label="Last Approver"
+                        description="Final sign-off authority"
+                        name="is_last_approver"
+                        value={formData.is_last_approver}
+                        onChange={handleToggle}
+                        accentColor="#2e7d32"
+                      />
+                    </PermissionGroup>
+                  </Box>
+                </Box>
               </Grid>
             </Grid>
           </Paper>

@@ -19,7 +19,7 @@ export default function RootLayout(props) {
           </span>
         </Grid>
         <Grid className="main" style={{ width: '83.333%' }} sx={{ p: 0 }}>
-          <Box sx={{ mt: 5, mx: 3 }}>{props.children}</Box>
+          <Box sx={{ mt: 5, mx: 3, pb: '48px' }}>{props.children}</Box>
           <Footer />
         </Grid>
       </Grid>

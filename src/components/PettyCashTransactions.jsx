@@ -9,7 +9,7 @@ import {
   rollbackPettyCash,
   getPettyCashLedger,
 } from '../features/pettyCash/pettyCashSlice';
-import { getAllSigners } from '../features/user/userSlice';
+import { getAllUsers } from '../features/user/userSlice';
 import { toast } from 'react-toastify';
 import {
   Box,
@@ -188,10 +188,16 @@ const PettyCashTransactions = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { pettyCashList, isLoading } = useSelector((state) => state.pettyCash);
-  const { users: signersData } = useSelector((state) => state.user);
+  const { users: usersData } = useSelector((state) => state.user);
 
   const [transactions, setTransactions] = useState([]);
-  const signers = signersData?.results || [];
+
+  // Custodians: filtered from user-list — is_custodian=true, is_petty_cash_user=true,
+  // is_approved=true, role=signer or signer_admin (client-side role filter applied)
+  const custodians = (usersData?.results || []).filter(
+    (u) => u.role === 'signer' || u.role === 'signer_admin',
+  );
+
   const totalCount = pettyCashList?.count || 0;
 
   // ── Parse logged-in user once ────────────────────────────────────────────
@@ -203,6 +209,12 @@ const PettyCashTransactions = () => {
       return null;
     }
   })();
+
+  // ── Role checks ──────────────────────────────────────────────────────────
+  const isFirstApprover = loggedInUser?.is_first_approver === true;
+
+  // Top-Up is only visible when is_first_approver === true
+  const canTopUp = isFirstApprover;
 
   const refreshList = () => {
     dispatch(getAllPettyCash({ page: page + 1 }));
@@ -221,7 +233,14 @@ const PettyCashTransactions = () => {
 
   useEffect(() => {
     dispatch(getAllPettyCash({ page: 1 }));
-    dispatch(getAllSigners({ is_petty_cash_user: 'true' }));
+    // Fetch custodians via user-list with required filters
+    dispatch(
+      getAllUsers({
+        is_custodian: true,
+        is_petty_cash_user: true,
+        is_approved: true,
+      }),
+    );
   }, [dispatch]);
 
   useEffect(() => {
@@ -237,7 +256,7 @@ const PettyCashTransactions = () => {
     holder_id: '',
     issue_date: '',
     notes: '',
-    supporting_documents: [], // changed: array of File objects
+    supporting_documents: [],
   });
 
   const handleOpenDialog = () => setOpenDialog(true);
@@ -250,7 +269,7 @@ const PettyCashTransactions = () => {
       holder_id: '',
       issue_date: '',
       notes: '',
-      supporting_documents: [], // changed: reset to empty array
+      supporting_documents: [],
     });
   };
 
@@ -259,7 +278,6 @@ const PettyCashTransactions = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // changed: append newly selected files, skip duplicates by filename
   const handleFileUpload = (e) => {
     const newFiles = Array.from(e.target.files);
     setFormData((prev) => {
@@ -272,11 +290,9 @@ const PettyCashTransactions = () => {
         supporting_documents: [...prev.supporting_documents, ...unique],
       };
     });
-    // reset so the same file can be re-added after removal
     e.target.value = '';
   };
 
-  // changed: remove a single file by index
   const handleRemoveFile = (index) => {
     setFormData((prev) => ({
       ...prev,
@@ -295,7 +311,6 @@ const PettyCashTransactions = () => {
     submitData.append('currency', formData.currency);
     submitData.append('issue_date', formData.issue_date);
     submitData.append('notes', formData.notes);
-    // changed: append each file under the same key
     formData.supporting_documents.forEach((file) => {
       submitData.append('supporting_documents', file);
     });
@@ -538,6 +553,8 @@ const PettyCashTransactions = () => {
         <Typography variant="h5" fontWeight={600} color="#00529B">
           Transactions
         </Typography>
+
+        {/* Create Transaction — visible to all roles */}
         <Button
           variant="contained"
           startIcon={<AddIcon />}
@@ -557,40 +574,38 @@ const PettyCashTransactions = () => {
       <TableContainer
         component={Paper}
         elevation={2}
-        sx={{ overflowX: 'auto' }}
+        sx={{
+          overflowX: 'auto',
+          overflowY: 'auto',
+          maxHeight: 'calc(100vh - 150px)',
+        }}
       >
-        <Table sx={{ ...styles.table, tableLayout: 'fixed', minWidth: 1400 }}>
+        <Table sx={{ ...styles.table, tableLayout: 'fixed', minWidth: 1200 }}>
           <TableHead>
             <TableRow sx={{ bgcolor: 'rgba(0, 82, 155, 0.05)' }}>
               <TableCell sx={{ ...styles.headerCell, width: '40px' }}>
                 #
               </TableCell>
-              <TableCell sx={{ ...styles.headerCell, width: '120px' }}>
+              <TableCell sx={{ ...styles.headerCell, width: '140px' }}>
                 Custodian
               </TableCell>
-              <TableCell sx={{ ...styles.headerCell, width: '90px' }}>
+              <TableCell sx={{ ...styles.headerCell, width: '110px' }}>
                 Amount
               </TableCell>
-              <TableCell sx={{ ...styles.headerCell, width: '80px' }}>
+              <TableCell sx={{ ...styles.headerCell, width: '90px' }}>
                 Currency
               </TableCell>
-              <TableCell sx={{ ...styles.headerCell, width: '90px' }}>
+              <TableCell sx={{ ...styles.headerCell, width: '110px' }}>
                 Remaining
               </TableCell>
-              <TableCell sx={{ ...styles.headerCell, width: '110px' }}>
+              <TableCell sx={{ ...styles.headerCell, width: '120px' }}>
                 Replenishment
               </TableCell>
-              <TableCell sx={{ ...styles.headerCell, width: '100px' }}>
-                Issue Date
-              </TableCell>
-              <TableCell sx={{ ...styles.headerCell, width: '130px' }}>
+              <TableCell sx={{ ...styles.headerCell, width: '140px' }}>
                 Created At
               </TableCell>
-              <TableCell sx={{ ...styles.headerCell, width: '100px' }}>
+              <TableCell sx={{ ...styles.headerCell, width: '110px' }}>
                 Status
-              </TableCell>
-              <TableCell sx={{ ...styles.headerCell, width: '100px' }}>
-                Documents
               </TableCell>
               <TableCell
                 sx={{ ...styles.headerCell, minWidth: '380px' }}
@@ -603,13 +618,13 @@ const PettyCashTransactions = () => {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={11} align="center" sx={{ py: 3 }}>
+                <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
                   Loading...
                 </TableCell>
               </TableRow>
             ) : transactions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={11} align="center" sx={{ py: 3 }}>
+                <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
                   No transactions found
                 </TableCell>
               </TableRow>
@@ -625,7 +640,7 @@ const PettyCashTransactions = () => {
                   </TableCell>
                   <TableCell
                     sx={{
-                      width: '120px',
+                      width: '140px',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -634,10 +649,10 @@ const PettyCashTransactions = () => {
                     {transaction.holder?.firstname}{' '}
                     {transaction.holder?.lastname}
                   </TableCell>
-                  <TableCell sx={{ width: '90px' }}>
+                  <TableCell sx={{ width: '110px' }}>
                     {formatAmount(transaction.amount)}
                   </TableCell>
-                  <TableCell sx={{ width: '80px' }}>
+                  <TableCell sx={{ width: '90px' }}>
                     <Chip
                       label={transaction.currency || 'USD'}
                       size="small"
@@ -649,18 +664,15 @@ const PettyCashTransactions = () => {
                       }}
                     />
                   </TableCell>
-                  <TableCell sx={{ width: '90px' }}>
+                  <TableCell sx={{ width: '110px' }}>
                     {formatAmount(transaction.remaining_amount)}
                   </TableCell>
-                  <TableCell sx={{ width: '110px' }}>
+                  <TableCell sx={{ width: '120px' }}>
                     {transaction.replenishment_amount
                       ? formatAmount(transaction.replenishment_amount)
                       : '—'}
                   </TableCell>
-                  <TableCell sx={{ width: '100px' }}>
-                    {transaction.issue_date}
-                  </TableCell>
-                  <TableCell sx={{ width: '130px', fontSize: '0.85rem' }}>
+                  <TableCell sx={{ width: '140px', fontSize: '0.85rem' }}>
                     {transaction.created_at
                       ? new Date(transaction.created_at).toLocaleString(
                           'en-US',
@@ -674,47 +686,8 @@ const PettyCashTransactions = () => {
                         )
                       : 'N/A'}
                   </TableCell>
-                  <TableCell sx={{ width: '100px' }}>
+                  <TableCell sx={{ width: '110px' }}>
                     {getStatusChip(transaction.status)}
-                  </TableCell>
-
-                  <TableCell sx={{ width: '100px' }}>
-                    {Array.isArray(transaction.documents) &&
-                    transaction.documents.length > 0 ? (
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 0.5,
-                          flexWrap: 'wrap',
-                        }}
-                      >
-                        {transaction.documents.map((doc, di) => (
-                          <Tooltip
-                            key={doc.id ?? di}
-                            title={doc.document_name || `Document ${di + 1}`}
-                            arrow
-                          >
-                            <IconButton
-                              size="small"
-                              onClick={() =>
-                                window.open(doc.document_url, '_blank')
-                              }
-                              sx={{ color: '#00529B', padding: '4px' }}
-                            >
-                              <AttachFileIcon sx={{ fontSize: '1rem' }} />
-                            </IconButton>
-                          </Tooltip>
-                        ))}
-                        <Typography variant="caption" color="text.secondary">
-                          ({transaction.documents.length})
-                        </Typography>
-                      </Box>
-                    ) : (
-                      <Typography variant="caption" color="text.secondary">
-                        —
-                      </Typography>
-                    )}
                   </TableCell>
 
                   <TableCell
@@ -729,7 +702,7 @@ const PettyCashTransactions = () => {
                         alignItems: 'center',
                       }}
                     >
-                      {/* View */}
+                      {/* View — visible to all */}
                       <Tooltip title="View" arrow>
                         <IconButton
                           size="small"
@@ -740,7 +713,7 @@ const PettyCashTransactions = () => {
                         </IconButton>
                       </Tooltip>
 
-                      {/* Acknowledge */}
+                      {/* Acknowledge — visible to all */}
                       <Tooltip title="Acknowledge" arrow>
                         <IconButton
                           size="small"
@@ -751,7 +724,7 @@ const PettyCashTransactions = () => {
                         </IconButton>
                       </Tooltip>
 
-                      {/* Edit */}
+                      {/* Edit — visible to all */}
                       <Tooltip title="Edit" arrow>
                         <IconButton
                           size="small"
@@ -762,8 +735,8 @@ const PettyCashTransactions = () => {
                         </IconButton>
                       </Tooltip>
 
-                      {/* Add Expenses */}
-                      <Tooltip title="Add Expenses" arrow>
+                      {/* Approve Expenses — visible to all */}
+                      <Tooltip title="Approve Expenses" arrow>
                         <IconButton
                           size="small"
                           onClick={() => handleAddExpenses(transaction)}
@@ -773,8 +746,8 @@ const PettyCashTransactions = () => {
                         </IconButton>
                       </Tooltip>
 
-                      {/* Request Petty Cash */}
-                      <Tooltip title="Request Petty Cash" arrow>
+                      {/* Approve Replenishment — visible to all */}
+                      <Tooltip title="Approve Replenishment" arrow>
                         <IconButton
                           size="small"
                           onClick={() => handleRequestPettyCash(transaction)}
@@ -784,18 +757,20 @@ const PettyCashTransactions = () => {
                         </IconButton>
                       </Tooltip>
 
-                      {/* Replenish / Top-Up */}
-                      <Tooltip title="Replenish / Top-Up" arrow>
-                        <IconButton
-                          size="small"
-                          onClick={() => handleReplenish(transaction)}
-                          sx={{ color: '#00897B', padding: '6px' }}
-                        >
-                          <CurrencyExchangeIcon sx={{ fontSize: '1.1rem' }} />
-                        </IconButton>
-                      </Tooltip>
+                      {/* Top-Up — only visible when is_first_approver === true */}
+                      {canTopUp && (
+                        <Tooltip title="Top-Up" arrow>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleReplenish(transaction)}
+                            sx={{ color: '#00897B', padding: '6px' }}
+                          >
+                            <CurrencyExchangeIcon sx={{ fontSize: '1.1rem' }} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
 
-                      {/* Rollback */}
+                      {/* Rollback — visible to all */}
                       <Tooltip title="Rollback" arrow>
                         <IconButton
                           size="small"
@@ -806,7 +781,7 @@ const PettyCashTransactions = () => {
                         </IconButton>
                       </Tooltip>
 
-                      {/* Download Ledger Report */}
+                      {/* Download Ledger Report — visible to all */}
                       <Tooltip title="Download Ledger Report" arrow>
                         <IconButton
                           size="small"
@@ -824,7 +799,7 @@ const PettyCashTransactions = () => {
                         </IconButton>
                       </Tooltip>
 
-                      {/* Delete */}
+                      {/* Delete — visible to all */}
                       <Tooltip title="Delete" arrow>
                         <IconButton
                           size="small"
@@ -936,24 +911,24 @@ const PettyCashTransactions = () => {
                     <MenuItem value="" disabled>
                       <em>Select a custodian from the list</em>
                     </MenuItem>
-                    {signers.length > 0 ? (
-                      signers.map((signer) => (
+                    {custodians.length > 0 ? (
+                      custodians.map((custodian) => (
                         <MenuItem
-                          key={signer.id}
-                          value={signer.id}
+                          key={custodian.id}
+                          value={custodian.id}
                           sx={{ py: 1.5 }}
                         >
                           <Box>
                             <Typography variant="body1" fontWeight={500}>
-                              {signer.firstname} {signer.lastname}
+                              {custodian.firstname} {custodian.lastname}
                             </Typography>
                             <Typography
                               variant="caption"
                               color="text.secondary"
                               sx={{ display: 'block' }}
                             >
-                              {signer.position} • {signer.department} •{' '}
-                              {signer.section}
+                              {custodian.position} • {custodian.department} •{' '}
+                              {custodian.section}
                             </Typography>
                           </Box>
                         </MenuItem>
@@ -1058,7 +1033,7 @@ const PettyCashTransactions = () => {
               </Box>
             </Paper>
 
-            {/* Supporting Documents Section — changed to support multiple files */}
+            {/* Supporting Documents Section */}
             <Paper elevation={0} sx={{ ...styles.section, mb: 0 }}>
               <Typography
                 variant="subtitle1"
@@ -1070,7 +1045,6 @@ const PettyCashTransactions = () => {
               </Typography>
               <Divider sx={{ mb: 2 }} />
 
-              {/* Upload area */}
               <Box sx={styles.uploadBox}>
                 <input
                   accept="*/*"
@@ -1108,7 +1082,6 @@ const PettyCashTransactions = () => {
                 </label>
               </Box>
 
-              {/* Selected files list */}
               {formData.supporting_documents.length > 0 && (
                 <Box sx={{ mt: 2 }}>
                   {formData.supporting_documents.map((file, index) => (
@@ -1193,7 +1166,7 @@ const PettyCashTransactions = () => {
           handleClose={handleCloseAcknowledgeDialog}
           transaction={selectedTransaction}
           onAcknowledge={handleAcknowledgeSubmit}
-          signers={signers}
+          signers={custodians}
         />
       )}
 
@@ -1207,7 +1180,7 @@ const PettyCashTransactions = () => {
             handleCloseEditModal();
             refreshList();
           }}
-          signers={signers}
+          signers={custodians}
         />
       )}
 
@@ -1232,13 +1205,13 @@ const PettyCashTransactions = () => {
         />
       )}
 
-      {/* Replenish / Top-Up Dialog */}
+      {/* Top-Up Dialog */}
       {selectedTransaction && (
         <ReplenishTransactionDialog
           open={openReplenishDialog}
           handleClose={handleCloseReplenishDialog}
           transaction={selectedTransaction}
-          signers={signers}
+          signers={custodians}
           onSuccess={handleReplenishSuccess}
         />
       )}

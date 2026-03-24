@@ -41,9 +41,8 @@ import { useSelector } from 'react-redux';
 import invoiceService from '../features/invoice/invoiceService';
 import pettyCashService from '../features/pettyCash/pettyCashService';
 import DownloadInvoiceComponent from './DownloadInvoiceComponent';
-import PETTY_CASH_CURRENCIES from '../constants/pettyCashCurrencies';
 
-// ── Petty Cash CSV Download ───────────────────────────────────────────────────
+// ── Petty Cash CSV Download — Ledger Format ───────────────────────────────────
 const PettyCashReportDownload = ({ data, summary, title }) => {
   const handleDownloadCSV = () => {
     if (!data || !data.length) return;
@@ -51,99 +50,87 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
     const fmt = (val) => (val == null ? '' : val);
     const rows = [];
 
-    rows.push(['RWANDAIR PETTY CASH REPORT']);
-    rows.push([`Generated: ${new Date().toLocaleString()}`]);
-    rows.push([]);
+    // ── One block per issuance, matching the ledger CSV structure ─────────────
+    data.forEach((record, recordIndex) => {
+      // Spacer between records (skip before the first one)
+      if (recordIndex > 0) {
+        rows.push(['', '', '', '', '']);
+        rows.push(['', '', '', '', '']);
+      }
 
-    rows.push(['SUMMARY']);
-    rows.push([
-      'Total Records',
-      'Total Issued',
-      'Total Spent',
-      'Total Remaining',
-    ]);
-    rows.push([
-      fmt(summary?.total_records),
-      fmt(summary?.total_issued),
-      fmt(summary?.total_spent),
-      fmt(summary?.total_remaining),
-    ]);
-    rows.push([]);
+      // Header block — mirrors ledger header exactly
+      rows.push(['RWANDAIR PETTY CASH', '', '', '', '']);
+      rows.push([`STATION : ${fmt(record.station)}`, '', '', '', '']);
+      rows.push([`PERIOD: ${fmt(record.period)}`, '', '', '', '']);
 
-    rows.push(['ISSUANCES']);
-    rows.push([
-      'ID',
-      'Holder',
-      'Issued By',
-      'Station',
-      'Period',
-      'Currency',
-      'Amount Issued',
-      'Total Available',
-      'Total Spent',
-      'Remaining Amount',
-      'Status',
-      'Is Replenished',
-      'Is Acknowledged',
-      'Issue Date',
-      'Notes',
-    ]);
-
-    data.forEach((record) => {
+      // Holder & issued by meta
+      rows.push([`CUSTODIAN: ${fmt(record.holder?.name)}`, '', '', '', '']);
+      if (record.issued_by?.name) {
+        rows.push([`ISSUED BY: ${fmt(record.issued_by.name)}`, '', '', '', '']);
+      }
       rows.push([
-        fmt(record.id),
-        fmt(record.holder?.name),
-        fmt(record.issued_by?.name),
-        fmt(record.station),
-        fmt(record.period),
-        fmt(record.currency),
-        fmt(record.amount_issued),
-        fmt(record.total_available),
-        fmt(record.total_spent),
-        fmt(record.remaining_amount),
-        fmt(record.status),
-        record.is_replenished ? 'Yes' : 'No',
-        record.is_acknowledged ? 'Yes' : 'No',
-        fmt(record.issue_date),
-        fmt(record.notes),
+        `STATUS: ${fmt(record.status).replace(/_/g, ' ').toUpperCase()}`,
+        '',
+        '',
+        '',
+        '',
       ]);
-    });
+      rows.push([`CURRENCY: ${fmt(record.currency)}`, '', '', '', '']);
+      rows.push(['', '', '', '', '']);
 
-    rows.push([]);
+      // Column headers — mirrors ledger exactly
+      rows.push(['', 'Description', 'Dr', 'Cr', 'BALANCE']);
 
-    rows.push(['EXPENSES']);
-    rows.push([
-      'Petty Cash ID',
-      'Holder',
-      'Station',
-      'Period',
-      'Expense ID',
-      'Date',
-      'Description',
-      'Amount (Cr)',
-      'Balance',
-      'Currency',
-      'Status',
-    ]);
+      // Opening balance row
+      rows.push([
+        'DATE',
+        'Opening balance',
+        fmt(record.opening_balance ?? 0),
+        '',
+        '',
+      ]);
 
-    data.forEach((record) => {
-      (record.expenses || []).forEach((exp) => {
+      // Amount issued as replenishment row (same as ledger)
+      rows.push([
+        fmt(record.issue_date),
+        'Replenishment',
+        fmt(record.amount_issued),
+        '',
+        '',
+      ]);
+
+      // Total available
+      rows.push(['', '', '', '', fmt(record.total_available)]);
+
+      // Expense rows — one per expense, same as ledger expense rows
+      const expenses = record.expenses || [];
+      expenses.forEach((exp) => {
         rows.push([
-          fmt(record.id),
-          fmt(record.holder?.name),
-          fmt(record.station),
-          fmt(record.period),
-          fmt(exp.id),
           fmt(exp.date),
           fmt(exp.description),
+          '',
           fmt(exp.cr),
           fmt(exp.balance),
-          fmt(exp.currency),
-          fmt(exp.status),
         ]);
       });
+
+      // Closing balance — mirrors ledger exactly
+      rows.push(['', 'Closing balance', '', '', fmt(record.remaining_amount)]);
     });
 
+    // ── Summary block at the bottom ───────────────────────────────────────────
+    if (summary) {
+      rows.push(['', '', '', '', '']);
+      rows.push(['', '', '', '', '']);
+      rows.push(['REPORT SUMMARY', '', '', '', '']);
+      rows.push(['Total Records', '', '', '', fmt(summary.total_records)]);
+      rows.push(['Total Issued', '', '', '', fmt(summary.total_issued)]);
+      rows.push(['Total Spent', '', '', '', fmt(summary.total_spent)]);
+      rows.push(['Total Remaining', '', '', '', fmt(summary.total_remaining)]);
+      rows.push([`Generated: ${new Date().toLocaleString()}`, '', '', '', '']);
+    }
+
+    // ── Serialize to CSV ──────────────────────────────────────────────────────
     const csvContent = rows
       .map((row) =>
         row
@@ -155,7 +142,7 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
           })
           .join(','),
       )
-      .join('\n');
+      .join('\r\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -212,10 +199,8 @@ const ReportingSidebar = ({ open, onClose }) => {
   const [pcFiltersExpanded, setPcFiltersExpanded] = useState(false);
   const [pcFilters, setPcFilters] = useState({
     station: '',
-    status: '',
     date_from: '',
     date_to: '',
-    currency: '',
   });
 
   const { allUsers } = useSelector((state) => state.user);
@@ -309,15 +294,7 @@ const ReportingSidebar = ({ open, onClose }) => {
 
   const closeResults = () => setShowResults(false);
 
-  // ── Petty Cash options & handlers ──
-  const pcStatusOptions = [
-    { value: 'active', label: 'Active' },
-    { value: 'pending_acknowledgment', label: 'Pending Acknowledgment' },
-    { value: 'exhausted', label: 'Exhausted' },
-    { value: 'closed', label: 'Closed' },
-    { value: 'rollback', label: 'Rollback' },
-  ];
-
+  // ── Petty Cash handlers ──
   const handlePcFilterChange = (field, value) => {
     setPcFilters((prev) => ({ ...prev, [field]: value }));
   };
@@ -325,10 +302,8 @@ const ReportingSidebar = ({ open, onClose }) => {
   const clearPcFilters = () => {
     setPcFilters({
       station: '',
-      status: '',
       date_from: '',
       date_to: '',
-      currency: '',
     });
     setPcSummary(null);
     setPcReportData(null);
@@ -827,29 +802,6 @@ const ReportingSidebar = ({ open, onClose }) => {
                   sx={{ backgroundColor: 'white' }}
                 />
 
-                {/* Status */}
-                <Autocomplete
-                  options={pcStatusOptions}
-                  getOptionLabel={(o) => o.label || ''}
-                  value={
-                    pcStatusOptions.find((o) => o.value === pcFilters.status) ||
-                    null
-                  }
-                  onChange={(_, v) =>
-                    handlePcFilterChange('status', v ? v.value : '')
-                  }
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Status"
-                      size="small"
-                      sx={{ backgroundColor: 'white' }}
-                      placeholder="Select status..."
-                    />
-                  )}
-                  size="small"
-                />
-
                 {/* Date From */}
                 <TextField
                   label="Date From"
@@ -876,30 +828,6 @@ const ReportingSidebar = ({ open, onClose }) => {
                   size="small"
                   fullWidth
                   sx={{ backgroundColor: 'white' }}
-                />
-
-                {/* Currency */}
-                <Autocomplete
-                  options={PETTY_CASH_CURRENCIES}
-                  getOptionLabel={(o) => `${o.code} – ${o.name}`}
-                  value={
-                    PETTY_CASH_CURRENCIES.find(
-                      (c) => c.code === pcFilters.currency,
-                    ) || null
-                  }
-                  onChange={(_, v) =>
-                    handlePcFilterChange('currency', v ? v.code : '')
-                  }
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Currency"
-                      size="small"
-                      sx={{ backgroundColor: 'white' }}
-                      placeholder="Select currency..."
-                    />
-                  )}
-                  size="small"
                 />
               </Box>
             </Collapse>

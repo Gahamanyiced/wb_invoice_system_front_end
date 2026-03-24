@@ -130,7 +130,7 @@ const ManageExpenses = () => {
         item_description: '',
         amount: '',
         currency: transaction?.currency || 'USD',
-        supporting_documents: [], // changed: array of File objects
+        supporting_documents: [],
       },
     ],
   });
@@ -174,7 +174,7 @@ const ManageExpenses = () => {
           item_description: '',
           amount: '',
           currency: transaction?.currency || 'USD',
-          supporting_documents: [], // changed: reset to empty array
+          supporting_documents: [],
         },
       ],
     });
@@ -189,7 +189,6 @@ const ManageExpenses = () => {
   const handleExpenseChange = (index, field, value) => {
     const updated = [...formData.expenses];
     updated[index][field] = value;
-    // Propagate currency from first line to all lines
     if (index === 0 && field === 'currency') {
       updated.forEach((exp, i) => {
         if (i !== 0) exp.currency = value;
@@ -198,7 +197,6 @@ const ManageExpenses = () => {
     setFormData((prev) => ({ ...prev, expenses: updated }));
   };
 
-  // changed: append new files to a specific expense line, skip duplicates by name
   const handleExpenseFileChange = (lineIndex, newFiles) => {
     const updated = [...formData.expenses];
     const existingNames = new Set(
@@ -215,7 +213,6 @@ const ManageExpenses = () => {
     setFormData((prev) => ({ ...prev, expenses: updated }));
   };
 
-  // changed: remove a single file by its index within a specific expense line
   const handleRemoveExpenseFile = (lineIndex, fileIndex) => {
     const updated = [...formData.expenses];
     updated[lineIndex] = {
@@ -238,7 +235,7 @@ const ManageExpenses = () => {
           amount: '',
           currency:
             transaction?.currency || prev.expenses[0]?.currency || 'USD',
-          supporting_documents: [], // changed: empty array for new line
+          supporting_documents: [],
         },
       ],
     }));
@@ -285,8 +282,6 @@ const ManageExpenses = () => {
     }));
     payload.append('expenses', JSON.stringify(expensesData));
 
-    // Each file gets a unique key: expense_documents_<lineIndex>_<fileIndex>
-    // e.g. expense_documents_0_0, expense_documents_0_1, expense_documents_1_0
     formData.expenses.forEach((exp, i) => {
       exp.supporting_documents.forEach((file, j) => {
         payload.append(`expense_documents_${i}_${j}`, file);
@@ -311,10 +306,6 @@ const ManageExpenses = () => {
     setOpenViewModal(true);
   };
 
-  // FIX: removed dispatch(trackPettyCashExpense(expense.id)) from here.
-  // TrackAndSignPettyCashDialog calls fetchTrackingData() internally via its
-  // useEffect when it opens — calling it here too was causing the approve
-  // endpoint to be hit twice.
   const handleTrackAndSign = (expense) => {
     setSelectedExpense(expense);
     setOpenTrackSignDialog(true);
@@ -362,8 +353,6 @@ const ManageExpenses = () => {
 
   // ── Approve/Deny/Rollback ─────────────────────────────────────────────────────
 
-  // FIX: dispatch removed — TrackAndSignPettyCashDialog already dispatches
-  // and shows the toast. This callback only needs to refresh the list.
   const handleApprove = () => {
     refreshList();
   };
@@ -659,34 +648,39 @@ const ManageExpenses = () => {
             </Typography>
           </Box>
 
-          <TableContainer>
-            <Table sx={{ minWidth: 800 }}>
+          <TableContainer
+            sx={{
+              overflowX: 'auto',
+              overflowY: 'auto',
+              maxHeight: 'calc(100vh - 180px)',
+            }}
+          >
+            <Table sx={{ tableLayout: 'fixed', minWidth: 900 }} stickyHeader>
               <TableHead>
                 <TableRow sx={{ bgcolor: 'rgba(0, 82, 155, 0.05)' }}>
-                  <TableCell sx={{ ...styles.headerCell, width: 50 }}>
+                  <TableCell sx={{ ...styles.headerCell, width: '50px' }}>
                     #
                   </TableCell>
-                  <TableCell sx={{ ...styles.headerCell, width: 110 }}>
+                  <TableCell sx={{ ...styles.headerCell, width: '120px' }}>
                     Date
                   </TableCell>
-                  <TableCell sx={styles.headerCell}>Item Description</TableCell>
-                  <TableCell sx={{ ...styles.headerCell, width: 120 }}>
+                  <TableCell sx={{ ...styles.headerCell }}>
+                    Item Description
+                  </TableCell>
+                  <TableCell sx={{ ...styles.headerCell, width: '130px' }}>
                     Amount
                   </TableCell>
-                  <TableCell sx={{ ...styles.headerCell, width: 80 }}>
+                  <TableCell sx={{ ...styles.headerCell, width: '90px' }}>
                     Currency
                   </TableCell>
-                  <TableCell sx={{ ...styles.headerCell, width: 110 }}>
+                  <TableCell sx={{ ...styles.headerCell, width: '110px' }}>
                     Status
                   </TableCell>
-                  <TableCell sx={{ ...styles.headerCell, width: 90 }}>
-                    Documents
-                  </TableCell>
-                  <TableCell sx={{ ...styles.headerCell, width: 150 }}>
+                  <TableCell sx={{ ...styles.headerCell, width: '150px' }}>
                     Created At
                   </TableCell>
                   <TableCell
-                    sx={{ ...styles.headerCell, width: 120 }}
+                    sx={{ ...styles.headerCell, width: '160px' }}
                     align="center"
                   >
                     Actions
@@ -696,14 +690,14 @@ const ManageExpenses = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
+                    <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
                       <CircularProgress size={24} sx={{ color: '#00529B' }} />
                     </TableCell>
                   </TableRow>
                 ) : expenses.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={9}
+                      colSpan={8}
                       align="center"
                       sx={{ py: 3, color: 'text.secondary' }}
                     >
@@ -717,9 +711,13 @@ const ManageExpenses = () => {
                       hover
                       sx={{ '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.02)' } }}
                     >
-                      <TableCell>{page * rowsPerPage + index + 1}</TableCell>
-                      <TableCell>{expense.date || 'N/A'}</TableCell>
-                      <TableCell sx={{ maxWidth: 220 }}>
+                      <TableCell sx={{ width: '50px' }}>
+                        {page * rowsPerPage + index + 1}
+                      </TableCell>
+                      <TableCell sx={{ width: '120px' }}>
+                        {expense.date || 'N/A'}
+                      </TableCell>
+                      <TableCell>
                         <Tooltip
                           title={expense.item_description || ''}
                           arrow
@@ -731,19 +729,18 @@ const ManageExpenses = () => {
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
                               whiteSpace: 'nowrap',
-                              maxWidth: 220,
                             }}
                           >
                             {expense.item_description || 'N/A'}
                           </Typography>
                         </Tooltip>
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ width: '130px' }}>
                         <Typography variant="body2" fontWeight={600}>
                           {formatAmount(expense.amount)}
                         </Typography>
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ width: '90px' }}>
                         <Chip
                           label={expense.currency || 'N/A'}
                           size="small"
@@ -755,52 +752,15 @@ const ManageExpenses = () => {
                           }}
                         />
                       </TableCell>
-                      <TableCell>{getStatusChip(expense.status)}</TableCell>
-                      <TableCell>
-                        {Array.isArray(expense.documents) &&
-                        expense.documents.length > 0 ? (
-                          <Box
-                            sx={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 0.5,
-                              flexWrap: 'wrap',
-                            }}
-                          >
-                            {expense.documents.map((doc, di) => (
-                              <Tooltip
-                                key={doc.id ?? di}
-                                title={
-                                  doc.document_name || `Document ${di + 1}`
-                                }
-                                arrow
-                              >
-                                <IconButton
-                                  size="small"
-                                  onClick={() =>
-                                    window.open(doc.document_url, '_blank')
-                                  }
-                                  sx={{ color: '#00529B', padding: '4px' }}
-                                >
-                                  <AttachFileIcon sx={{ fontSize: '1rem' }} />
-                                </IconButton>
-                              </Tooltip>
-                            ))}
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                            >
-                              ({expense.documents.length})
-                            </Typography>
-                          </Box>
-                        ) : (
-                          <Typography variant="caption" color="text.secondary">
-                            —
-                          </Typography>
-                        )}
+                      <TableCell sx={{ width: '110px' }}>
+                        {getStatusChip(expense.status)}
                       </TableCell>
                       <TableCell
-                        sx={{ fontSize: '0.82rem', color: 'text.secondary' }}
+                        sx={{
+                          width: '150px',
+                          fontSize: '0.82rem',
+                          color: 'text.secondary',
+                        }}
                       >
                         {expense.created_at
                           ? new Date(expense.created_at).toLocaleString(
@@ -815,43 +775,57 @@ const ManageExpenses = () => {
                             )
                           : 'N/A'}
                       </TableCell>
-                      <TableCell align="center">
-                        <Tooltip title="View" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleView(expense)}
-                            sx={{ color: '#00529B' }}
-                          >
-                            <VisibilityOutlinedIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Edit" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleEdit(expense)}
-                            sx={{ color: '#FFA726' }}
-                          >
-                            <EditOutlinedIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Track & Sign" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleTrackAndSign(expense)}
-                            sx={{ color: '#42A5F5' }}
-                          >
-                            <TrackChangesIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDelete(expense)}
-                            sx={{ color: '#EF5350' }}
-                          >
-                            <DeleteOutlineIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                      <TableCell
+                        align="center"
+                        sx={{ width: '160px', whiteSpace: 'nowrap' }}
+                      >
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            gap: 0.5,
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <Tooltip title="View" arrow>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleView(expense)}
+                              sx={{ color: '#00529B', padding: '6px' }}
+                            >
+                              <VisibilityOutlinedIcon
+                                sx={{ fontSize: '1.1rem' }}
+                              />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Edit" arrow>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleEdit(expense)}
+                              sx={{ color: '#FFA726', padding: '6px' }}
+                            >
+                              <EditOutlinedIcon sx={{ fontSize: '1.1rem' }} />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Track & Sign" arrow>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleTrackAndSign(expense)}
+                              sx={{ color: '#42A5F5', padding: '6px' }}
+                            >
+                              <TrackChangesIcon sx={{ fontSize: '1.1rem' }} />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete" arrow>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDelete(expense)}
+                              sx={{ color: '#EF5350', padding: '6px' }}
+                            >
+                              <DeleteOutlineIcon sx={{ fontSize: '1.1rem' }} />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
                       </TableCell>
                     </TableRow>
                   ))
@@ -1117,7 +1091,7 @@ const ManageExpenses = () => {
                           />
                         </Grid>
 
-                        {/* Supporting Documents — changed to multi-file per line */}
+                        {/* Supporting Documents */}
                         <Grid item xs={12}>
                           <Typography
                             variant="caption"
@@ -1131,7 +1105,6 @@ const ManageExpenses = () => {
                             Supporting Documents (Optional)
                           </Typography>
 
-                          {/* Upload area */}
                           <Box sx={styles.uploadBox}>
                             <input
                               accept="*/*"
@@ -1178,7 +1151,6 @@ const ManageExpenses = () => {
                             </label>
                           </Box>
 
-                          {/* Selected files list for this line */}
                           {expense.supporting_documents.length > 0 && (
                             <Box sx={{ mt: 1 }}>
                               {expense.supporting_documents.map(

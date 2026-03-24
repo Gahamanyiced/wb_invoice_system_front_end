@@ -101,7 +101,7 @@ const RequestPettyCash = () => {
     amount: '',
     description: 'Replenishment',
     comment: '',
-    supporting_documents: [], // added: array of File objects
+    supporting_documents: [],
   });
 
   const [page, setPage] = useState(0);
@@ -114,7 +114,6 @@ const RequestPettyCash = () => {
 
   const signers = signersData?.results || [];
 
-  // API returns { requests: [...], total_requests: N }
   const requests =
     issuanceRequests?.requests ??
     issuanceRequests?.results ??
@@ -160,7 +159,6 @@ const RequestPettyCash = () => {
     setFormData({ ...formData, [name]: value });
   };
 
-  // unchanged: CSV upload logic
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -177,7 +175,6 @@ const RequestPettyCash = () => {
           return;
         }
 
-        // Dynamically find the "amount" column index from the header row
         const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
         const amountIndex = headers.indexOf('amount');
 
@@ -205,12 +202,10 @@ const RequestPettyCash = () => {
     }
   };
 
-  // unchanged: CSV remove
   const handleRemoveFile = () => {
     setFormData({ ...formData, expenses_csv: null, amount: '' });
   };
 
-  // added: append new supporting documents, skip duplicates by filename
   const handleSupportingDocUpload = (e) => {
     const newFiles = Array.from(e.target.files);
     setFormData((prev) => {
@@ -226,7 +221,6 @@ const RequestPettyCash = () => {
     e.target.value = '';
   };
 
-  // added: remove a single supporting document by index
   const handleRemoveSupportingDoc = (index) => {
     setFormData((prev) => ({
       ...prev,
@@ -246,7 +240,7 @@ const RequestPettyCash = () => {
       amount: '',
       description: 'Replenishment',
       comment: '',
-      supporting_documents: [], // added: reset to empty array
+      supporting_documents: [],
     });
   };
 
@@ -261,7 +255,6 @@ const RequestPettyCash = () => {
       if (formData.expenses_csv) {
         submitData.append('expenses_file', formData.expenses_csv);
       }
-      // added: append each supporting document under the same key
       formData.supporting_documents.forEach((file) => {
         submitData.append('supporting_documents', file);
       });
@@ -282,10 +275,6 @@ const RequestPettyCash = () => {
     setOpenViewModal(true);
   };
 
-  // FIX: removed dispatch(trackPettyCashReplenishRequest(request.id)) from here.
-  // TrackAndSignPettyCashDialog calls fetchTrackingData() internally via its
-  // useEffect when it opens — calling it here too was causing the approve
-  // endpoint to be hit twice.
   const handleTrackAndSign = (request) => {
     setSelectedRequest(request);
     setOpenTrackSignDialog(true);
@@ -327,8 +316,6 @@ const RequestPettyCash = () => {
     }
   };
 
-  // FIX: dispatch removed — TrackAndSignPettyCashDialog already dispatches
-  // and shows the toast. This callback only needs to refresh the list.
   const handleApprove = () => {
     refreshList(1);
   };
@@ -443,31 +430,29 @@ const RequestPettyCash = () => {
             </Typography>
           </Box>
 
-          <TableContainer sx={{ overflowX: 'auto' }}>
-            <Table
-              sx={{ ...styles.table, tableLayout: 'fixed', minWidth: 900 }}
-            >
+          <TableContainer
+            sx={{
+              overflowX: 'auto',
+              overflowY: 'auto',
+              maxHeight: 'calc(100vh - 180px)',
+            }}
+          >
+            <Table sx={{ tableLayout: 'fixed', minWidth: 800 }} stickyHeader>
               <TableHead>
                 <TableRow sx={{ bgcolor: 'rgba(0, 82, 155, 0.05)' }}>
                   <TableCell sx={{ ...styles.headerCell, width: '40px' }}>
                     #
                   </TableCell>
-                  <TableCell sx={{ ...styles.headerCell, width: '150px' }}>
+                  <TableCell sx={{ ...styles.headerCell, width: '160px' }}>
                     Requester
                   </TableCell>
-                  <TableCell sx={{ ...styles.headerCell, width: '110px' }}>
+                  <TableCell sx={{ ...styles.headerCell, width: '130px' }}>
                     Amount
                   </TableCell>
-                  <TableCell sx={{ ...styles.headerCell, width: '80px' }}>
+                  <TableCell sx={{ ...styles.headerCell, width: '90px' }}>
                     Currency
                   </TableCell>
                   <TableCell sx={{ ...styles.headerCell, width: '110px' }}>
-                    Expenses File
-                  </TableCell>
-                  <TableCell sx={{ ...styles.headerCell, width: '110px' }}>
-                    Documents
-                  </TableCell>
-                  <TableCell sx={{ ...styles.headerCell, width: '100px' }}>
                     Status
                   </TableCell>
                   <TableCell sx={{ ...styles.headerCell, width: '150px' }}>
@@ -484,13 +469,13 @@ const RequestPettyCash = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
+                    <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
                       Loading...
                     </TableCell>
                   </TableRow>
                 ) : requests.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
+                    <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
                       No petty cash requests found
                     </TableCell>
                   </TableRow>
@@ -501,9 +486,12 @@ const RequestPettyCash = () => {
                       hover
                       sx={{ '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.02)' } }}
                     >
-                      <TableCell>{page * rowsPerPage + index + 1}</TableCell>
+                      <TableCell sx={{ width: '40px' }}>
+                        {page * rowsPerPage + index + 1}
+                      </TableCell>
                       <TableCell
                         sx={{
+                          width: '160px',
                           whiteSpace: 'nowrap',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
@@ -512,12 +500,14 @@ const RequestPettyCash = () => {
                         {request.requester?.firstname}{' '}
                         {request.requester?.lastname}
                       </TableCell>
-                      <TableCell>
-                        {request.currency === 'USD' ? '$' : ''}
-                        {formatAmount(request.total_expenses)}{' '}
-                        {request.currency !== 'USD' ? request.currency : ''}
+                      <TableCell sx={{ width: '130px' }}>
+                        <Typography variant="body2" fontWeight={600}>
+                          {request.currency === 'USD' ? '$' : ''}
+                          {formatAmount(request.total_expenses)}{' '}
+                          {request.currency !== 'USD' ? request.currency : ''}
+                        </Typography>
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ width: '90px' }}>
                         <Chip
                           label={request.currency || 'USD'}
                           size="small"
@@ -529,80 +519,10 @@ const RequestPettyCash = () => {
                           }}
                         />
                       </TableCell>
-                      <TableCell>
-                        {request.expenses_file?.url ? (
-                          <Tooltip title="Download expenses CSV" arrow>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              component="a"
-                              href={request.expenses_file.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              sx={{
-                                fontSize: '0.7rem',
-                                textTransform: 'none',
-                                color: '#00529B',
-                                borderColor: '#00529B',
-                                px: 1,
-                                py: 0.25,
-                                minWidth: 'auto',
-                              }}
-                            >
-                              View CSV
-                            </Button>
-                          </Tooltip>
-                        ) : (
-                          <Typography variant="caption" color="text.secondary">
-                            —
-                          </Typography>
-                        )}
+                      <TableCell sx={{ width: '110px' }}>
+                        {getStatusChip(request.status)}
                       </TableCell>
-                      <TableCell>
-                        {Array.isArray(request.supporting_documents) &&
-                        request.supporting_documents.length > 0 ? (
-                          <Box
-                            sx={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 0.5,
-                              flexWrap: 'wrap',
-                            }}
-                          >
-                            {request.supporting_documents.map((doc, di) => (
-                              <Tooltip
-                                key={doc.id ?? di}
-                                title={
-                                  doc.document_name || `Document ${di + 1}`
-                                }
-                                arrow
-                              >
-                                <IconButton
-                                  size="small"
-                                  onClick={() =>
-                                    window.open(doc.document_url, '_blank')
-                                  }
-                                  sx={{ color: '#00529B', padding: '4px' }}
-                                >
-                                  <AttachFileIcon sx={{ fontSize: '1rem' }} />
-                                </IconButton>
-                              </Tooltip>
-                            ))}
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                            >
-                              ({request.supporting_documents.length})
-                            </Typography>
-                          </Box>
-                        ) : (
-                          <Typography variant="caption" color="text.secondary">
-                            —
-                          </Typography>
-                        )}
-                      </TableCell>
-                      <TableCell>{getStatusChip(request.status)}</TableCell>
-                      <TableCell sx={{ fontSize: '0.82rem' }}>
+                      <TableCell sx={{ width: '150px', fontSize: '0.82rem' }}>
                         {request.created_at
                           ? new Date(request.created_at).toLocaleString(
                               'en-US',
@@ -616,43 +536,57 @@ const RequestPettyCash = () => {
                             )
                           : 'N/A'}
                       </TableCell>
-                      <TableCell align="center">
-                        <Tooltip title="View" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleView(request)}
-                            sx={{ color: '#00529B' }}
-                          >
-                            <VisibilityOutlinedIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Edit" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleEdit(request)}
-                            sx={{ color: '#FFA726' }}
-                          >
-                            <EditOutlinedIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Track & Sign" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleTrackAndSign(request)}
-                            sx={{ color: '#42A5F5' }}
-                          >
-                            <TrackChangesIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDelete(request)}
-                            sx={{ color: '#EF5350' }}
-                          >
-                            <DeleteOutlineIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                      <TableCell
+                        align="center"
+                        sx={{ width: '160px', whiteSpace: 'nowrap' }}
+                      >
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            gap: 0.5,
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <Tooltip title="View" arrow>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleView(request)}
+                              sx={{ color: '#00529B', padding: '6px' }}
+                            >
+                              <VisibilityOutlinedIcon
+                                sx={{ fontSize: '1.1rem' }}
+                              />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Edit" arrow>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleEdit(request)}
+                              sx={{ color: '#FFA726', padding: '6px' }}
+                            >
+                              <EditOutlinedIcon sx={{ fontSize: '1.1rem' }} />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Track & Sign" arrow>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleTrackAndSign(request)}
+                              sx={{ color: '#42A5F5', padding: '6px' }}
+                            >
+                              <TrackChangesIcon sx={{ fontSize: '1.1rem' }} />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete" arrow>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDelete(request)}
+                              sx={{ color: '#EF5350', padding: '6px' }}
+                            >
+                              <DeleteOutlineIcon sx={{ fontSize: '1.1rem' }} />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
                       </TableCell>
                     </TableRow>
                   ))
@@ -667,7 +601,11 @@ const RequestPettyCash = () => {
               page={page}
               onPageChange={handleChangePage}
               onRowsPerPageChange={handleChangeRowsPerPage}
-              sx={{ borderTop: '1px solid rgba(224, 224, 224, 1)' }}
+              sx={{
+                borderTop: '1px solid rgba(224, 224, 224, 1)',
+                '.MuiTablePagination-selectLabel, .MuiTablePagination-displayedRows':
+                  { mb: 0 },
+              }}
             />
           </TableContainer>
         </Paper>
@@ -740,7 +678,7 @@ const RequestPettyCash = () => {
                   </Box>
                 </Grid>
 
-                {/* CSV Upload — unchanged */}
+                {/* CSV Upload */}
                 <Grid item xs={12}>
                   <Typography
                     variant="subtitle2"
@@ -855,7 +793,7 @@ const RequestPettyCash = () => {
                   />
                 </Grid>
 
-                {/* Supporting Documents — added: separate from CSV upload */}
+                {/* Supporting Documents */}
                 <Grid item xs={12}>
                   <Typography
                     variant="subtitle2"
