@@ -1,4 +1,4 @@
-import { Box, Typography, Modal, Button, Divider } from '@mui/material';
+import { Box, Typography, Modal, Button, Divider, Chip } from '@mui/material';
 
 const styles = {
   modal: {
@@ -18,8 +18,24 @@ const styles = {
   },
 };
 
+const roleColors = {
+  admin: '#9C27B0',
+  signer_admin: '#00529B',
+  signer: '#42A5F5',
+  staff: '#66BB6A',
+  supplier: '#FF9800',
+};
+
 const ViewUserModal = ({ defaultValues, open, handleClose }) => {
   const hasSupplierProfile = defaultValues?.supplier_profile;
+
+  const roleLabel = (defaultValues?.role || 'N/A')
+    .replace(/_/g, ' ')
+    .split(' ')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+
+  const roleColor = roleColors[defaultValues?.role] || '#9E9E9E';
 
   return (
     <Modal
@@ -44,15 +60,74 @@ const ViewUserModal = ({ defaultValues, open, handleClose }) => {
         <Typography>Lastname: {defaultValues?.lastname}</Typography>
         <Typography>Company Email: {defaultValues?.email}</Typography>
         <Typography>Personal Email: {defaultValues?.personal_email}</Typography>
+        <Typography>Position: {defaultValues?.position}</Typography>
         <Typography>Department: {defaultValues?.department}</Typography>
         <Typography>Section: {defaultValues?.section}</Typography>
         <Typography>Station: {defaultValues?.station}</Typography>
-        <Typography>Role: {defaultValues?.role}</Typography>
-        <Typography>Position: {defaultValues?.position}</Typography>
-        <Typography>Approved: {`${defaultValues?.is_approved}`}</Typography>
-        <Typography>
-          Petty Cash User: {`${defaultValues?.is_petty_cash_user}`}
-        </Typography>
+
+        {/* Role as a color-coded chip */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography>Role:</Typography>
+          <Chip
+            label={roleLabel}
+            size="small"
+            sx={{ bgcolor: roleColor, color: 'white', fontWeight: 600 }}
+          />
+        </Box>
+
+        {/* Approval status as chip */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography>Approved:</Typography>
+          <Chip
+            label={defaultValues?.is_approved ? 'Yes' : 'No'}
+            size="small"
+            sx={{
+              bgcolor: defaultValues?.is_approved ? '#66BB6A' : '#EF5350',
+              color: 'white',
+              fontWeight: 600,
+            }}
+          />
+        </Box>
+
+        {/* Petty cash access as chip */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography>Petty Cash User:</Typography>
+          <Chip
+            label={defaultValues?.is_petty_cash_user ? 'Enabled' : 'Disabled'}
+            size="small"
+            sx={{
+              bgcolor: defaultValues?.is_petty_cash_user
+                ? '#42A5F5'
+                : '#9E9E9E',
+              color: 'white',
+              fontWeight: 600,
+            }}
+          />
+        </Box>
+
+        {/* Additional role flags */}
+        {[
+          { label: 'Petty Cash Initiator', key: 'is_pettycash_initiator' },
+          { label: 'Custodian', key: 'is_custodian' },
+          { label: 'Expense Creator', key: 'is_expense_creator' },
+          { label: 'Approver', key: 'is_approver' },
+          { label: 'First Approver', key: 'is_first_approver' },
+          { label: 'Second Approver', key: 'is_second_approver' },
+          { label: 'Last Approver', key: 'is_last_approver' },
+        ].map(({ label, key }) => (
+          <Box key={key} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography>{label}:</Typography>
+            <Chip
+              label={defaultValues?.[key] ? 'Yes' : 'No'}
+              size="small"
+              sx={{
+                bgcolor: defaultValues?.[key] ? '#66BB6A' : '#9E9E9E',
+                color: 'white',
+                fontWeight: 600,
+              }}
+            />
+          </Box>
+        ))}
 
         {hasSupplierProfile && (
           <>

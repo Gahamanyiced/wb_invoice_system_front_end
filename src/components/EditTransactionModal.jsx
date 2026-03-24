@@ -115,8 +115,8 @@ const EditTransactionModal = ({
     issue_date: '',
     notes: '',
     comment: '',
-    newDocument: null,
-    existingDocument: null,
+    newDocuments: [], // changed: array of newly selected File objects
+    existingDocument: null, // existing server URL (single, unchanged)
   });
 
   const [commentError, setCommentError] = useState('');
@@ -138,8 +138,8 @@ const EditTransactionModal = ({
         issue_date: transaction.issue_date || '',
         notes: transaction.notes || '',
         comment: '',
-        newDocument: null,
-        existingDocument: transaction.supporting_document || null,
+        newDocuments: [], // changed: reset to empty array
+        existingDocument: transaction.documents?.[0]?.document_url || null,
       });
       setCommentError('');
     }
@@ -157,19 +157,24 @@ const EditTransactionModal = ({
     if (name === 'comment' && value.trim()) setCommentError('');
   };
 
+  // changed: append newly selected files, skip duplicates by filename
   const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setFormData((prev) => ({
-        ...prev,
-        newDocument: file,
-        existingDocument: null,
-      }));
-    }
+    const newFiles = Array.from(e.target.files);
+    setFormData((prev) => {
+      const existingNames = new Set(prev.newDocuments.map((f) => f.name));
+      const unique = newFiles.filter((f) => !existingNames.has(f.name));
+      return { ...prev, newDocuments: [...prev.newDocuments, ...unique] };
+    });
+    // reset so the same file can be re-added after removal
+    e.target.value = '';
   };
 
-  const handleRemoveNewDocument = () => {
-    setFormData((prev) => ({ ...prev, newDocument: null }));
+  // changed: remove a single new file by index
+  const handleRemoveNewDocument = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      newDocuments: prev.newDocuments.filter((_, i) => i !== index),
+    }));
   };
 
   const handleRemoveExistingDocument = () => {
@@ -211,9 +216,10 @@ const EditTransactionModal = ({
     payload.append('notes', formData.notes);
     payload.append('comment', formData.comment.trim());
 
-    if (formData.newDocument) {
-      payload.append('supporting_document', formData.newDocument);
-    }
+    // changed: append each new file under the same key
+    formData.newDocuments.forEach((file) => {
+      payload.append('supporting_documents', file);
+    });
 
     const result = await dispatch(
       updatePettyCash({ id: transaction.id, formData: payload }),
@@ -492,7 +498,7 @@ const EditTransactionModal = ({
                 </Box>
               </Paper>
 
-              {/* ── Supporting Document Section ── */}
+              {/* ── Supporting Documents Section — changed to support multiple files ── */}
               <Paper elevation={0} sx={style.section}>
                 <Typography
                   variant="subtitle1"
@@ -500,12 +506,12 @@ const EditTransactionModal = ({
                   color="#00529B"
                   gutterBottom
                 >
-                  Supporting Document
+                  Supporting Documents
                 </Typography>
                 <Divider sx={{ mb: 2 }} />
 
                 {/* Existing server document */}
-                {formData.existingDocument && !formData.newDocument && (
+                {formData.existingDocument && (
                   <Box
                     sx={{
                       display: 'flex',
@@ -550,35 +556,45 @@ const EditTransactionModal = ({
                   </Box>
                 )}
 
-                {/* Newly selected file preview */}
-                {formData.newDocument && (
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      p: 1.5,
-                      mb: 2,
-                      bgcolor: 'rgba(0, 82, 155, 0.05)',
-                      borderRadius: 1,
-                      border: '1px solid rgba(0, 82, 155, 0.2)',
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <AttachFileIcon
-                        sx={{ mr: 1, color: '#00529B', fontSize: 20 }}
-                      />
-                      <Typography variant="body2">
-                        {formData.newDocument.name}
-                      </Typography>
-                    </Box>
-                    <IconButton
-                      size="small"
-                      onClick={handleRemoveNewDocument}
-                      sx={{ color: '#d32f2f' }}
-                    >
-                      <CloseIcon fontSize="small" />
-                    </IconButton>
+                {/* Newly selected files list */}
+                {formData.newDocuments.length > 0 && (
+                  <Box sx={{ mb: 2 }}>
+                    {formData.newDocuments.map((file, index) => (
+                      <Box
+                        key={index}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          p: 1.5,
+                          mb: 1,
+                          bgcolor: 'rgba(0, 82, 155, 0.05)',
+                          borderRadius: 1,
+                          border: '1px solid rgba(0, 82, 155, 0.2)',
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <AttachFileIcon
+                            sx={{ mr: 1, color: '#00529B', fontSize: 20 }}
+                          />
+                          <Typography variant="body2">{file.name}</Typography>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ ml: 1 }}
+                          >
+                            ({(file.size / 1024).toFixed(1)} KB)
+                          </Typography>
+                        </Box>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleRemoveNewDocument(index)}
+                          sx={{ color: '#d32f2f' }}
+                        >
+                          <CloseIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    ))}
                   </Box>
                 )}
 
@@ -589,6 +605,7 @@ const EditTransactionModal = ({
                     style={{ display: 'none' }}
                     id="edit-transaction-file-upload"
                     type="file"
+                    multiple
                     onChange={handleFileUpload}
                   />
                   <label htmlFor="edit-transaction-file-upload">
@@ -604,16 +621,17 @@ const EditTransactionModal = ({
                         sx={{ fontSize: 40, color: '#00529B', mb: 1 }}
                       />
                       <Typography variant="body2" color="textSecondary">
-                        {formData.existingDocument || formData.newDocument
-                          ? 'Click to replace document'
-                          : 'Click to upload supporting document'}
+                        {formData.existingDocument ||
+                        formData.newDocuments.length > 0
+                          ? 'Click to add more documents'
+                          : 'Click to upload supporting documents'}
                       </Typography>
                       <Typography
                         variant="caption"
                         color="textSecondary"
                         sx={{ mt: 0.5 }}
                       >
-                        PDF, DOC, DOCX, or image files
+                        PDF, DOC, DOCX, or image files — multiple files allowed
                       </Typography>
                     </Box>
                   </label>

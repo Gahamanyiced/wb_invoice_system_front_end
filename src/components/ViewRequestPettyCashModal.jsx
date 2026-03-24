@@ -89,6 +89,53 @@ const Field = ({ label, value }) => (
   </Box>
 );
 
+// Reusable document row
+const DocRow = ({ doc, index }) => (
+  <Box
+    onClick={() => window.open(doc.document_url, '_blank')}
+    sx={{
+      display: 'flex',
+      alignItems: 'center',
+      p: 1.25,
+      mb: 1,
+      bgcolor: 'rgba(0, 82, 155, 0.05)',
+      borderRadius: 1,
+      border: '1px solid rgba(0, 82, 155, 0.15)',
+      cursor: 'pointer',
+      '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.1)' },
+    }}
+  >
+    <AttachFileIcon
+      sx={{ mr: 1, color: '#00529B', fontSize: 18, flexShrink: 0 }}
+    />
+    <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Typography
+        variant="body2"
+        sx={{
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {doc.document_name ||
+          doc.document_url?.split('/').pop() ||
+          `Document ${index + 1}`}
+      </Typography>
+      {doc.uploaded_by && (
+        <Typography variant="caption" color="text.secondary">
+          {doc.uploaded_by}
+        </Typography>
+      )}
+    </Box>
+    <Typography
+      variant="caption"
+      sx={{ color: '#00529B', fontWeight: 600, flexShrink: 0, ml: 1 }}
+    >
+      View
+    </Typography>
+  </Box>
+);
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const ViewRequestPettyCashModal = ({ open, handleClose, request }) => {
@@ -246,14 +293,14 @@ const ViewRequestPettyCashModal = ({ open, handleClose, request }) => {
             <Grid item xs={6}>
               <Field
                 label="Number of Expenses"
-                value={`${request.expenses?.length || 0} item(s)`}
+                value={`${request.expenses_count ?? request.expenses?.length ?? 0} item(s)`}
               />
             </Grid>
           </Grid>
         </Paper>
 
-        {/* Expense Items */}
-        {request.expenses?.length > 0 && (
+        {/* Expenses File — new: request.expenses_file.url */}
+        {request.expenses_file?.url && (
           <Paper elevation={0} sx={style.section}>
             <Typography
               variant="subtitle2"
@@ -261,117 +308,55 @@ const ViewRequestPettyCashModal = ({ open, handleClose, request }) => {
               color="#00529B"
               gutterBottom
             >
-              Expense Items
+              Expenses File
             </Typography>
             <Divider sx={{ mb: 1.5 }} />
-            {request.expenses.map((expense, i) => (
-              <Box
-                key={expense.id || i}
-                sx={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  py: 1,
-                  borderBottom:
-                    i < request.expenses.length - 1
-                      ? '1px solid rgba(0,82,155,0.07)'
-                      : 'none',
-                }}
-              >
-                <Box>
-                  <Typography variant="body2" fontWeight={500}>
-                    {i + 1}. {expense.item_description || 'N/A'}
-                  </Typography>
-                  {expense.date && (
-                    <Typography variant="caption" color="text.secondary">
-                      {new Date(expense.date).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </Typography>
-                  )}
-                </Box>
-                <Box sx={{ textAlign: 'right' }}>
-                  <Typography variant="body2" fontWeight={700} color="#00529B">
-                    {formatAmount(expense.amount)}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {expense.currency}
-                  </Typography>
-                </Box>
-              </Box>
-            ))}
-
-            {/* Total row */}
             <Box
+              onClick={() => window.open(request.expenses_file.url, '_blank')}
               sx={{
                 display: 'flex',
-                justifyContent: 'space-between',
                 alignItems: 'center',
-                pt: 1.5,
-                mt: 0.5,
-                borderTop: '2px solid rgba(0, 82, 155, 0.15)',
+                p: 1.25,
+                bgcolor: 'rgba(0, 82, 155, 0.05)',
+                borderRadius: 1,
+                border: '1px solid rgba(0, 82, 155, 0.15)',
+                cursor: 'pointer',
+                '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.1)' },
               }}
             >
-              <Typography variant="body2" fontWeight={700}>
-                Total
+              <AttachFileIcon sx={{ mr: 1, color: '#00529B', fontSize: 18 }} />
+              <Typography variant="body2" sx={{ flex: 1 }}>
+                {request.expenses_file.name ||
+                  request.expenses_file.url.split('/').pop()}
               </Typography>
-              <Typography variant="body1" fontWeight={700} color="#00529B">
-                {formatAmount(request.total_expenses)}
+              <Typography
+                variant="caption"
+                sx={{ color: '#00529B', fontWeight: 600 }}
+              >
+                Download
               </Typography>
             </Box>
           </Paper>
         )}
 
-        {/* Supporting Documents */}
-        {request.expenses?.some((e) => e.supporting_document) && (
-          <Paper elevation={0} sx={style.section}>
-            <Typography
-              variant="subtitle2"
-              fontWeight={600}
-              color="#00529B"
-              gutterBottom
-            >
-              Supporting Documents
-            </Typography>
-            <Divider sx={{ mb: 1.5 }} />
-            {request.expenses
-              .filter((e) => e.supporting_document)
-              .map((expense, i) => (
-                <Box
-                  key={i}
-                  onClick={() =>
-                    window.open(expense.supporting_document, '_blank')
-                  }
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    p: 1.25,
-                    mb: 1,
-                    bgcolor: 'rgba(0, 82, 155, 0.05)',
-                    borderRadius: 1,
-                    border: '1px solid rgba(0, 82, 155, 0.15)',
-                    cursor: 'pointer',
-                    '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.1)' },
-                  }}
-                >
-                  <AttachFileIcon
-                    sx={{ mr: 1, color: '#00529B', fontSize: 18 }}
-                  />
-                  <Typography variant="body2" sx={{ flex: 1 }}>
-                    {expense.supporting_document.split('/').pop()}
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    sx={{ color: '#00529B', fontWeight: 600 }}
-                  >
-                    View
-                  </Typography>
-                </Box>
+        {/* Supporting Documents — new: request.supporting_documents[] */}
+        {Array.isArray(request.supporting_documents) &&
+          request.supporting_documents.length > 0 && (
+            <Paper elevation={0} sx={style.section}>
+              <Typography
+                variant="subtitle2"
+                fontWeight={600}
+                color="#00529B"
+                gutterBottom
+              >
+                Supporting Documents ({request.supporting_documents.length})
+              </Typography>
+              <Divider sx={{ mb: 1.5 }} />
+              {request.supporting_documents.map((doc, i) => (
+                <DocRow key={doc.id ?? i} doc={doc} index={i} />
               ))}
-          </Paper>
-        )}
+            </Paper>
+          )}
       </DialogContent>
 
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'rgba(0, 82, 155, 0.02)' }}>

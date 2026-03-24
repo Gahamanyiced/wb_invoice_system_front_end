@@ -97,10 +97,11 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
           status
             ? status
                 .split('_')
-                .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
                 .join(' ')
             : 'N/A'
         }
+        size="small"
         sx={{
           ...(statusColors[status] || { bgcolor: '#9E9E9E', color: 'white' }),
           fontWeight: 500,
@@ -109,60 +110,70 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
     );
   };
 
+  const formatAmount = (amount) =>
+    new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(parseFloat(amount || 0));
+
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
+    return new Date(dateString).toLocaleString('en-US', {
       year: 'numeric',
-      month: 'long',
+      month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     });
   };
 
-  const formatAmount = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(parseFloat(amount || 0));
-  };
-
-  const getActionChip = (action_type) => {
-    const map = {
-      update: {
-        bgcolor: '#1976D2',
-        icon: <EditNoteIcon sx={{ fontSize: 13 }} />,
-        label: 'Update',
-      },
-      delete: {
-        bgcolor: '#EF5350',
-        icon: <DeleteOutlineIcon sx={{ fontSize: 13 }} />,
-        label: 'Delete',
-      },
-      create: { bgcolor: '#66BB6A', icon: null, label: 'Create' },
+  const getActionChip = (actionType) => {
+    const actionColors = {
+      created: { bgcolor: '#66BB6A', label: 'Created' },
+      updated: { bgcolor: '#42A5F5', label: 'Updated' },
+      deleted: { bgcolor: '#EF5350', label: 'Deleted' },
+      acknowledged: { bgcolor: '#9C27B0', label: 'Acknowledged' },
+      rollback: { bgcolor: '#FF9800', label: 'Rollback' },
+      replenished: { bgcolor: '#00897B', label: 'Replenished' },
     };
-    const cfg = map[action_type?.toLowerCase()] || {
+    const action = actionColors[actionType?.toLowerCase()] || {
       bgcolor: '#9E9E9E',
-      icon: null,
-      label: action_type || 'N/A',
+      label: actionType || 'Action',
     };
     return (
       <Chip
-        icon={cfg.icon}
-        label={cfg.label}
+        icon={
+          actionType === 'deleted' ? (
+            <DeleteOutlineIcon sx={{ fontSize: 14 }} />
+          ) : (
+            <EditNoteIcon sx={{ fontSize: 14 }} />
+          )
+        }
+        label={action.label}
         size="small"
-        sx={{
-          bgcolor: cfg.bgcolor,
-          color: 'white',
-          fontWeight: 600,
-          fontSize: '0.7rem',
-        }}
+        sx={{ bgcolor: action.bgcolor, color: 'white', fontWeight: 500 }}
       />
     );
   };
 
-  const comments = issueComments?.results || [];
+  if (!transaction) return null;
+
+  const comments = issueComments?.results || issueComments?.comments || [];
+
+  // Resolve documents — new shape: transaction.documents[]
+  // Fallback to old single string for backward compat
+  const documents =
+    Array.isArray(transaction.documents) && transaction.documents.length > 0
+      ? transaction.documents
+      : transaction.supporting_document
+        ? [
+            {
+              id: 0,
+              document_url: transaction.supporting_document,
+              document_name: transaction.supporting_document.split('/').pop(),
+            },
+          ]
+        : [];
 
   return (
     <Modal open={open} onClose={handleClose}>
@@ -172,12 +183,16 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
           <Typography variant="h6" fontWeight={600}>
             Transaction Details
           </Typography>
-          <IconButton onClick={handleClose} sx={{ color: 'white' }}>
+          <IconButton
+            onClick={handleClose}
+            sx={{ color: 'white' }}
+            size="small"
+          >
             <CloseIcon />
           </IconButton>
         </Box>
 
-        {/* Content */}
+        {/* Scrollable Content */}
         <Box sx={style.content}>
           {/* Transaction Information */}
           <Paper elevation={0} sx={style.section}>
@@ -370,15 +385,6 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
 
               <Grid item xs={12} sm={6}>
                 <Box sx={style.fieldContainer}>
-                  <Typography sx={style.fieldLabel}>Section</Typography>
-                  <Typography sx={style.fieldValue}>
-                    {transaction?.holder?.section || 'N/A'}
-                  </Typography>
-                </Box>
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>Station</Typography>
                   <Typography sx={style.fieldValue}>
                     {transaction?.holder?.station || 'N/A'}
@@ -447,21 +453,18 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
               elevation={0}
               sx={{
                 ...style.section,
-                bgcolor: 'rgba(102, 187, 106, 0.04)',
-                border: '1px solid rgba(102, 187, 106, 0.2)',
+                bgcolor: 'rgba(102, 187, 106, 0.02)',
               }}
             >
               <Typography
                 variant="subtitle1"
                 fontWeight={600}
-                color="#57A05A"
+                color="#00529B"
                 gutterBottom
               >
                 Expense Creator
               </Typography>
-              <Divider
-                sx={{ mb: 2, borderColor: 'rgba(102, 187, 106, 0.3)' }}
-              />
+              <Divider sx={{ mb: 2 }} />
 
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6}>
@@ -500,30 +503,12 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
                     </Typography>
                   </Box>
                 </Grid>
-
-                <Grid item xs={12} sm={6}>
-                  <Box sx={style.fieldContainer}>
-                    <Typography sx={style.fieldLabel}>Section</Typography>
-                    <Typography sx={style.fieldValue}>
-                      {transaction.expense_creator.section || 'N/A'}
-                    </Typography>
-                  </Box>
-                </Grid>
-
-                <Grid item xs={12} sm={6}>
-                  <Box sx={style.fieldContainer}>
-                    <Typography sx={style.fieldLabel}>Station</Typography>
-                    <Typography sx={style.fieldValue}>
-                      {transaction.expense_creator.station || 'N/A'}
-                    </Typography>
-                  </Box>
-                </Grid>
               </Grid>
             </Paper>
           )}
 
-          {/* Acknowledgment Information */}
-          {transaction?.is_acknowledged && (
+          {/* Supporting Documents — updated: transaction.documents[] */}
+          {documents.length > 0 && (
             <Paper elevation={0} sx={style.section}>
               <Typography
                 variant="subtitle1"
@@ -531,89 +516,60 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
                 color="#00529B"
                 gutterBottom
               >
-                Acknowledgment Information
+                Supporting Documents ({documents.length})
               </Typography>
               <Divider sx={{ mb: 2 }} />
-
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <Box sx={style.fieldContainer}>
-                    <Typography sx={style.fieldLabel}>Acknowledged</Typography>
-                    <Chip
-                      label="Yes"
-                      size="small"
-                      sx={{
-                        bgcolor: '#66BB6A',
-                        color: 'white',
-                        fontWeight: 500,
-                      }}
-                    />
-                  </Box>
-                </Grid>
-
-                <Grid item xs={12} sm={6}>
-                  <Box sx={style.fieldContainer}>
-                    <Typography sx={style.fieldLabel}>
-                      Acknowledged At
-                    </Typography>
-                    <Typography sx={style.fieldValue}>
-                      {formatDate(transaction?.acknowledged_at)}
-                    </Typography>
-                  </Box>
-                </Grid>
-
-                <Grid item xs={12}>
-                  <Box sx={style.fieldContainer}>
-                    <Typography sx={style.fieldLabel}>
-                      Acknowledgment Notes
-                    </Typography>
-                    <Typography sx={style.fieldValue}>
-                      {transaction?.acknowledgment_notes || 'No notes provided'}
-                    </Typography>
-                  </Box>
-                </Grid>
-              </Grid>
-            </Paper>
-          )}
-
-          {/* Supporting Document */}
-          {transaction?.supporting_document && (
-            <Paper elevation={0} sx={style.section}>
-              <Typography
-                variant="subtitle1"
-                fontWeight={600}
-                color="#00529B"
-                gutterBottom
-              >
-                Supporting Document
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  p: 2,
-                  bgcolor: 'rgba(0, 82, 155, 0.05)',
-                  borderRadius: 1,
-                  cursor: 'pointer',
-                  '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.1)' },
-                }}
-                onClick={() =>
-                  window.open(transaction.supporting_document, '_blank')
-                }
-              >
-                <AttachFileIcon sx={{ mr: 1, color: '#00529B' }} />
-                <Typography sx={{ flex: 1 }}>
-                  {transaction.supporting_document.split('/').pop()}
-                </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{ color: '#00529B', fontWeight: 500 }}
+              {documents.map((doc, i) => (
+                <Box
+                  key={doc.id ?? i}
+                  onClick={() => window.open(doc.document_url, '_blank')}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    p: 1.5,
+                    mb: i < documents.length - 1 ? 1 : 0,
+                    bgcolor: 'rgba(0, 82, 155, 0.05)',
+                    borderRadius: 1,
+                    border: '1px solid rgba(0, 82, 155, 0.15)',
+                    cursor: 'pointer',
+                    '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.1)' },
+                  }}
                 >
-                  View Document
-                </Typography>
-              </Box>
+                  <AttachFileIcon
+                    sx={{ mr: 1, color: '#00529B', flexShrink: 0 }}
+                  />
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {doc.document_name ||
+                        doc.document_url?.split('/').pop() ||
+                        `Document ${i + 1}`}
+                    </Typography>
+                    {doc.uploaded_by && (
+                      <Typography variant="caption" color="text.secondary">
+                        {doc.uploaded_by}
+                      </Typography>
+                    )}
+                  </Box>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: '#00529B',
+                      fontWeight: 500,
+                      flexShrink: 0,
+                      ml: 1,
+                    }}
+                  >
+                    View Document
+                  </Typography>
+                </Box>
+              ))}
             </Paper>
           )}
 
@@ -657,37 +613,34 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
               <Divider sx={{ mb: 2 }} />
 
               {isLoading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
                   <CircularProgress size={24} sx={{ color: '#00529B' }} />
                 </Box>
               ) : comments.length === 0 ? (
                 <Typography
                   variant="body2"
                   color="text.secondary"
-                  sx={{ textAlign: 'center', py: 2 }}
+                  sx={{ py: 1 }}
                 >
                   No comments yet.
                 </Typography>
               ) : (
-                <Box
-                  sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}
-                >
-                  {comments.map((c) => (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {comments.map((c, i) => (
                     <Box
-                      key={c.id}
+                      key={c.id || i}
                       sx={{
-                        p: 1.75,
+                        p: 1.5,
                         bgcolor: 'white',
-                        borderRadius: 1.5,
-                        border: '1px solid rgba(0, 82, 155, 0.1)',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                        borderRadius: 1,
+                        border: '1px solid rgba(0, 82, 155, 0.08)',
                       }}
                     >
                       <Box
                         sx={{
                           display: 'flex',
-                          alignItems: 'center',
                           justifyContent: 'space-between',
+                          alignItems: 'flex-start',
                           mb: 1,
                         }}
                       >
@@ -696,8 +649,8 @@ const ViewTransactionModal = ({ open, handleClose, transaction }) => {
                         >
                           <Avatar
                             sx={{
-                              width: 30,
-                              height: 30,
+                              width: 28,
+                              height: 28,
                               bgcolor: '#00529B',
                               fontSize: '0.75rem',
                               fontWeight: 700,

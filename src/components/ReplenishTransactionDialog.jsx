@@ -52,7 +52,7 @@ const styles = {
 const emptyForm = {
   issue_date: '',
   notes: '',
-  supporting_document: null,
+  supporting_documents: [], // changed: array of File objects
 };
 
 const ReplenishTransactionDialog = ({
@@ -72,21 +72,43 @@ const ReplenishTransactionDialog = ({
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
   };
 
+  // changed: append new files, skip duplicates by filename
   const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) setFormData((prev) => ({ ...prev, supporting_document: file }));
+    const newFiles = Array.from(e.target.files);
+    setFormData((prev) => {
+      const existingNames = new Set(
+        prev.supporting_documents.map((f) => f.name),
+      );
+      const unique = newFiles.filter((f) => !existingNames.has(f.name));
+      return {
+        ...prev,
+        supporting_documents: [...prev.supporting_documents, ...unique],
+      };
+    });
+    // reset so the same file can be re-added after removal
+    e.target.value = '';
+    // clear the validation error once at least one file is selected
+    if (errors.supporting_documents) {
+      setErrors((prev) => ({ ...prev, supporting_documents: '' }));
+    }
   };
 
-  const handleRemoveFile = () => {
-    setFormData((prev) => ({ ...prev, supporting_document: null }));
+  // changed: remove a single file by index
+  const handleRemoveFile = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      supporting_documents: prev.supporting_documents.filter(
+        (_, i) => i !== index,
+      ),
+    }));
   };
 
   const validate = () => {
     const newErrors = {};
-    if (!formData.issue_date)
-      newErrors.issue_date = 'Issue date is required.';
-    if (!formData.supporting_document)
-      newErrors.supporting_document = 'A supporting document is required.';
+    if (!formData.issue_date) newErrors.issue_date = 'Issue date is required.';
+    if (formData.supporting_documents.length === 0)
+      newErrors.supporting_documents =
+        'At least one supporting document is required.';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -97,13 +119,21 @@ const ReplenishTransactionDialog = ({
     const submitData = new FormData();
     submitData.append('issue_date', formData.issue_date);
     if (formData.notes) submitData.append('notes', formData.notes);
-    submitData.append('supporting_document', formData.supporting_document);
+    // changed: append each file under the same key
+    formData.supporting_documents.forEach((file) => {
+      submitData.append('supporting_documents', file);
+    });
     if (transaction?.replenishment_amount) {
-      submitData.append('replenishment_amount', transaction.replenishment_amount);
+      submitData.append(
+        'replenishment_amount',
+        transaction.replenishment_amount,
+      );
     }
 
     try {
-      await dispatch(replenishPettyCash({ id: transaction.id, formData: submitData })).unwrap();
+      await dispatch(
+        replenishPettyCash({ id: transaction.id, formData: submitData }),
+      ).unwrap();
       toast.success('Replenishment submitted successfully');
       setFormData(emptyForm);
       setErrors({});
@@ -177,68 +207,69 @@ const ReplenishTransactionDialog = ({
             p: 2,
             bgcolor: 'rgba(0, 82, 155, 0.04)',
             borderRadius: 2,
-            border: '1px solid rgba(0, 82, 155, 0.15)',
+            border: '1px solid rgba(0, 82, 155, 0.12)',
           }}
         >
-          <Typography variant="subtitle2" fontWeight={600} color="#00529B" gutterBottom>
-            Current Transaction Summary
-          </Typography>
-          <Divider sx={{ mb: 1.5 }} />
-          <Grid container spacing={1.5}>
+          <Grid container spacing={2}>
             <Grid item xs={6}>
-              <Typography variant="caption" color="text.secondary">
-                Original Amount
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                display="block"
+              >
+                Current Amount
               </Typography>
-              <Typography variant="body2" fontWeight={600}>
+              <Typography variant="h6" fontWeight={700} color="#00529B">
                 {formatAmount(transaction?.amount)} {transaction?.currency}
               </Typography>
             </Grid>
             <Grid item xs={6}>
-              <Typography variant="caption" color="text.secondary">
-                Remaining Balance
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                display="block"
+              >
+                Remaining
               </Typography>
               <Typography
-                variant="body2"
-                fontWeight={600}
+                variant="h6"
+                fontWeight={700}
                 color={
-                  parseFloat(transaction?.remaining_amount) <
-                  parseFloat(transaction?.amount) * 0.2
-                    ? '#EF5350'
+                  parseFloat(transaction?.remaining_amount || 0) <= 0
+                    ? '#d32f2f'
                     : '#66BB6A'
                 }
               >
-                {formatAmount(transaction?.remaining_amount)} {transaction?.currency}
+                {formatAmount(transaction?.remaining_amount)}{' '}
+                {transaction?.currency}
               </Typography>
             </Grid>
-            {transaction?.replenishment_amount && (
-              <Grid item xs={12}>
-                <Typography variant="caption" color="text.secondary">
-                  Replenishment Amount
-                </Typography>
-                <Typography variant="body2" fontWeight={600} color="#00529B">
-                  {formatAmount(transaction.replenishment_amount)} {transaction?.currency}
-                </Typography>
-              </Grid>
-            )}
           </Grid>
         </Paper>
 
         {/* Replenishment Details */}
         <Paper elevation={0} sx={styles.section}>
-          <Typography variant="subtitle1" fontWeight={600} color="#00529B" gutterBottom>
+          <Typography
+            variant="subtitle1"
+            fontWeight={600}
+            color="#00529B"
+            gutterBottom
+          >
             Replenishment Details
           </Typography>
           <Divider sx={{ mb: 2 }} />
-
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
-              <Typography sx={styles.fieldLabel}>Issue Date *</Typography>
+            <Grid item xs={12}>
+              <Typography sx={styles.fieldLabel}>
+                Issue Date <span style={{ color: '#d32f2f' }}>*</span>
+              </Typography>
               <TextField
                 fullWidth
                 name="issue_date"
                 type="date"
                 value={formData.issue_date}
                 onChange={handleInputChange}
+                required
                 InputLabelProps={{ shrink: true }}
                 error={!!errors.issue_date}
                 helperText={errors.issue_date}
@@ -252,7 +283,10 @@ const ReplenishTransactionDialog = ({
 
             <Grid item xs={12}>
               <Typography sx={styles.fieldLabel}>
-                Notes / Purpose <span style={{ color: '#999', fontWeight: 400 }}>(Optional)</span>
+                Notes / Purpose{' '}
+                <span style={{ color: '#999', fontWeight: 400 }}>
+                  (Optional)
+                </span>
               </Typography>
               <TextField
                 fullWidth
@@ -272,16 +306,23 @@ const ReplenishTransactionDialog = ({
           </Grid>
         </Paper>
 
-        {/* Supporting Document */}
+        {/* Supporting Documents — changed to multi-file */}
         <Paper elevation={0} sx={{ ...styles.section, mb: 0 }}>
-          <Typography variant="subtitle1" fontWeight={600} color="#00529B" gutterBottom>
-            Supporting Document *
+          <Typography
+            variant="subtitle1"
+            fontWeight={600}
+            color="#00529B"
+            gutterBottom
+          >
+            Supporting Documents <span style={{ color: '#d32f2f' }}>*</span>
           </Typography>
           <Divider sx={{ mb: 2 }} />
+
+          {/* Upload area */}
           <Box
             sx={{
               ...styles.uploadBox,
-              borderColor: errors.supporting_document
+              borderColor: errors.supporting_documents
                 ? '#d32f2f'
                 : 'rgba(0, 82, 155, 0.3)',
             }}
@@ -291,6 +332,7 @@ const ReplenishTransactionDialog = ({
               style={{ display: 'none' }}
               id="replenish-file-upload"
               type="file"
+              multiple
               onChange={handleFileUpload}
             />
             <label htmlFor="replenish-file-upload">
@@ -302,49 +344,74 @@ const ReplenishTransactionDialog = ({
                   cursor: 'pointer',
                 }}
               >
-                <CloudUploadIcon sx={{ fontSize: 36, color: '#00529B', mb: 1 }} />
+                <CloudUploadIcon
+                  sx={{ fontSize: 36, color: '#00529B', mb: 1 }}
+                />
                 <Typography variant="body2" color="textSecondary">
-                  Click to upload supporting document
+                  {formData.supporting_documents.length > 0
+                    ? 'Click to add more documents'
+                    : 'Click to upload supporting documents'}
                 </Typography>
-                <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5 }}>
-                  PDF, DOC, DOCX, or image files
+                <Typography
+                  variant="caption"
+                  color="textSecondary"
+                  sx={{ mt: 0.5 }}
+                >
+                  PDF, DOC, DOCX, or image files — multiple files allowed
                 </Typography>
               </Box>
             </label>
           </Box>
 
-          {errors.supporting_document && (
-            <Typography variant="caption" color="error" sx={{ mt: 1, display: 'block' }}>
-              {errors.supporting_document}
+          {errors.supporting_documents && (
+            <Typography
+              variant="caption"
+              color="error"
+              sx={{ mt: 1, display: 'block' }}
+            >
+              {errors.supporting_documents}
             </Typography>
           )}
 
-          {formData.supporting_document && (
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                p: 1.5,
-                mt: 2,
-                bgcolor: 'rgba(0, 82, 155, 0.05)',
-                borderRadius: 1,
-                border: '1px solid rgba(0, 82, 155, 0.2)',
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <AttachFileIcon sx={{ mr: 1, color: '#00529B', fontSize: 20 }} />
-                <Typography variant="body2">
-                  {formData.supporting_document.name}
-                </Typography>
-              </Box>
-              <IconButton
-                size="small"
-                onClick={handleRemoveFile}
-                sx={{ color: '#d32f2f' }}
-              >
-                <CloseIcon fontSize="small" />
-              </IconButton>
+          {/* Selected files list */}
+          {formData.supporting_documents.length > 0 && (
+            <Box sx={{ mt: 2 }}>
+              {formData.supporting_documents.map((file, index) => (
+                <Box
+                  key={index}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    p: 1.5,
+                    mb: 1,
+                    bgcolor: 'rgba(0, 82, 155, 0.05)',
+                    borderRadius: 1,
+                    border: '1px solid rgba(0, 82, 155, 0.2)',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <AttachFileIcon
+                      sx={{ mr: 1, color: '#00529B', fontSize: 20 }}
+                    />
+                    <Typography variant="body2">{file.name}</Typography>
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      sx={{ ml: 1 }}
+                    >
+                      ({(file.size / 1024).toFixed(1)} KB)
+                    </Typography>
+                  </Box>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleRemoveFile(index)}
+                    sx={{ color: '#d32f2f' }}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              ))}
             </Box>
           )}
         </Paper>
@@ -380,8 +447,8 @@ const ReplenishTransactionDialog = ({
             bgcolor: '#00529B',
             '&:hover': { bgcolor: '#003d73' },
             textTransform: 'none',
-            px: 3,
-            fontWeight: 600,
+            px: 4,
+            minWidth: 160,
           }}
         >
           {isLoading ? 'Submitting...' : 'Submit Replenishment'}

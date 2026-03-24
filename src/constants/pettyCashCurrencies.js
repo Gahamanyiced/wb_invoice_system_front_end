@@ -14,6 +14,7 @@ const PETTY_CASH_CURRENCIES = [
   { code: 'UGX', name: 'Ugandan Shilling', symbol: 'USh' },
   { code: 'USD', name: 'US Dollar', symbol: '$' },
   { code: 'XAF', name: 'CFA Franc BEAC', symbol: 'Fr' },
+  { code: 'XOF', name: 'CFA Franc BCEAO', symbol: 'Fr' },
   { code: 'ZAR', name: 'South African Rand', symbol: 'R' },
   { code: 'ZMW', name: 'Zambian Kwacha', symbol: 'ZK' },
 ];

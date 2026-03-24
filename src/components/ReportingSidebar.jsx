@@ -51,12 +51,10 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
     const fmt = (val) => (val == null ? '' : val);
     const rows = [];
 
-    // ── Report Title ──────────────────────────────────────────────────────
     rows.push(['RWANDAIR PETTY CASH REPORT']);
     rows.push([`Generated: ${new Date().toLocaleString()}`]);
     rows.push([]);
 
-    // ── Summary ───────────────────────────────────────────────────────────
     rows.push(['SUMMARY']);
     rows.push([
       'Total Records',
@@ -72,7 +70,6 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
     ]);
     rows.push([]);
 
-    // ── Issuances ─────────────────────────────────────────────────────────
     rows.push(['ISSUANCES']);
     rows.push([
       'ID',
@@ -114,7 +111,6 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
 
     rows.push([]);
 
-    // ── Expenses ──────────────────────────────────────────────────────────
     rows.push(['EXPENSES']);
     rows.push([
       'Petty Cash ID',
@@ -148,7 +144,6 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
       });
     });
 
-    // ── Serialize ─────────────────────────────────────────────────────────
     const csvContent = rows
       .map((row) =>
         row
@@ -191,10 +186,9 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 const ReportingSidebar = ({ open, onClose }) => {
-  // ── Tab ──
   const [activeTab, setActiveTab] = useState(0);
 
-  // ── Invoice state (unchanged from original) ──
+  // ── Invoice state ──
   const [selectedReport, setSelectedReport] = useState('');
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -221,17 +215,12 @@ const ReportingSidebar = ({ open, onClose }) => {
     status: '',
     date_from: '',
     date_to: '',
-    petty_cash_id: '',
     currency: '',
-    holder_id: '',
-    is_replenished: '',
   });
 
-  // ── Redux ──
   const { allUsers } = useSelector((state) => state.user);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
-  // ── Shared options ──
   const userOptions =
     allUsers?.map((u) => ({
       value: u.id,
@@ -329,11 +318,6 @@ const ReportingSidebar = ({ open, onClose }) => {
     { value: 'rollback', label: 'Rollback' },
   ];
 
-  const replenishedOptions = [
-    { value: 'true', label: 'Yes' },
-    { value: 'false', label: 'No' },
-  ];
-
   const handlePcFilterChange = (field, value) => {
     setPcFilters((prev) => ({ ...prev, [field]: value }));
   };
@@ -344,10 +328,7 @@ const ReportingSidebar = ({ open, onClose }) => {
       status: '',
       date_from: '',
       date_to: '',
-      petty_cash_id: '',
       currency: '',
-      holder_id: '',
-      is_replenished: '',
     });
     setPcSummary(null);
     setPcReportData(null);
@@ -364,7 +345,6 @@ const ReportingSidebar = ({ open, onClose }) => {
         return acc;
       }, {});
       const data = await pettyCashService.getPettyCashReport(filters);
-      // Response shape: { summary: {...}, results: [...] }
       setPcSummary(data.summary ?? null);
       setPcReportData(Array.isArray(data) ? data : (data.results ?? []));
     } catch (err) {
@@ -378,7 +358,6 @@ const ReportingSidebar = ({ open, onClose }) => {
 
   const pcRecordCount = Array.isArray(pcReportData) ? pcReportData.length : 0;
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Drawer
       anchor="right"
@@ -447,7 +426,6 @@ const ReportingSidebar = ({ open, onClose }) => {
       {/* ══════════════════════ INVOICE TAB ══════════════════════ */}
       {activeTab === 0 && (
         <Box>
-          {/* Filters Section */}
           <Paper
             elevation={2}
             sx={{ mb: 3, p: 2, backgroundColor: 'white', borderRadius: 2 }}
@@ -583,7 +561,6 @@ const ReportingSidebar = ({ open, onClose }) => {
             </Collapse>
           </Paper>
 
-          {/* Available Reports */}
           <Typography
             variant="h6"
             sx={{ mb: 2, color: '#333', fontWeight: '600' }}
@@ -659,7 +636,6 @@ const ReportingSidebar = ({ open, onClose }) => {
             ))}
           </Box>
 
-          {/* Loading */}
           {loading && (
             <Paper
               elevation={2}
@@ -684,7 +660,6 @@ const ReportingSidebar = ({ open, onClose }) => {
             </Paper>
           )}
 
-          {/* Error */}
           {error && (
             <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: '600' }}>
@@ -694,7 +669,6 @@ const ReportingSidebar = ({ open, onClose }) => {
             </Alert>
           )}
 
-          {/* Results */}
           {reportData &&
             !loading &&
             showResults &&
@@ -783,7 +757,6 @@ const ReportingSidebar = ({ open, onClose }) => {
               </Paper>
             )}
 
-          {/* No Data */}
           {reportData &&
             !loading &&
             (!reportData.results || reportData.results.length === 0) && (
@@ -801,7 +774,6 @@ const ReportingSidebar = ({ open, onClose }) => {
       {/* ══════════════════════ PETTY CASH TAB ══════════════════════ */}
       {activeTab === 1 && (
         <Box>
-          {/* Petty Cash Filters */}
           <Paper
             elevation={2}
             sx={{ mb: 3, p: 2, backgroundColor: 'white', borderRadius: 2 }}
@@ -906,19 +878,6 @@ const ReportingSidebar = ({ open, onClose }) => {
                   sx={{ backgroundColor: 'white' }}
                 />
 
-                {/* Petty Cash ID */}
-                <TextField
-                  label="Petty Cash ID"
-                  type="number"
-                  value={pcFilters.petty_cash_id}
-                  onChange={(e) =>
-                    handlePcFilterChange('petty_cash_id', e.target.value)
-                  }
-                  size="small"
-                  fullWidth
-                  sx={{ backgroundColor: 'white' }}
-                />
-
                 {/* Currency */}
                 <Autocomplete
                   options={PETTY_CASH_CURRENCIES}
@@ -942,58 +901,10 @@ const ReportingSidebar = ({ open, onClose }) => {
                   )}
                   size="small"
                 />
-
-                {/* Holder */}
-                <Autocomplete
-                  options={userOptions}
-                  getOptionLabel={(o) => o.label || ''}
-                  value={
-                    userOptions.find((o) => o.value === pcFilters.holder_id) ||
-                    null
-                  }
-                  onChange={(_, v) =>
-                    handlePcFilterChange('holder_id', v ? v.value : '')
-                  }
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Custodian (Holder)"
-                      size="small"
-                      sx={{ backgroundColor: 'white' }}
-                      placeholder="Select custodian..."
-                    />
-                  )}
-                  size="small"
-                />
-
-                {/* Is Replenished */}
-                <Autocomplete
-                  options={replenishedOptions}
-                  getOptionLabel={(o) => o.label || ''}
-                  value={
-                    replenishedOptions.find(
-                      (o) => o.value === pcFilters.is_replenished,
-                    ) || null
-                  }
-                  onChange={(_, v) =>
-                    handlePcFilterChange('is_replenished', v ? v.value : '')
-                  }
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Is Replenished"
-                      size="small"
-                      sx={{ backgroundColor: 'white' }}
-                      placeholder="Select..."
-                    />
-                  )}
-                  size="small"
-                />
               </Box>
             </Collapse>
           </Paper>
 
-          {/* Available Reports */}
           <Typography
             variant="h6"
             sx={{ mb: 2, color: '#333', fontWeight: '600' }}
@@ -1061,7 +972,6 @@ const ReportingSidebar = ({ open, onClose }) => {
             </Paper>
           </Box>
 
-          {/* Loading */}
           {pcLoading && (
             <Paper
               elevation={2}
@@ -1086,7 +996,6 @@ const ReportingSidebar = ({ open, onClose }) => {
             </Paper>
           )}
 
-          {/* Error */}
           {pcError && (
             <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: '600' }}>
@@ -1096,7 +1005,6 @@ const ReportingSidebar = ({ open, onClose }) => {
             </Alert>
           )}
 
-          {/* Results */}
           {pcReportData !== null &&
             !pcLoading &&
             pcShowResults &&
@@ -1201,7 +1109,6 @@ const ReportingSidebar = ({ open, onClose }) => {
               </Paper>
             )}
 
-          {/* No Data */}
           {pcReportData !== null && !pcLoading && pcRecordCount === 0 && (
             <Alert severity="info" sx={{ borderRadius: 2 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: '600' }}>

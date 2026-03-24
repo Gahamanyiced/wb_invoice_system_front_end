@@ -105,35 +105,15 @@ const styles = {
 };
 
 // ── CSV generation helper ─────────────────────────────────────────────────────
-// Format mirrors the reference Excel:
-//   Row 1: RWANDAIR PETTY CASH
-//   Row 2: STATION : <station>
-//   Row 3: PERIOD: <period>
-//   Row 4: column headers  — (blank) | Description | Dr | Cr | BALANCE
-//   Row 5: DATE | Opening balance | <dr> | <cr> | (blank)
-//   Row 6: (blank) | Replenishment | <dr> | <cr> | (blank)
-//   Row 7: (blank) | (blank) | (blank) | (blank) | <total>
-//   Rows 8+: <date> | <description> | <dr> | <cr> | <balance>
-//   Last row: (blank) | Closing balance | (blank) | (blank) | <closing_balance>
-
 const generateLedgerCSV = (ledger, transactionId) => {
   const { header, expenses, closing_balance } = ledger;
   const fmt = (val) => (val == null ? '' : val);
   const rows = [];
 
-  // Row 1 — Title
   rows.push(['RWANDAIR PETTY CASH', '', '', '', '']);
-
-  // Row 2 — Station
   rows.push([`STATION : ${fmt(header.station)}`, '', '', '', '']);
-
-  // Row 3 — Period
   rows.push([`PERIOD: ${fmt(header.period)}`, '', '', '', '']);
-
-  // Row 4 — Column headers
   rows.push(['', 'Description', 'Dr', 'Cr', 'BALANCE']);
-
-  // Row 5 — Opening balance
   rows.push([
     'DATE',
     'Opening balance',
@@ -141,8 +121,6 @@ const generateLedgerCSV = (ledger, transactionId) => {
     fmt(header.opening_balance.cr),
     '',
   ]);
-
-  // Row 6 — Replenishment
   rows.push([
     '',
     'Replenishment',
@@ -150,11 +128,8 @@ const generateLedgerCSV = (ledger, transactionId) => {
     fmt(header.replenishment.cr),
     '',
   ]);
-
-  // Row 7 — Total balance (DR + replenishment combined)
   rows.push(['', '', '', '', fmt(header.total)]);
 
-  // Rows 8+ — Expense lines
   expenses.forEach((exp) => {
     rows.push([
       fmt(exp.date),
@@ -165,10 +140,8 @@ const generateLedgerCSV = (ledger, transactionId) => {
     ]);
   });
 
-  // Last row — Closing balance
   rows.push(['', 'Closing balance', '', '', fmt(closing_balance)]);
 
-  // Serialize to CSV string
   const csv = rows
     .map((row) =>
       row
@@ -182,7 +155,6 @@ const generateLedgerCSV = (ledger, transactionId) => {
     )
     .join('\r\n');
 
-  // Trigger browser download
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -258,13 +230,14 @@ const PettyCashTransactions = () => {
     }
   }, [pettyCashList]);
 
+  // ── Create form state ─────────────────────────────────────────────────────
   const [formData, setFormData] = useState({
     amount: '',
     currency: 'USD',
     holder_id: '',
     issue_date: '',
     notes: '',
-    supporting_document: null,
+    supporting_documents: [], // changed: array of File objects
   });
 
   const handleOpenDialog = () => setOpenDialog(true);
@@ -277,7 +250,7 @@ const PettyCashTransactions = () => {
       holder_id: '',
       issue_date: '',
       notes: '',
-      supporting_document: null,
+      supporting_documents: [], // changed: reset to empty array
     });
   };
 
@@ -286,13 +259,31 @@ const PettyCashTransactions = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // changed: append newly selected files, skip duplicates by filename
   const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    setFormData((prev) => ({ ...prev, supporting_document: file }));
+    const newFiles = Array.from(e.target.files);
+    setFormData((prev) => {
+      const existingNames = new Set(
+        prev.supporting_documents.map((f) => f.name),
+      );
+      const unique = newFiles.filter((f) => !existingNames.has(f.name));
+      return {
+        ...prev,
+        supporting_documents: [...prev.supporting_documents, ...unique],
+      };
+    });
+    // reset so the same file can be re-added after removal
+    e.target.value = '';
   };
 
-  const handleRemoveFile = () => {
-    setFormData((prev) => ({ ...prev, supporting_document: null }));
+  // changed: remove a single file by index
+  const handleRemoveFile = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      supporting_documents: prev.supporting_documents.filter(
+        (_, i) => i !== index,
+      ),
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -304,9 +295,10 @@ const PettyCashTransactions = () => {
     submitData.append('currency', formData.currency);
     submitData.append('issue_date', formData.issue_date);
     submitData.append('notes', formData.notes);
-    if (formData.supporting_document) {
-      submitData.append('supporting_document', formData.supporting_document);
-    }
+    // changed: append each file under the same key
+    formData.supporting_documents.forEach((file) => {
+      submitData.append('supporting_documents', file);
+    });
 
     try {
       await dispatch(issuePettyCash(submitData)).unwrap();
@@ -597,6 +589,9 @@ const PettyCashTransactions = () => {
               <TableCell sx={{ ...styles.headerCell, width: '100px' }}>
                 Status
               </TableCell>
+              <TableCell sx={{ ...styles.headerCell, width: '100px' }}>
+                Documents
+              </TableCell>
               <TableCell
                 sx={{ ...styles.headerCell, minWidth: '380px' }}
                 align="center"
@@ -608,13 +603,13 @@ const PettyCashTransactions = () => {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={10} align="center" sx={{ py: 3 }}>
+                <TableCell colSpan={11} align="center" sx={{ py: 3 }}>
                   Loading...
                 </TableCell>
               </TableRow>
             ) : transactions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} align="center" sx={{ py: 3 }}>
+                <TableCell colSpan={11} align="center" sx={{ py: 3 }}>
                   No transactions found
                 </TableCell>
               </TableRow>
@@ -681,6 +676,45 @@ const PettyCashTransactions = () => {
                   </TableCell>
                   <TableCell sx={{ width: '100px' }}>
                     {getStatusChip(transaction.status)}
+                  </TableCell>
+
+                  <TableCell sx={{ width: '100px' }}>
+                    {Array.isArray(transaction.documents) &&
+                    transaction.documents.length > 0 ? (
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 0.5,
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        {transaction.documents.map((doc, di) => (
+                          <Tooltip
+                            key={doc.id ?? di}
+                            title={doc.document_name || `Document ${di + 1}`}
+                            arrow
+                          >
+                            <IconButton
+                              size="small"
+                              onClick={() =>
+                                window.open(doc.document_url, '_blank')
+                              }
+                              sx={{ color: '#00529B', padding: '4px' }}
+                            >
+                              <AttachFileIcon sx={{ fontSize: '1rem' }} />
+                            </IconButton>
+                          </Tooltip>
+                        ))}
+                        <Typography variant="caption" color="text.secondary">
+                          ({transaction.documents.length})
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <Typography variant="caption" color="text.secondary">
+                        —
+                      </Typography>
+                    )}
                   </TableCell>
 
                   <TableCell
@@ -1024,7 +1058,7 @@ const PettyCashTransactions = () => {
               </Box>
             </Paper>
 
-            {/* Supporting Document Section */}
+            {/* Supporting Documents Section — changed to support multiple files */}
             <Paper elevation={0} sx={{ ...styles.section, mb: 0 }}>
               <Typography
                 variant="subtitle1"
@@ -1032,15 +1066,18 @@ const PettyCashTransactions = () => {
                 color="#00529B"
                 gutterBottom
               >
-                Supporting Document
+                Supporting Documents
               </Typography>
               <Divider sx={{ mb: 2 }} />
+
+              {/* Upload area */}
               <Box sx={styles.uploadBox}>
                 <input
                   accept="*/*"
                   style={{ display: 'none' }}
                   id="transaction-file-upload"
                   type="file"
+                  multiple
                   onChange={handleFileUpload}
                 />
                 <label htmlFor="transaction-file-upload">
@@ -1056,46 +1093,60 @@ const PettyCashTransactions = () => {
                       sx={{ fontSize: 40, color: '#00529B', mb: 1 }}
                     />
                     <Typography variant="body2" color="textSecondary">
-                      Click to upload supporting document
+                      {formData.supporting_documents.length > 0
+                        ? 'Click to add more documents'
+                        : 'Click to upload supporting documents'}
                     </Typography>
                     <Typography
                       variant="caption"
                       color="textSecondary"
                       sx={{ mt: 0.5 }}
                     >
-                      PDF, DOC, DOCX, or image files
+                      PDF, DOC, DOCX, or image files — multiple files allowed
                     </Typography>
                   </Box>
                 </label>
               </Box>
-              {formData.supporting_document && (
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    p: 1.5,
-                    mt: 2,
-                    bgcolor: 'rgba(0, 82, 155, 0.05)',
-                    borderRadius: 1,
-                    border: '1px solid rgba(0, 82, 155, 0.2)',
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <AttachFileIcon
-                      sx={{ mr: 1, color: '#00529B', fontSize: 20 }}
-                    />
-                    <Typography variant="body2">
-                      {formData.supporting_document.name}
-                    </Typography>
-                  </Box>
-                  <IconButton
-                    size="small"
-                    onClick={handleRemoveFile}
-                    sx={{ color: '#d32f2f' }}
-                  >
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
+
+              {/* Selected files list */}
+              {formData.supporting_documents.length > 0 && (
+                <Box sx={{ mt: 2 }}>
+                  {formData.supporting_documents.map((file, index) => (
+                    <Box
+                      key={index}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        p: 1.5,
+                        mb: 1,
+                        bgcolor: 'rgba(0, 82, 155, 0.05)',
+                        borderRadius: 1,
+                        border: '1px solid rgba(0, 82, 155, 0.2)',
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <AttachFileIcon
+                          sx={{ mr: 1, color: '#00529B', fontSize: 20 }}
+                        />
+                        <Typography variant="body2">{file.name}</Typography>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ ml: 1 }}
+                        >
+                          ({(file.size / 1024).toFixed(1)} KB)
+                        </Typography>
+                      </Box>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleRemoveFile(index)}
+                        sx={{ color: '#d32f2f' }}
+                      >
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  ))}
                 </Box>
               )}
             </Paper>

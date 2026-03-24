@@ -101,6 +101,7 @@ const RequestPettyCash = () => {
     amount: '',
     description: 'Replenishment',
     comment: '',
+    supporting_documents: [], // added: array of File objects
   });
 
   const [page, setPage] = useState(0);
@@ -159,6 +160,7 @@ const RequestPettyCash = () => {
     setFormData({ ...formData, [name]: value });
   };
 
+  // unchanged: CSV upload logic
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -203,8 +205,35 @@ const RequestPettyCash = () => {
     }
   };
 
+  // unchanged: CSV remove
   const handleRemoveFile = () => {
     setFormData({ ...formData, expenses_csv: null, amount: '' });
+  };
+
+  // added: append new supporting documents, skip duplicates by filename
+  const handleSupportingDocUpload = (e) => {
+    const newFiles = Array.from(e.target.files);
+    setFormData((prev) => {
+      const existingNames = new Set(
+        prev.supporting_documents.map((f) => f.name),
+      );
+      const unique = newFiles.filter((f) => !existingNames.has(f.name));
+      return {
+        ...prev,
+        supporting_documents: [...prev.supporting_documents, ...unique],
+      };
+    });
+    e.target.value = '';
+  };
+
+  // added: remove a single supporting document by index
+  const handleRemoveSupportingDoc = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      supporting_documents: prev.supporting_documents.filter(
+        (_, i) => i !== index,
+      ),
+    }));
   };
 
   const handleOpenCreateDialog = () => setOpenCreateDialog(true);
@@ -217,6 +246,7 @@ const RequestPettyCash = () => {
       amount: '',
       description: 'Replenishment',
       comment: '',
+      supporting_documents: [], // added: reset to empty array
     });
   };
 
@@ -231,6 +261,10 @@ const RequestPettyCash = () => {
       if (formData.expenses_csv) {
         submitData.append('expenses_file', formData.expenses_csv);
       }
+      // added: append each supporting document under the same key
+      formData.supporting_documents.forEach((file) => {
+        submitData.append('supporting_documents', file);
+      });
 
       await dispatch(createPettyCashReplenishRequest(submitData)).unwrap();
       toast.success('Petty cash request created successfully');
@@ -430,6 +464,9 @@ const RequestPettyCash = () => {
                   <TableCell sx={{ ...styles.headerCell, width: '110px' }}>
                     Expenses File
                   </TableCell>
+                  <TableCell sx={{ ...styles.headerCell, width: '110px' }}>
+                    Documents
+                  </TableCell>
                   <TableCell sx={{ ...styles.headerCell, width: '100px' }}>
                     Status
                   </TableCell>
@@ -447,13 +484,13 @@ const RequestPettyCash = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
+                    <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
                       Loading...
                     </TableCell>
                   </TableRow>
                 ) : requests.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
+                    <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
                       No petty cash requests found
                     </TableCell>
                   </TableRow>
@@ -493,13 +530,13 @@ const RequestPettyCash = () => {
                         />
                       </TableCell>
                       <TableCell>
-                        {request.expenses_file_url ? (
+                        {request.expenses_file?.url ? (
                           <Tooltip title="Download expenses CSV" arrow>
                             <Button
                               size="small"
                               variant="outlined"
                               component="a"
-                              href={request.expenses_file_url}
+                              href={request.expenses_file.url}
                               target="_blank"
                               rel="noopener noreferrer"
                               sx={{
@@ -517,7 +554,50 @@ const RequestPettyCash = () => {
                           </Tooltip>
                         ) : (
                           <Typography variant="caption" color="text.secondary">
-                            No file
+                            —
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {Array.isArray(request.supporting_documents) &&
+                        request.supporting_documents.length > 0 ? (
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.5,
+                              flexWrap: 'wrap',
+                            }}
+                          >
+                            {request.supporting_documents.map((doc, di) => (
+                              <Tooltip
+                                key={doc.id ?? di}
+                                title={
+                                  doc.document_name || `Document ${di + 1}`
+                                }
+                                arrow
+                              >
+                                <IconButton
+                                  size="small"
+                                  onClick={() =>
+                                    window.open(doc.document_url, '_blank')
+                                  }
+                                  sx={{ color: '#00529B', padding: '4px' }}
+                                >
+                                  <AttachFileIcon sx={{ fontSize: '1rem' }} />
+                                </IconButton>
+                              </Tooltip>
+                            ))}
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
+                              ({request.supporting_documents.length})
+                            </Typography>
+                          </Box>
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">
+                            —
                           </Typography>
                         )}
                       </TableCell>
@@ -660,7 +740,7 @@ const RequestPettyCash = () => {
                   </Box>
                 </Grid>
 
-                {/* CSV Upload */}
+                {/* CSV Upload — unchanged */}
                 <Grid item xs={12}>
                   <Typography
                     variant="subtitle2"
@@ -773,6 +853,95 @@ const RequestPettyCash = () => {
                     rows={3}
                     placeholder="Add any additional notes..."
                   />
+                </Grid>
+
+                {/* Supporting Documents — added: separate from CSV upload */}
+                <Grid item xs={12}>
+                  <Typography
+                    variant="subtitle2"
+                    sx={{ color: '#00529B', fontWeight: 600, mb: 1 }}
+                  >
+                    Supporting Documents (Optional)
+                  </Typography>
+
+                  <Box sx={styles.uploadBox}>
+                    <input
+                      accept="*/*"
+                      style={{ display: 'none' }}
+                      id="supporting-docs-upload"
+                      type="file"
+                      multiple
+                      onChange={handleSupportingDocUpload}
+                    />
+                    <label htmlFor="supporting-docs-upload">
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <CloudUploadIcon
+                          sx={{ fontSize: 36, color: '#00529B', mb: 1 }}
+                        />
+                        <Typography variant="body2" color="textSecondary">
+                          {formData.supporting_documents.length > 0
+                            ? 'Click to add more documents'
+                            : 'Click to upload supporting documents'}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          color="textSecondary"
+                          sx={{ mt: 0.5 }}
+                        >
+                          PDF, DOC, DOCX, or image files — multiple files
+                          allowed
+                        </Typography>
+                      </Box>
+                    </label>
+                  </Box>
+
+                  {formData.supporting_documents.length > 0 && (
+                    <Box sx={{ mt: 1 }}>
+                      {formData.supporting_documents.map((file, index) => (
+                        <Box
+                          key={index}
+                          sx={{
+                            mt: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            p: 1.5,
+                            bgcolor: 'rgba(0, 82, 155, 0.05)',
+                            borderRadius: 1,
+                            border: '1px solid rgba(0, 82, 155, 0.2)',
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            <AttachFileIcon
+                              sx={{ mr: 1, color: '#00529B', fontSize: 18 }}
+                            />
+                            <Typography variant="body2">{file.name}</Typography>
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              sx={{ ml: 1 }}
+                            >
+                              ({(file.size / 1024).toFixed(1)} KB)
+                            </Typography>
+                          </Box>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleRemoveSupportingDoc(index)}
+                            sx={{ color: '#d32f2f' }}
+                          >
+                            <CloseIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      ))}
+                    </Box>
+                  )}
                 </Grid>
               </Grid>
             </DialogContent>

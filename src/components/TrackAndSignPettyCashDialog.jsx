@@ -404,6 +404,30 @@ const TrackAndSignPettyCashDialog = ({
     return '#9E9E9E';
   };
 
+  // ── Resolve documents for expense context ─────────────────────────────────
+  // New API shape: entity.documents = [{ id, document_url, document_name, uploaded_by }]
+  // Old fallback:  entity.supporting_document / entity.supporting_document_url (string)
+  const expenseDocuments = !isRequestContext
+    ? Array.isArray(entity.documents) && entity.documents.length > 0
+      ? entity.documents
+      : entity.supporting_document_url || entity.supporting_document
+        ? [
+            {
+              id: 0,
+              document_url:
+                entity.supporting_document_url || entity.supporting_document,
+              document_name: (
+                entity.supporting_document_url ||
+                entity.supporting_document ||
+                ''
+              )
+                .split('/')
+                .pop(),
+            },
+          ]
+        : []
+    : [];
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -516,47 +540,17 @@ const TrackAndSignPettyCashDialog = ({
                   </Grid>
                 )}
 
-                {/* Description / expense items */}
-                <Grid item xs={12}>
-                  <Typography sx={style.fieldLabel}>
-                    {isRequestContext ? 'Expense Items' : 'Item Description'}
-                  </Typography>
-                  {isRequestContext ? (
-                    entity.expenses?.length > 0 ? (
-                      entity.expenses.map((exp, i) => (
-                        <Box
-                          key={exp.id || i}
-                          sx={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            py: 0.75,
-                            borderBottom:
-                              i < entity.expenses.length - 1
-                                ? '1px solid rgba(0,82,155,0.07)'
-                                : 'none',
-                          }}
-                        >
-                          <Typography variant="body2">
-                            {i + 1}. {exp.item_description}
-                          </Typography>
-                          <Typography
-                            variant="body2"
-                            fontWeight={600}
-                            color="#00529B"
-                          >
-                            {formatAmount(exp.amount)} {exp.currency}
-                          </Typography>
-                        </Box>
-                      ))
-                    ) : (
-                      <Typography sx={style.fieldValue}>N/A</Typography>
-                    )
-                  ) : (
+                {/* Item Description — expense context only */}
+                {!isRequestContext && (
+                  <Grid item xs={12}>
+                    <Typography sx={style.fieldLabel}>
+                      Item Description
+                    </Typography>
                     <Typography sx={style.fieldValue}>
                       {displayDescription}
                     </Typography>
-                  )}
-                </Grid>
+                  </Grid>
+                )}
 
                 {/* Requester — request context only */}
                 {isRequestContext && entity.requester && (
@@ -589,117 +583,170 @@ const TrackAndSignPettyCashDialog = ({
                   </Grid>
                 )}
 
-                {/* Request stats — request context only */}
-                {isRequestContext && (
-                  <Grid item xs={6} sm={3}>
-                    <Typography sx={style.fieldLabel}>Expenses</Typography>
-                    <Typography sx={style.fieldValue}>
-                      {entity.expenses_count ?? entity.expenses?.length ?? 0}
-                    </Typography>
+                {/* Expenses File — request context only */}
+                {isRequestContext && entity.expenses_file?.url && (
+                  <Grid item xs={12}>
+                    <Typography sx={style.fieldLabel}>Expenses File</Typography>
+                    <Box
+                      onClick={() =>
+                        window.open(entity.expenses_file.url, '_blank')
+                      }
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        p: 1,
+                        mb: 0.5,
+                        borderRadius: 1,
+                        cursor: 'pointer',
+                        border: '1px solid rgba(0, 82, 155, 0.15)',
+                        '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.05)' },
+                      }}
+                    >
+                      <AttachFileIcon
+                        sx={{ mr: 1, color: '#00529B', fontSize: 18 }}
+                      />
+                      <Typography variant="body2" sx={{ flex: 1 }}>
+                        {entity.expenses_file.name ||
+                          entity.expenses_file.url.split('/').pop()}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{ color: '#00529B', fontWeight: 600 }}
+                      >
+                        Download
+                      </Typography>
+                    </Box>
                   </Grid>
                 )}
 
-                {/* Supporting document */}
-                {isRequestContext
-                  ? entity.expenses?.some(
-                      (e) => e.supporting_document || e.supporting_document_url,
-                    ) && (
-                      <Grid item xs={12}>
-                        <Typography sx={style.fieldLabel}>
-                          Supporting Documents
-                        </Typography>
-                        {entity.expenses
-                          .filter(
-                            (e) =>
-                              e.supporting_document ||
-                              e.supporting_document_url,
-                          )
-                          .map((e, i) => (
-                            <Box
-                              key={i}
-                              onClick={() =>
-                                window.open(
-                                  e.supporting_document_url ||
-                                    e.supporting_document,
-                                  '_blank',
-                                )
-                              }
-                              sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                p: 1,
-                                mb: 0.5,
-                                borderRadius: 1,
-                                cursor: 'pointer',
-                                border: '1px solid rgba(0, 82, 155, 0.15)',
-                                '&:hover': {
-                                  bgcolor: 'rgba(0, 82, 155, 0.05)',
-                                },
-                              }}
-                            >
-                              <AttachFileIcon
-                                sx={{ mr: 1, color: '#00529B', fontSize: 18 }}
-                              />
-                              <Typography variant="body2" sx={{ flex: 1 }}>
-                                {e.item_description} — document
-                              </Typography>
-                              <Typography
-                                variant="caption"
-                                sx={{ color: '#00529B', fontWeight: 600 }}
-                              >
-                                View
-                              </Typography>
-                            </Box>
-                          ))}
-                      </Grid>
-                    )
-                  : (entity.supporting_document_url ||
-                      entity.supporting_document ||
-                      request.supporting_document) && (
-                      <Grid item xs={12}>
-                        <Typography sx={style.fieldLabel}>
-                          Supporting Document
-                        </Typography>
+                {/* Supporting Documents — request context: request.supporting_documents[] */}
+                {isRequestContext &&
+                  Array.isArray(entity.supporting_documents) &&
+                  entity.supporting_documents.length > 0 && (
+                    <Grid item xs={12}>
+                      <Typography sx={style.fieldLabel}>
+                        Supporting Documents (
+                        {entity.supporting_documents.length})
+                      </Typography>
+                      {entity.supporting_documents.map((doc, i) => (
                         <Box
+                          key={doc.id ?? i}
                           onClick={() =>
-                            window.open(
-                              entity.supporting_document_url ||
-                                entity.supporting_document ||
-                                request.supporting_document,
-                              '_blank',
-                            )
+                            window.open(doc.document_url, '_blank')
                           }
                           sx={{
                             display: 'flex',
                             alignItems: 'center',
                             p: 1,
+                            mb: 0.5,
                             borderRadius: 1,
                             cursor: 'pointer',
                             border: '1px solid rgba(0, 82, 155, 0.15)',
-                            '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.1)' },
+                            '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.05)' },
                           }}
                         >
                           <AttachFileIcon
                             sx={{ mr: 1, color: '#00529B', fontSize: 18 }}
                           />
-                          <Typography variant="body2" sx={{ flex: 1 }}>
-                            {(
-                              entity.supporting_document_url ||
-                              entity.supporting_document ||
-                              request.supporting_document
-                            )
-                              .split('/')
-                              .pop()}
-                          </Typography>
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {doc.document_name ||
+                                doc.document_url?.split('/').pop() ||
+                                `Document ${i + 1}`}
+                            </Typography>
+                            {doc.uploaded_by && (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                {doc.uploaded_by}
+                              </Typography>
+                            )}
+                          </Box>
                           <Typography
                             variant="caption"
-                            sx={{ color: '#00529B', fontWeight: 600 }}
+                            sx={{
+                              color: '#00529B',
+                              fontWeight: 600,
+                              flexShrink: 0,
+                              ml: 1,
+                            }}
                           >
                             View
                           </Typography>
                         </Box>
-                      </Grid>
-                    )}
+                      ))}
+                    </Grid>
+                  )}
+
+                {/* Supporting Documents — expense context: entity.documents[] */}
+                {!isRequestContext && expenseDocuments.length > 0 && (
+                  <Grid item xs={12}>
+                    <Typography sx={style.fieldLabel}>
+                      Supporting Documents ({expenseDocuments.length})
+                    </Typography>
+                    {expenseDocuments.map((doc, i) => (
+                      <Box
+                        key={doc.id ?? i}
+                        onClick={() => window.open(doc.document_url, '_blank')}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          p: 1,
+                          mb: 0.5,
+                          borderRadius: 1,
+                          cursor: 'pointer',
+                          border: '1px solid rgba(0, 82, 155, 0.15)',
+                          '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.1)' },
+                        }}
+                      >
+                        <AttachFileIcon
+                          sx={{ mr: 1, color: '#00529B', fontSize: 18 }}
+                        />
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {doc.document_name ||
+                              doc.document_url?.split('/').pop() ||
+                              `Document ${i + 1}`}
+                          </Typography>
+                          {doc.uploaded_by && (
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
+                              {doc.uploaded_by}
+                            </Typography>
+                          )}
+                        </Box>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: '#00529B',
+                            fontWeight: 600,
+                            flexShrink: 0,
+                            ml: 1,
+                          }}
+                        >
+                          View
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Grid>
+                )}
               </Grid>
             </Paper>
 

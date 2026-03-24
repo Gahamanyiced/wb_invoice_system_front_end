@@ -121,7 +121,7 @@ const ManageExpenses = () => {
   const [openEditModal, setOpenEditModal] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
 
-  // Create form
+  // Create form — supporting_documents is now an array per expense line
   const [formData, setFormData] = useState({
     verifier_id: '',
     expenses: [
@@ -129,8 +129,8 @@ const ManageExpenses = () => {
         date: '',
         item_description: '',
         amount: '',
-        currency: 'USD',
-        supporting_document: null,
+        currency: transaction?.currency || 'USD',
+        supporting_documents: [], // changed: array of File objects
       },
     ],
   });
@@ -173,8 +173,8 @@ const ManageExpenses = () => {
           date: '',
           item_description: '',
           amount: '',
-          currency: 'USD',
-          supporting_document: null,
+          currency: transaction?.currency || 'USD',
+          supporting_documents: [], // changed: reset to empty array
         },
       ],
     });
@@ -198,15 +198,32 @@ const ManageExpenses = () => {
     setFormData((prev) => ({ ...prev, expenses: updated }));
   };
 
-  const handleExpenseFileChange = (index, file) => {
+  // changed: append new files to a specific expense line, skip duplicates by name
+  const handleExpenseFileChange = (lineIndex, newFiles) => {
     const updated = [...formData.expenses];
-    updated[index].supporting_document = file;
+    const existingNames = new Set(
+      updated[lineIndex].supporting_documents.map((f) => f.name),
+    );
+    const unique = newFiles.filter((f) => !existingNames.has(f.name));
+    updated[lineIndex] = {
+      ...updated[lineIndex],
+      supporting_documents: [
+        ...updated[lineIndex].supporting_documents,
+        ...unique,
+      ],
+    };
     setFormData((prev) => ({ ...prev, expenses: updated }));
   };
 
-  const handleRemoveExpenseFile = (index) => {
+  // changed: remove a single file by its index within a specific expense line
+  const handleRemoveExpenseFile = (lineIndex, fileIndex) => {
     const updated = [...formData.expenses];
-    updated[index].supporting_document = null;
+    updated[lineIndex] = {
+      ...updated[lineIndex],
+      supporting_documents: updated[lineIndex].supporting_documents.filter(
+        (_, i) => i !== fileIndex,
+      ),
+    };
     setFormData((prev) => ({ ...prev, expenses: updated }));
   };
 
@@ -219,8 +236,9 @@ const ManageExpenses = () => {
           date: '',
           item_description: '',
           amount: '',
-          currency: prev.expenses[0]?.currency || 'USD',
-          supporting_document: null,
+          currency:
+            transaction?.currency || prev.expenses[0]?.currency || 'USD',
+          supporting_documents: [], // changed: empty array for new line
         },
       ],
     }));
@@ -267,10 +285,12 @@ const ManageExpenses = () => {
     }));
     payload.append('expenses', JSON.stringify(expensesData));
 
+    // Each file gets a unique key: expense_documents_<lineIndex>_<fileIndex>
+    // e.g. expense_documents_0_0, expense_documents_0_1, expense_documents_1_0
     formData.expenses.forEach((exp, i) => {
-      if (exp.supporting_document) {
-        payload.append(`expense_document_${i}`, exp.supporting_document);
-      }
+      exp.supporting_documents.forEach((file, j) => {
+        payload.append(`expense_documents_${i}_${j}`, file);
+      });
     });
 
     const result = await dispatch(createPettyCashExpense(payload));
@@ -635,7 +655,7 @@ const ManageExpenses = () => {
         <Paper elevation={2} sx={{ mt: 3 }}>
           <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0' }}>
             <Typography variant="h6" color="#00529B" fontWeight={600}>
-              Expense Lines
+              Expenses
             </Typography>
           </Box>
 
@@ -656,8 +676,11 @@ const ManageExpenses = () => {
                   <TableCell sx={{ ...styles.headerCell, width: 80 }}>
                     Currency
                   </TableCell>
+                  <TableCell sx={{ ...styles.headerCell, width: 110 }}>
+                    Status
+                  </TableCell>
                   <TableCell sx={{ ...styles.headerCell, width: 90 }}>
-                    Document
+                    Documents
                   </TableCell>
                   <TableCell sx={{ ...styles.headerCell, width: 150 }}>
                     Created At
@@ -673,14 +696,14 @@ const ManageExpenses = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
+                    <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
                       <CircularProgress size={24} sx={{ color: '#00529B' }} />
                     </TableCell>
                   </TableRow>
                 ) : expenses.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={9}
                       align="center"
                       sx={{ py: 3, color: 'text.secondary' }}
                     >
@@ -732,22 +755,44 @@ const ManageExpenses = () => {
                           }}
                         />
                       </TableCell>
+                      <TableCell>{getStatusChip(expense.status)}</TableCell>
                       <TableCell>
-                        {expense.supporting_document ? (
-                          <Tooltip title="View document" arrow>
-                            <IconButton
-                              size="small"
-                              onClick={() =>
-                                window.open(
-                                  expense.supporting_document,
-                                  '_blank',
-                                )
-                              }
-                              sx={{ color: '#00529B' }}
+                        {Array.isArray(expense.documents) &&
+                        expense.documents.length > 0 ? (
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.5,
+                              flexWrap: 'wrap',
+                            }}
+                          >
+                            {expense.documents.map((doc, di) => (
+                              <Tooltip
+                                key={doc.id ?? di}
+                                title={
+                                  doc.document_name || `Document ${di + 1}`
+                                }
+                                arrow
+                              >
+                                <IconButton
+                                  size="small"
+                                  onClick={() =>
+                                    window.open(doc.document_url, '_blank')
+                                  }
+                                  sx={{ color: '#00529B', padding: '4px' }}
+                                >
+                                  <AttachFileIcon sx={{ fontSize: '1rem' }} />
+                                </IconButton>
+                              </Tooltip>
+                            ))}
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
                             >
-                              <AttachFileIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
+                              ({expense.documents.length})
+                            </Typography>
+                          </Box>
                         ) : (
                           <Typography variant="caption" color="text.secondary">
                             —
@@ -949,7 +994,7 @@ const ManageExpenses = () => {
                     }}
                   >
                     <Typography variant="h6" color="#00529B" fontWeight={600}>
-                      Expense Lines
+                      Expenses
                     </Typography>
                     <Button
                       variant="outlined"
@@ -986,7 +1031,7 @@ const ManageExpenses = () => {
                         }}
                       >
                         <Typography variant="subtitle2" fontWeight={600}>
-                          Line #{index + 1}
+                          Expense #{index + 1}
                         </Typography>
                         {formData.expenses.length > 1 && (
                           <IconButton
@@ -1037,15 +1082,8 @@ const ManageExpenses = () => {
                             <InputLabel>Currency</InputLabel>
                             <Select
                               value={expense.currency}
-                              onChange={(e) =>
-                                handleExpenseChange(
-                                  index,
-                                  'currency',
-                                  e.target.value,
-                                )
-                              }
                               label="Currency"
-                              disabled={index !== 0}
+                              disabled
                             >
                               {PETTY_CASH_CURRENCIES.map((curr) => (
                                 <MenuItem key={curr.code} value={curr.code}>
@@ -1054,15 +1092,13 @@ const ManageExpenses = () => {
                               ))}
                             </Select>
                           </FormControl>
-                          {index !== 0 && (
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                              sx={{ mt: 0.5, display: 'block' }}
-                            >
-                              Currency is set from line #1
-                            </Typography>
-                          )}
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ mt: 0.5, display: 'block' }}
+                          >
+                            Currency is fixed to the transaction currency
+                          </Typography>
                         </Grid>
                         <Grid item xs={12} sm={6}>
                           <TextField
@@ -1080,6 +1116,8 @@ const ManageExpenses = () => {
                             size="small"
                           />
                         </Grid>
+
+                        {/* Supporting Documents — changed to multi-file per line */}
                         <Grid item xs={12}>
                           <Typography
                             variant="caption"
@@ -1090,20 +1128,24 @@ const ManageExpenses = () => {
                               display: 'block',
                             }}
                           >
-                            Supporting Document (Optional)
+                            Supporting Documents (Optional)
                           </Typography>
+
+                          {/* Upload area */}
                           <Box sx={styles.uploadBox}>
                             <input
                               accept="*/*"
                               style={{ display: 'none' }}
                               id={`expense-file-${index}`}
                               type="file"
-                              onChange={(e) =>
+                              multiple
+                              onChange={(e) => {
                                 handleExpenseFileChange(
                                   index,
-                                  e.target.files[0],
-                                )
-                              }
+                                  Array.from(e.target.files),
+                                );
+                                e.target.value = '';
+                              }}
                             />
                             <label htmlFor={`expense-file-${index}`}>
                               <Box
@@ -1121,41 +1163,79 @@ const ManageExpenses = () => {
                                   variant="caption"
                                   color="textSecondary"
                                 >
-                                  Click to upload receipt
+                                  {expense.supporting_documents.length > 0
+                                    ? 'Click to add more documents'
+                                    : 'Click to upload receipts'}
+                                </Typography>
+                                <Typography
+                                  variant="caption"
+                                  color="textSecondary"
+                                  sx={{ mt: 0.25 }}
+                                >
+                                  Multiple files allowed
                                 </Typography>
                               </Box>
                             </label>
                           </Box>
 
-                          {expense.supporting_document && (
-                            <Box
-                              sx={{
-                                mt: 1,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                p: 1,
-                                bgcolor: 'rgba(0, 82, 155, 0.05)',
-                                borderRadius: 1,
-                              }}
-                            >
-                              <Box
-                                sx={{ display: 'flex', alignItems: 'center' }}
-                              >
-                                <AttachFileIcon
-                                  sx={{ mr: 1, color: '#00529B', fontSize: 18 }}
-                                />
-                                <Typography variant="caption">
-                                  {expense.supporting_document.name}
-                                </Typography>
-                              </Box>
-                              <IconButton
-                                size="small"
-                                onClick={() => handleRemoveExpenseFile(index)}
-                                sx={{ color: '#d32f2f' }}
-                              >
-                                <CloseIcon fontSize="small" />
-                              </IconButton>
+                          {/* Selected files list for this line */}
+                          {expense.supporting_documents.length > 0 && (
+                            <Box sx={{ mt: 1 }}>
+                              {expense.supporting_documents.map(
+                                (file, fileIndex) => (
+                                  <Box
+                                    key={fileIndex}
+                                    sx={{
+                                      mt: 1,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      p: 1,
+                                      bgcolor: 'rgba(0, 82, 155, 0.05)',
+                                      borderRadius: 1,
+                                      border:
+                                        '1px solid rgba(0, 82, 155, 0.15)',
+                                    }}
+                                  >
+                                    <Box
+                                      sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                      }}
+                                    >
+                                      <AttachFileIcon
+                                        sx={{
+                                          mr: 1,
+                                          color: '#00529B',
+                                          fontSize: 18,
+                                        }}
+                                      />
+                                      <Typography variant="caption">
+                                        {file.name}
+                                      </Typography>
+                                      <Typography
+                                        variant="caption"
+                                        color="text.secondary"
+                                        sx={{ ml: 0.75 }}
+                                      >
+                                        ({(file.size / 1024).toFixed(1)} KB)
+                                      </Typography>
+                                    </Box>
+                                    <IconButton
+                                      size="small"
+                                      onClick={() =>
+                                        handleRemoveExpenseFile(
+                                          index,
+                                          fileIndex,
+                                        )
+                                      }
+                                      sx={{ color: '#d32f2f' }}
+                                    >
+                                      <CloseIcon fontSize="small" />
+                                    </IconButton>
+                                  </Box>
+                                ),
+                              )}
                             </Box>
                           )}
                         </Grid>
