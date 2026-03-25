@@ -403,7 +403,6 @@ const TrackAndSignPettyCashDialog = ({
 
   const td = trackingData || {};
   const isRequestContext = trackingStateKey === 'replenishRequestTrackingData';
-  const isExpenseContext = trackingStateKey === 'expenseTrackingData';
 
   const entity = isRequestContext ? td.request || {} : td.expense || {};
   const histories = isRequestContext
@@ -898,166 +897,141 @@ const TrackAndSignPettyCashDialog = ({
                   </Button>
                 ) : (
                   <Box>
-                    {/* Action selector
-                        Visible actions depend on context + logged-in role:
-                        Expenses:
-                          custodian / first / second approver → approve_and_forward, deny, rollback
-                          last approver                       → approve_final, deny, rollback
-                        Request/Replenishment:
-                          first / second approver → approve_and_forward, deny, rollback
-                          last approver           → approve_final, deny, rollback
-                    */}
-                    {(() => {
-                      const _isCustodian = loggedInUser?.is_custodian === true;
-                      const _isFirstApprover =
-                        loggedInUser?.is_first_approver === true;
-                      const _isSecondApprover =
-                        loggedInUser?.is_second_approver === true;
-                      const _isLastApprover =
-                        loggedInUser?.is_last_approver === true;
-
-                      // Last approver sees final approval; everyone else sees approve & forward
-                      const showFinal = isExpenseContext
-                        ? _isLastApprover &&
-                          !_isCustodian &&
-                          !_isFirstApprover &&
-                          !_isSecondApprover
-                        : _isLastApprover &&
-                          !_isFirstApprover &&
-                          !_isSecondApprover;
-
-                      return (
-                        <FormControl fullWidth sx={{ mb: 2 }}>
-                          <InputLabel>Action *</InputLabel>
-                          <Select
-                            value={signAction}
-                            onChange={(e) => {
-                              setSignAction(e.target.value);
-                              setNotesError('');
-                              setNextApproverError('');
-                              setNextApproverId('');
+                    {/* Action selector */}
+                    <FormControl fullWidth sx={{ mb: 2 }}>
+                      <InputLabel>Action *</InputLabel>
+                      <Select
+                        value={signAction}
+                        onChange={(e) => {
+                          setSignAction(e.target.value);
+                          setNotesError('');
+                          setNextApproverError('');
+                          setNextApproverId('');
+                        }}
+                        label="Action *"
+                      >
+                        <MenuItem value="approve">
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1,
                             }}
-                            label="Action *"
                           >
-                            {/* Approve & Forward — for non-last approvers */}
-                            {!showFinal && (
-                              <MenuItem value="approve_and_forward">
-                                <Box
-                                  sx={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 1,
-                                  }}
-                                >
-                                  <ThumbUpIcon
-                                    sx={{ color: '#42A5F5', fontSize: 20 }}
-                                  />
-                                  <Box>
-                                    <Typography
-                                      variant="body2"
-                                      fontWeight={500}
-                                    >
-                                      Approve &amp; Forward
-                                    </Typography>
-                                    <Typography
-                                      variant="caption"
-                                      color="text.secondary"
-                                    >
-                                      Approve and assign next approver
-                                    </Typography>
-                                  </Box>
-                                </Box>
-                              </MenuItem>
-                            )}
-
-                            {/* Final Approval — for last approver only */}
-                            {showFinal && (
-                              <MenuItem value="approve_final">
-                                <Box
-                                  sx={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 1,
-                                  }}
-                                >
-                                  <CheckCircleIcon
-                                    sx={{ color: '#2E7D32', fontSize: 20 }}
-                                  />
-                                  <Box>
-                                    <Typography
-                                      variant="body2"
-                                      fontWeight={500}
-                                    >
-                                      Final Approval
-                                    </Typography>
-                                    <Typography
-                                      variant="caption"
-                                      color="text.secondary"
-                                    >
-                                      Fully approve this{' '}
-                                      {isRequestContext ? 'request' : 'expense'}
-                                    </Typography>
-                                  </Box>
-                                </Box>
-                              </MenuItem>
-                            )}
-
-                            {/* Deny — always visible */}
-                            <MenuItem value="deny">
-                              <Box
-                                sx={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 1,
-                                }}
+                            <ThumbUpIcon
+                              sx={{ color: '#66BB6A', fontSize: 20 }}
+                            />
+                            <Box>
+                              <Typography variant="body2" fontWeight={500}>
+                                Approve
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
                               >
-                                <ThumbDownIcon
-                                  sx={{ color: '#EF5350', fontSize: 20 }}
-                                />
-                                <Box>
-                                  <Typography variant="body2" fontWeight={500}>
-                                    Deny
-                                  </Typography>
-                                  <Typography
-                                    variant="caption"
-                                    color="text.secondary"
-                                  >
-                                    Reject this{' '}
-                                    {isRequestContext ? 'request' : 'expense'}
-                                  </Typography>
-                                </Box>
-                              </Box>
-                            </MenuItem>
-
-                            {/* Rollback — always visible */}
-                            <MenuItem value="rollback">
-                              <Box
-                                sx={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 1,
-                                }}
+                                Simple approval
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </MenuItem>
+                        <MenuItem value="approve_and_forward">
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1,
+                            }}
+                          >
+                            <ThumbUpIcon
+                              sx={{ color: '#42A5F5', fontSize: 20 }}
+                            />
+                            <Box>
+                              <Typography variant="body2" fontWeight={500}>
+                                Approve &amp; Forward
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
                               >
-                                <UndoIcon
-                                  sx={{ color: '#FF9800', fontSize: 20 }}
-                                />
-                                <Box>
-                                  <Typography variant="body2" fontWeight={500}>
-                                    Rollback
-                                  </Typography>
-                                  <Typography
-                                    variant="caption"
-                                    color="text.secondary"
-                                  >
-                                    Return to previous signer
-                                  </Typography>
-                                </Box>
-                              </Box>
-                            </MenuItem>
-                          </Select>
-                        </FormControl>
-                      );
-                    })()}
+                                Approve and assign next approver
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </MenuItem>
+                        <MenuItem value="approve_final">
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1,
+                            }}
+                          >
+                            <CheckCircleIcon
+                              sx={{ color: '#2E7D32', fontSize: 20 }}
+                            />
+                            <Box>
+                              <Typography variant="body2" fontWeight={500}>
+                                Final Approval
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                Fully approve this{' '}
+                                {isRequestContext ? 'request' : 'expense'}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </MenuItem>
+                        <MenuItem value="deny">
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1,
+                            }}
+                          >
+                            <ThumbDownIcon
+                              sx={{ color: '#EF5350', fontSize: 20 }}
+                            />
+                            <Box>
+                              <Typography variant="body2" fontWeight={500}>
+                                Deny
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                Reject this{' '}
+                                {isRequestContext ? 'request' : 'expense'}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </MenuItem>
+                        <MenuItem value="rollback">
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1,
+                            }}
+                          >
+                            <UndoIcon sx={{ color: '#FF9800', fontSize: 20 }} />
+                            <Box>
+                              <Typography variant="body2" fontWeight={500}>
+                                Rollback
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                Return to previous signer
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </MenuItem>
+                      </Select>
+                    </FormControl>
 
                     {/* Next approver — only for approve_and_forward */}
                     {signAction === 'approve_and_forward' && (

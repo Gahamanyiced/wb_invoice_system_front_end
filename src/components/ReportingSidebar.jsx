@@ -81,7 +81,7 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
       // Column headers — mirrors ledger exactly
       rows.push(['', 'Description', 'Dr', 'Cr', 'BALANCE']);
 
-      // Opening balance row
+      // Opening balance row — field: opening_balance
       rows.push([
         'DATE',
         'Opening balance',
@@ -90,19 +90,20 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
         '',
       ]);
 
-      // Amount issued as replenishment row (same as ledger)
+      // Replenishment row — field: replenishment (not amount_issued)
       rows.push([
         fmt(record.issue_date),
         'Replenishment',
-        fmt(record.amount_issued),
+        fmt(record.replenishment ?? 0),
         '',
         '',
       ]);
 
-      // Total available
-      rows.push(['', '', '', '', fmt(record.total_available)]);
+      // Total available — field: total_available
+      rows.push(['', '', '', '', fmt(record.total_available ?? 0)]);
 
-      // Expense rows — one per expense, same as ledger expense rows
+      // Expense rows — one per expense
+      // fields: exp.date, exp.description, exp.cr, exp.balance
       const expenses = record.expenses || [];
       expenses.forEach((exp) => {
         rows.push([
@@ -114,8 +115,15 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
         ]);
       });
 
-      // Closing balance — mirrors ledger exactly
-      rows.push(['', 'Closing balance', '', '', fmt(record.remaining_amount)]);
+      // Closing balance — field: closing_balance (the actual closing balance
+      // after expenses, not remaining_amount which is the unspent custodian balance)
+      rows.push([
+        '',
+        'Closing balance',
+        '',
+        '',
+        fmt(record.closing_balance ?? 0),
+      ]);
     });
 
     // ── Summary block at the bottom ───────────────────────────────────────────
