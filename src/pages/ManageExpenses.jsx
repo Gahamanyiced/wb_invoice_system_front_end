@@ -9,7 +9,7 @@ import {
   approvePettyCashExpense,
   exportApprovedExpenses,
 } from '../features/pettyCash/pettyCashSlice';
-import { getAllSigners } from '../features/user/userSlice';
+import http from '../http-common';
 import { toast } from 'react-toastify';
 import {
   Box,
@@ -103,12 +103,21 @@ const ManageExpenses = () => {
   const { issuancePettyCashExpenses, isLoading, isExporting } = useSelector(
     (state) => state.pettyCash,
   );
-  const { users: signersData } = useSelector((state) => state.user);
 
-  const signers = signersData?.results || [];
   const expenses = issuancePettyCashExpenses?.results || [];
   const totalCount = issuancePettyCashExpenses?.count || 0;
   const summary = issuancePettyCashExpenses?.summary || null;
+
+  // ── Logged-in user & permission ───────────────────────────────────────────────
+  const loggedInUser = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || 'null');
+    } catch {
+      return null;
+    }
+  })();
+
+  const isExpenseCreator = loggedInUser?.is_expense_creator === true;
 
   // ── Local state ───────────────────────────────────────────────────────────────
 
@@ -120,6 +129,10 @@ const ManageExpenses = () => {
   const [openTrackSignDialog, setOpenTrackSignDialog] = useState(false);
   const [openEditModal, setOpenEditModal] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+
+  // Verifiers for the Add Expense form
+  const [signers, setSigners] = useState([]);
+  const [loadingVerifiers, setLoadingVerifiers] = useState(false);
 
   // Create form — supporting_documents is now an array per expense line
   const [formData, setFormData] = useState({
@@ -143,8 +156,48 @@ const ManageExpenses = () => {
   };
 
   useEffect(() => {
-    dispatch(getAllSigners({ is_petty_cash_user: 'true' }));
     refreshList();
+
+    // Fetch verifiers: is_custodian=true, is_petty_cash_user=true, is_approved=true
+    // role=signer AND role=signer_admin via two parallel calls
+    const fetchVerifiers = async () => {
+      setLoadingVerifiers(true);
+      try {
+        const [signerRes, signerAdminRes] = await Promise.all([
+          http.get('/auth/user-list/', {
+            params: {
+              is_custodian: true,
+              is_petty_cash_user: true,
+              is_approved: true,
+              role: 'signer',
+            },
+          }),
+          http.get('/auth/user-list/', {
+            params: {
+              is_custodian: true,
+              is_petty_cash_user: true,
+              is_approved: true,
+              role: 'signer_admin',
+            },
+          }),
+        ]);
+        const signerResults = signerRes.data?.results ?? signerRes.data ?? [];
+        const signerAdminResults =
+          signerAdminRes.data?.results ?? signerAdminRes.data ?? [];
+        const merged = [...signerResults, ...signerAdminResults];
+        const unique = merged.filter(
+          (user, index, self) =>
+            index === self.findIndex((u) => u.id === user.id),
+        );
+        setSigners(unique);
+      } catch (err) {
+        console.error('Failed to fetch verifiers:', err);
+      } finally {
+        setLoadingVerifiers(false);
+      }
+    };
+
+    fetchVerifiers();
   }, [dispatch, transactionId]);
 
   // ── Pagination ────────────────────────────────────────────────────────────────
@@ -162,7 +215,15 @@ const ManageExpenses = () => {
 
   // ── Create dialog ─────────────────────────────────────────────────────────────
 
-  const handleOpenCreateDialog = () => setOpenCreateDialog(true);
+  const handleOpenCreateDialog = () => {
+    if (!isExpenseCreator) {
+      toast.error(
+        'You do not have permission to add expenses. Only expense creators can add expenses.',
+      );
+      return;
+    }
+    setOpenCreateDialog(true);
+  };
 
   const handleCloseCreateDialog = () => {
     setOpenCreateDialog(false);
@@ -914,6 +975,7 @@ const ManageExpenses = () => {
                         value={formData.verifier_id}
                         onChange={handleInputChange}
                         label="Choose Verifier"
+                        disabled={loadingVerifiers}
                         sx={{
                           fontSize: '1.1rem',
                           '& .MuiSelect-select': { py: 2 },
@@ -923,34 +985,46 @@ const ManageExpenses = () => {
                         }}
                       >
                         <MenuItem value="" disabled>
-                          <em>Select a verifier from the list</em>
-                        </MenuItem>
-                        {signers.length > 0 ? (
-                          signers.map((signer) => (
-                            <MenuItem
-                              key={signer.id}
-                              value={signer.id}
-                              sx={{ py: 1.5 }}
+                          {loadingVerifiers ? (
+                            <Box
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                              }}
                             >
-                              <Box>
-                                <Typography variant="body1" fontWeight={500}>
-                                  {signer.firstname} {signer.lastname}
-                                </Typography>
-                                <Typography
-                                  variant="caption"
-                                  color="text.secondary"
-                                  sx={{ display: 'block' }}
-                                >
-                                  {signer.position} • {signer.department}
-                                </Typography>
-                              </Box>
-                            </MenuItem>
-                          ))
-                        ) : (
+                              <CircularProgress size={14} />
+                              <em>Loading verifiers...</em>
+                            </Box>
+                          ) : (
+                            <em>Select a verifier from the list</em>
+                          )}
+                        </MenuItem>
+                        {!loadingVerifiers && signers.length === 0 && (
                           <MenuItem value="" disabled>
-                            <em>Loading verifiers...</em>
+                            <em>No eligible verifiers found</em>
                           </MenuItem>
                         )}
+                        {signers.map((signer) => (
+                          <MenuItem
+                            key={signer.id}
+                            value={signer.id}
+                            sx={{ py: 1.5 }}
+                          >
+                            <Box>
+                              <Typography variant="body1" fontWeight={500}>
+                                {signer.firstname} {signer.lastname}
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ display: 'block' }}
+                              >
+                                {signer.position} • {signer.department}
+                              </Typography>
+                            </Box>
+                          </MenuItem>
+                        ))}
                       </Select>
                     </FormControl>
                   </Box>

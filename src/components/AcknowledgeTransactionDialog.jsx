@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -16,9 +16,11 @@ import {
   Select,
   MenuItem,
   Paper,
+  CircularProgress,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import http from '../http-common';
 
 const styles = {
   section: {
@@ -34,10 +36,61 @@ const AcknowledgeTransactionDialog = ({
   handleClose,
   transaction,
   onAcknowledge,
-  signers = [],
 }) => {
   const [comment, setComment] = useState('');
   const [expenseCreatorId, setExpenseCreatorId] = useState('');
+  const [expenseCreators, setExpenseCreators] = useState([]);
+  const [loadingCreators, setLoadingCreators] = useState(false);
+
+  // Fetch eligible expense creators whenever the dialog opens
+  useEffect(() => {
+    if (!open) return;
+
+    const fetchExpenseCreators = async () => {
+      setLoadingCreators(true);
+      try {
+        // Fetch both signer and signer_admin roles in parallel
+        const [signerRes, signerAdminRes] = await Promise.all([
+          http.get('/auth/user-list/', {
+            params: {
+              is_approved: true,
+              is_petty_cash_user: true,
+              is_expense_creator: true,
+              role: 'signer',
+            },
+          }),
+          http.get('/auth/user-list/', {
+            params: {
+              is_approved: true,
+              is_petty_cash_user: true,
+              is_expense_creator: true,
+              role: 'signer_admin',
+            },
+          }),
+        ]);
+
+        const signerResults = signerRes.data?.results ?? signerRes.data ?? [];
+        const signerAdminResults =
+          signerAdminRes.data?.results ?? signerAdminRes.data ?? [];
+
+        // Merge and deduplicate by user id
+        const merged = [...signerResults, ...signerAdminResults];
+        const unique = merged.filter(
+          (user, index, self) =>
+            index === self.findIndex((u) => u.id === user.id),
+        );
+
+        setExpenseCreators(unique);
+      } catch (err) {
+        console.error('Failed to fetch expense creators:', err);
+        setExpenseCreators([]);
+      } finally {
+        setLoadingCreators(false);
+      }
+    };
+
+    fetchExpenseCreators();
+  }, [open]);
 
   const handleAcknowledge = () => {
     if (onAcknowledge) {
@@ -177,6 +230,7 @@ const AcknowledgeTransactionDialog = ({
                 value={expenseCreatorId}
                 onChange={(e) => setExpenseCreatorId(e.target.value)}
                 label="Choose Creator"
+                disabled={loadingCreators}
                 sx={{
                   fontSize: '1.1rem',
                   '& .MuiSelect-select': { py: 2 },
@@ -190,35 +244,41 @@ const AcknowledgeTransactionDialog = ({
                 MenuProps={{ PaperProps: { style: { maxHeight: 400 } } }}
               >
                 <MenuItem value="" disabled>
-                  <em>Select a creator from the list</em>
+                  {loadingCreators ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <CircularProgress size={14} />
+                      <em>Loading creators...</em>
+                    </Box>
+                  ) : (
+                    <em>Select a creator from the list</em>
+                  )}
                 </MenuItem>
-                {signers.length > 0 ? (
-                  signers.map((signer) => (
-                    <MenuItem
-                      key={signer.id}
-                      value={signer.id}
-                      sx={{ py: 1.5 }}
-                    >
-                      <Box>
-                        <Typography variant="body1" fontWeight={500}>
-                          {signer.firstname} {signer.lastname}
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          sx={{ display: 'block' }}
-                        >
-                          {signer.position} • {signer.department} •{' '}
-                          {signer.section}
-                        </Typography>
-                      </Box>
-                    </MenuItem>
-                  ))
-                ) : (
+                {!loadingCreators && expenseCreators.length === 0 && (
                   <MenuItem value="" disabled>
-                    <em>Loading creators...</em>
+                    <em>No eligible creators found</em>
                   </MenuItem>
                 )}
+                {expenseCreators.map((creator) => (
+                  <MenuItem
+                    key={creator.id}
+                    value={creator.id}
+                    sx={{ py: 1.5 }}
+                  >
+                    <Box>
+                      <Typography variant="body1" fontWeight={500}>
+                        {creator.firstname} {creator.lastname}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ display: 'block' }}
+                      >
+                        {creator.position} • {creator.department} •{' '}
+                        {creator.section}
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
           </Box>
@@ -268,7 +328,7 @@ const AcknowledgeTransactionDialog = ({
           onClick={handleAcknowledge}
           variant="contained"
           startIcon={<CheckCircleOutlineIcon />}
-          disabled={!expenseCreatorId}
+          disabled={!expenseCreatorId || loadingCreators}
           sx={{
             bgcolor: '#66BB6A',
             '&:hover': {

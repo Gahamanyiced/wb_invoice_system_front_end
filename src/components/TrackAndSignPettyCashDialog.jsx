@@ -6,7 +6,7 @@ import {
   trackPettyCashReplenishRequest,
   approvePettyCashRequest,
 } from '../features/pettyCash/pettyCashSlice';
-import { getAllSigners } from '../features/user/userSlice';
+import http from '../http-common';
 import { toast } from 'react-toastify';
 import {
   Dialog,
@@ -186,16 +186,26 @@ const TrackAndSignPettyCashDialog = ({
   const [showSignForm, setShowSignForm] = useState(false);
   const [notesError, setNotesError] = useState('');
   const [availableSigners, setAvailableSigners] = useState([]);
+  const [loadingSigners, setLoadingSigners] = useState(false);
   const [nextApproverId, setNextApproverId] = useState('');
   const [nextApproverError, setNextApproverError] = useState('');
 
   // ── Guard against duplicate submissions ───────────────────────────────────
   const isSubmitting = useRef(false);
 
+  // ── Logged-in user ────────────────────────────────────────────────────────
+  const loggedInUser = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || 'null');
+    } catch {
+      return null;
+    }
+  })();
+
   useEffect(() => {
     if (open && request?.id) {
       fetchTrackingData();
-      fetchSigners();
+      fetchNextApprovers();
     }
   }, [open, request?.id]);
 
@@ -210,14 +220,82 @@ const TrackAndSignPettyCashDialog = ({
     }
   };
 
-  const fetchSigners = async () => {
-    try {
-      const result = await dispatch(
-        getAllSigners({ is_petty_cash_user: 'true' }),
-      ).unwrap();
-      setAvailableSigners(result?.results || []);
-    } catch {
+  // ── Role-aware next approver fetch ────────────────────────────────────────
+  // Context is determined by trackingStateKey prop:
+  //   Expense context  (expenseTrackingData):
+  //     is_custodian       → is_first_approver=true
+  //     is_first_approver  → is_second_approver=true
+  //     is_second_approver → is_last_approver=true
+  //     any other          → empty
+  //
+  //   Request context (replenishRequestTrackingData):
+  //     is_first_approver  → is_second_approver=true
+  //     is_second_approver → is_last_approver=true
+  //     any other          → empty
+  //
+  // All calls also filter: is_petty_cash_user=true, is_approved=true,
+  // role=signer OR role=signer_admin (two parallel calls merged)
+  const fetchNextApprovers = async () => {
+    const isExpenseContext = trackingStateKey === 'expenseTrackingData';
+    const isCustodian = loggedInUser?.is_custodian === true;
+    const isFirstApprover = loggedInUser?.is_first_approver === true;
+    const isSecondApprover = loggedInUser?.is_second_approver === true;
+
+    // Determine which flag to filter the next approver by
+    let nextApproverFlag = null;
+    if (isExpenseContext) {
+      // Expense chain: custodian → first → second → last
+      if (isCustodian) nextApproverFlag = 'is_first_approver';
+      else if (isFirstApprover) nextApproverFlag = 'is_second_approver';
+      else if (isSecondApprover) nextApproverFlag = 'is_last_approver';
+    } else {
+      // Request/replenishment chain: first → second → last (no custodian step)
+      if (isFirstApprover) nextApproverFlag = 'is_second_approver';
+      else if (isSecondApprover) nextApproverFlag = 'is_last_approver';
+    }
+
+    // Role not eligible — no list
+    if (!nextApproverFlag) {
       setAvailableSigners([]);
+      return;
+    }
+
+    setLoadingSigners(true);
+    try {
+      const [signerRes, signerAdminRes] = await Promise.all([
+        http.get('/auth/user-list/', {
+          params: {
+            [nextApproverFlag]: true,
+            is_petty_cash_user: true,
+            is_approved: true,
+            role: 'signer',
+          },
+        }),
+        http.get('/auth/user-list/', {
+          params: {
+            [nextApproverFlag]: true,
+            is_petty_cash_user: true,
+            is_approved: true,
+            role: 'signer_admin',
+          },
+        }),
+      ]);
+
+      const signerResults = signerRes.data?.results ?? signerRes.data ?? [];
+      const signerAdminResults =
+        signerAdminRes.data?.results ?? signerAdminRes.data ?? [];
+
+      const merged = [...signerResults, ...signerAdminResults];
+      const unique = merged.filter(
+        (user, index, self) =>
+          index === self.findIndex((u) => u.id === user.id),
+      );
+      setAvailableSigners(unique);
+    } catch (err) {
+      console.error('Failed to fetch next approvers:', err);
+      setAvailableSigners([]);
+    } finally {
+      setLoadingSigners(false);
     }
   };
 
@@ -347,15 +425,6 @@ const TrackAndSignPettyCashDialog = ({
     : entity.date || entity.created_at;
   const approvalLevel =
     entity.current_approval_level || td.current_approval_level;
-
-  // ── Logged-in user ────────────────────────────────────────────────────────
-  const loggedInUser = (() => {
-    try {
-      return JSON.parse(localStorage.getItem('user') || 'null');
-    } catch {
-      return null;
-    }
-  })();
 
   // History field normalisation helpers
   const historyUserName = (h) =>
@@ -648,45 +717,22 @@ const TrackAndSignPettyCashDialog = ({
                           <AttachFileIcon
                             sx={{ mr: 1, color: '#00529B', fontSize: 18 }}
                           />
-                          <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography
-                              variant="body2"
-                              sx={{
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {doc.document_name ||
-                                doc.document_url?.split('/').pop() ||
-                                `Document ${i + 1}`}
-                            </Typography>
-                            {doc.uploaded_by && (
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                              >
-                                {doc.uploaded_by}
-                              </Typography>
-                            )}
-                          </Box>
+                          <Typography variant="body2" sx={{ flex: 1 }}>
+                            {doc.document_name ||
+                              doc.document_url?.split('/').pop()}
+                          </Typography>
                           <Typography
                             variant="caption"
-                            sx={{
-                              color: '#00529B',
-                              fontWeight: 600,
-                              flexShrink: 0,
-                              ml: 1,
-                            }}
+                            sx={{ color: '#00529B', fontWeight: 600 }}
                           >
-                            View
+                            Download
                           </Typography>
                         </Box>
                       ))}
                     </Grid>
                   )}
 
-                {/* Supporting Documents — expense context: entity.documents[] */}
+                {/* Supporting Documents — expense context */}
                 {!isRequestContext && expenseDocuments.length > 0 && (
                   <Grid item xs={12}>
                     <Typography sx={style.fieldLabel}>
@@ -704,44 +750,21 @@ const TrackAndSignPettyCashDialog = ({
                           borderRadius: 1,
                           cursor: 'pointer',
                           border: '1px solid rgba(0, 82, 155, 0.15)',
-                          '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.1)' },
+                          '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.05)' },
                         }}
                       >
                         <AttachFileIcon
                           sx={{ mr: 1, color: '#00529B', fontSize: 18 }}
                         />
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {doc.document_name ||
-                              doc.document_url?.split('/').pop() ||
-                              `Document ${i + 1}`}
-                          </Typography>
-                          {doc.uploaded_by && (
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                            >
-                              {doc.uploaded_by}
-                            </Typography>
-                          )}
-                        </Box>
+                        <Typography variant="body2" sx={{ flex: 1 }}>
+                          {doc.document_name ||
+                            doc.document_url?.split('/').pop()}
+                        </Typography>
                         <Typography
                           variant="caption"
-                          sx={{
-                            color: '#00529B',
-                            fontWeight: 600,
-                            flexShrink: 0,
-                            ml: 1,
-                          }}
+                          sx={{ color: '#00529B', fontWeight: 600 }}
                         >
-                          View
+                          Download
                         </Typography>
                       </Box>
                     ))}
@@ -750,7 +773,7 @@ const TrackAndSignPettyCashDialog = ({
               </Grid>
             </Paper>
 
-            {/* ── Approval History ── */}
+            {/* ── Approval history ── */}
             <Paper elevation={0} sx={style.section}>
               <Typography
                 variant="subtitle1"
@@ -763,21 +786,23 @@ const TrackAndSignPettyCashDialog = ({
               <Divider sx={{ mb: 2 }} />
 
               {histories.length > 0 ? (
-                <Stepper orientation="vertical">
-                  {histories.map((history) => (
-                    <Step key={history.id} active completed={false}>
+                <Stepper orientation="vertical" nonLinear>
+                  {histories.map((history, idx) => (
+                    <Step key={idx} active expanded>
                       <StepLabel
                         StepIconComponent={() => (
                           <Box
                             sx={{
-                              width: 36,
-                              height: 36,
+                              width: 28,
+                              height: 28,
                               borderRadius: '50%',
                               bgcolor: stepBgColor(history.status),
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                               color: 'white',
+                              fontSize: 13,
+                              flexShrink: 0,
                             }}
                           >
                             {historyIsSigned(history) ? (
@@ -952,7 +977,8 @@ const TrackAndSignPettyCashDialog = ({
                                 variant="caption"
                                 color="text.secondary"
                               >
-                                Mark as fully approved
+                                Fully approve this{' '}
+                                {isRequestContext ? 'request' : 'expense'}
                               </Typography>
                             </Box>
                           </Box>
@@ -1022,12 +1048,28 @@ const TrackAndSignPettyCashDialog = ({
                             setNextApproverError('');
                           }}
                           label="Next Approver *"
+                          disabled={loadingSigners}
                           MenuProps={{
                             PaperProps: { style: { maxHeight: 300 } },
                           }}
                         >
                           <MenuItem value="" disabled>
-                            <em>Select next approver</em>
+                            {loadingSigners ? (
+                              <Box
+                                sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 1,
+                                }}
+                              >
+                                <CircularProgress size={14} />
+                                <em>Loading next approvers...</em>
+                              </Box>
+                            ) : availableSigners.length === 0 ? (
+                              <em>No eligible next approvers</em>
+                            ) : (
+                              <em>Select next approver</em>
+                            )}
                           </MenuItem>
                           {availableSigners.map((signer) => (
                             <MenuItem
@@ -1079,24 +1121,19 @@ const TrackAndSignPettyCashDialog = ({
                       }}
                       placeholder={
                         signAction === 'approve_and_forward'
-                          ? 'e.g. Approved, forwarding to department head'
-                          : signAction === 'approve_final'
-                            ? 'e.g. Final approval granted'
+                          ? 'e.g. Forwarding to finance manager for final approval...'
+                          : signAction === 'deny'
+                            ? 'Explain the reason for denial...'
                             : signAction === 'rollback'
-                              ? 'e.g. Needs correction before re-submission'
-                              : signAction === 'deny'
-                                ? 'e.g. Insufficient documentation'
-                                : 'Add any comments...'
-                      }
-                      required={
-                        signAction === 'deny' || signAction === 'rollback'
+                              ? 'Explain the reason for rollback...'
+                              : 'Optional notes...'
                       }
                       error={!!notesError}
                       helperText={notesError}
                       sx={{ mb: 2 }}
                     />
 
-                    <Box sx={{ display: 'flex', gap: 2 }}>
+                    <Box sx={{ display: 'flex', gap: 1.5 }}>
                       <Button
                         variant="outlined"
                         onClick={resetSignForm}
@@ -1111,13 +1148,11 @@ const TrackAndSignPettyCashDialog = ({
                       <Button
                         variant="contained"
                         onClick={handleSignSubmit}
-                        disabled={
-                          isLoading || isSubmitting.current || !signAction
-                        }
+                        disabled={isLoading || !signAction}
                         startIcon={
                           isLoading ? (
                             <CircularProgress
-                              size={18}
+                              size={16}
                               sx={{ color: 'white' }}
                             />
                           ) : null

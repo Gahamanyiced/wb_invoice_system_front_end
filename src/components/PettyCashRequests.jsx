@@ -5,8 +5,8 @@ import {
   createPettyCashRequest,
   deletePettyCashRequest,
 } from '../features/pettyCash/pettyCashSlice';
-import { getAllSigners } from '../features/user/userSlice';
 import { getAllPettyCash } from '../features/pettyCash/pettyCashSlice';
+import http from '../http-common';
 import { toast } from 'react-toastify';
 import {
   Box,
@@ -35,6 +35,7 @@ import {
   Tooltip,
   TablePagination,
   Alert,
+  CircularProgress,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
@@ -93,7 +94,6 @@ const PettyCashRequests = () => {
   const { pettyCashRequests, pettyCashList, isLoading } = useSelector(
     (state) => state.pettyCash,
   );
-  const { users: signersData } = useSelector((state) => state.user);
 
   const [openDialog, setOpenDialog] = useState(false);
   const [openViewModal, setOpenViewModal] = useState(false);
@@ -107,8 +107,22 @@ const PettyCashRequests = () => {
   // const [openEditModal, setOpenEditModal] = useState(false);
   // const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
 
+  // Verifiers: fetched via parallel HTTP calls on mount
+  const [signers, setSigners] = useState([]);
+  const [loadingVerifiers, setLoadingVerifiers] = useState(false);
+
+  // ── Logged-in user & permission ──────────────────────────────────────────
+  const loggedInUser = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || 'null');
+    } catch {
+      return null;
+    }
+  })();
+
+  const isCustodian = loggedInUser?.is_custodian === true;
+
   // Extract data from paginated responses
-  const signers = signersData?.results || [];
   const availablePettyCash = pettyCashList?.results || [];
   const requests = pettyCashRequests?.results || [];
   const totalCount = pettyCashRequests?.count || 0;
@@ -128,8 +142,49 @@ const PettyCashRequests = () => {
   // Fetch data on component mount
   useEffect(() => {
     dispatch(getAllPettyCashRequests({ page: 1 }));
-    dispatch(getAllSigners({ is_petty_cash_user: 'true' })); // Fetch only petty cash users
     dispatch(getAllPettyCash({ page: 1, status: 'active' }));
+
+    // Fetch verifiers: is_first_approver=true, is_petty_cash_user=true,
+    // is_approved=true, role=signer AND role=signer_admin (two parallel calls)
+    const fetchVerifiers = async () => {
+      setLoadingVerifiers(true);
+      try {
+        const [signerRes, signerAdminRes] = await Promise.all([
+          http.get('/auth/user-list/', {
+            params: {
+              is_first_approver: true,
+              is_petty_cash_user: true,
+              is_approved: true,
+              role: 'signer',
+            },
+          }),
+          http.get('/auth/user-list/', {
+            params: {
+              is_first_approver: true,
+              is_petty_cash_user: true,
+              is_approved: true,
+              role: 'signer_admin',
+            },
+          }),
+        ]);
+        const signerResults = signerRes.data?.results ?? signerRes.data ?? [];
+        const signerAdminResults =
+          signerAdminRes.data?.results ?? signerAdminRes.data ?? [];
+        const merged = [...signerResults, ...signerAdminResults];
+        const unique = merged.filter(
+          (user, index, self) =>
+            index === self.findIndex((u) => u.id === user.id),
+        );
+        setSigners(unique);
+      } catch (err) {
+        console.error('Failed to fetch verifiers:', err);
+        setSigners([]);
+      } finally {
+        setLoadingVerifiers(false);
+      }
+    };
+
+    fetchVerifiers();
   }, [dispatch]);
 
   const [formData, setFormData] = useState({
@@ -147,6 +202,12 @@ const PettyCashRequests = () => {
   });
 
   const handleOpenDialog = () => {
+    if (!isCustodian) {
+      toast.error(
+        'You do not have permission to create petty cash requests. Only custodians can submit requests.',
+      );
+      return;
+    }
     setOpenDialog(true);
   };
 
@@ -706,6 +767,7 @@ const PettyCashRequests = () => {
                       value={formData.verifier_id}
                       onChange={handleInputChange}
                       displayEmpty
+                      disabled={loadingVerifiers}
                       sx={{
                         fontSize: '1.1rem',
                         py: 2,
@@ -715,20 +777,32 @@ const PettyCashRequests = () => {
                       }}
                     >
                       <MenuItem value="" disabled>
-                        <em>Select a verifier from the list</em>
+                        {loadingVerifiers ? (
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1,
+                            }}
+                          >
+                            <CircularProgress size={14} />
+                            <em>Loading verifiers...</em>
+                          </Box>
+                        ) : (
+                          <em>Select a verifier from the list</em>
+                        )}
                       </MenuItem>
-                      {signers.length === 0 ? (
+                      {!loadingVerifiers && signers.length === 0 && (
                         <MenuItem value="" disabled>
-                          <em>No signers available</em>
+                          <em>No eligible verifiers found</em>
                         </MenuItem>
-                      ) : (
-                        signers.map((signer) => (
-                          <MenuItem key={signer.id} value={signer.id}>
-                            {signer.firstname} {signer.lastname} -{' '}
-                            {signer.position}
-                          </MenuItem>
-                        ))
                       )}
+                      {signers.map((signer) => (
+                        <MenuItem key={signer.id} value={signer.id}>
+                          {signer.firstname} {signer.lastname} -{' '}
+                          {signer.position}
+                        </MenuItem>
+                      ))}
                     </Select>
                   </FormControl>
                 </Box>

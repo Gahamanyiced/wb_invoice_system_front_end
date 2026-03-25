@@ -9,7 +9,6 @@ import {
   rollbackPettyCash,
   getPettyCashLedger,
 } from '../features/pettyCash/pettyCashSlice';
-import { getAllUsers } from '../features/user/userSlice';
 import { toast } from 'react-toastify';
 import {
   Box,
@@ -52,6 +51,7 @@ import UndoIcon from '@mui/icons-material/Undo';
 import CurrencyExchangeIcon from '@mui/icons-material/CurrencyExchange';
 import DownloadIcon from '@mui/icons-material/Download';
 import { useNavigate } from 'react-router-dom';
+import http from '../http-common';
 import ViewTransactionModal from './ViewTransactionModal';
 import AcknowledgeTransactionDialog from './AcknowledgeTransactionDialog';
 import EditTransactionModal from './EditTransactionModal';
@@ -188,15 +188,9 @@ const PettyCashTransactions = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { pettyCashList, isLoading } = useSelector((state) => state.pettyCash);
-  const { users: usersData } = useSelector((state) => state.user);
 
   const [transactions, setTransactions] = useState([]);
-
-  // Custodians: filtered from user-list — is_custodian=true, is_petty_cash_user=true,
-  // is_approved=true, role=signer or signer_admin (client-side role filter applied)
-  const custodians = (usersData?.results || []).filter(
-    (u) => u.role === 'signer' || u.role === 'signer_admin',
-  );
+  const [custodians, setCustodians] = useState([]);
 
   const totalCount = pettyCashList?.count || 0;
 
@@ -211,10 +205,41 @@ const PettyCashTransactions = () => {
   })();
 
   // ── Role checks ──────────────────────────────────────────────────────────
+  const isCustodian = loggedInUser?.is_custodian === true;
+  const isExpenseCreator = loggedInUser?.is_expense_creator === true;
+  const isApprover = loggedInUser?.is_approver === true;
   const isFirstApprover = loggedInUser?.is_first_approver === true;
+  const isSecondApprover = loggedInUser?.is_second_approver === true;
+  const isLastApprover = loggedInUser?.is_last_approver === true;
+  const isAdmin = loggedInUser?.role === 'admin';
 
-  // Top-Up is only visible when is_first_approver === true
+  // View              → everyone (no flag needed)
+  // Acknowledge       → custodian only
+  const canAcknowledge = isCustodian;
+  // Edit              → first approver only
+  const canEdit = isFirstApprover;
+  // Approve Expenses  → approver | first | second | last approver | custodian | expense creator
+  const canApproveExpenses =
+    isApprover ||
+    isFirstApprover ||
+    isSecondApprover ||
+    isLastApprover ||
+    isCustodian ||
+    isExpenseCreator;
+  // Approve Replenishment → approver | first | second | last approver | custodian
+  const canApproveReplenishment =
+    isApprover ||
+    isFirstApprover ||
+    isSecondApprover ||
+    isLastApprover ||
+    isCustodian;
+  // Rollback          → custodian | first approver | admin
+  const canRollback = isCustodian || isFirstApprover || isAdmin;
+  // Delete            → first approver only
+  const canDelete = isFirstApprover;
+  // Top-Up            → first approver only
   const canTopUp = isFirstApprover;
+  // Download Ledger   → everyone (no flag needed)
 
   const refreshList = () => {
     dispatch(getAllPettyCash({ page: page + 1 }));
@@ -233,14 +258,44 @@ const PettyCashTransactions = () => {
 
   useEffect(() => {
     dispatch(getAllPettyCash({ page: 1 }));
-    // Fetch custodians via user-list with required filters
-    dispatch(
-      getAllUsers({
-        is_custodian: true,
-        is_petty_cash_user: true,
-        is_approved: true,
-      }),
-    );
+
+    // Fetch custodians via two parallel calls for role=signer and role=signer_admin,
+    // all with is_custodian=true, is_petty_cash_user=true, is_approved=true
+    const fetchCustodians = async () => {
+      try {
+        const [signerRes, signerAdminRes] = await Promise.all([
+          http.get('/auth/user-list/', {
+            params: {
+              is_custodian: true,
+              is_petty_cash_user: true,
+              is_approved: true,
+              role: 'signer',
+            },
+          }),
+          http.get('/auth/user-list/', {
+            params: {
+              is_custodian: true,
+              is_petty_cash_user: true,
+              is_approved: true,
+              role: 'signer_admin',
+            },
+          }),
+        ]);
+        const signerResults = signerRes.data?.results ?? signerRes.data ?? [];
+        const signerAdminResults =
+          signerAdminRes.data?.results ?? signerAdminRes.data ?? [];
+        const merged = [...signerResults, ...signerAdminResults];
+        const unique = merged.filter(
+          (user, index, self) =>
+            index === self.findIndex((u) => u.id === user.id),
+        );
+        setCustodians(unique);
+      } catch (err) {
+        console.error('Failed to fetch custodians:', err);
+      }
+    };
+
+    fetchCustodians();
   }, [dispatch]);
 
   useEffect(() => {
@@ -337,16 +392,22 @@ const PettyCashTransactions = () => {
       toast.error('User not found. Please log in again.');
       return;
     }
+    if (!isCustodian) {
+      toast.error(
+        'You do not have permission to acknowledge. Only custodians can acknowledge receipt.',
+      );
+      return;
+    }
     if (loggedInUser.id !== transaction.holder?.id) {
-      toast.error('Only the transaction custodian can acknowledge receipt');
+      toast.error('Only the transaction custodian can acknowledge receipt.');
       return;
     }
     if (transaction.is_acknowledged) {
-      toast.warning('This transaction has already been acknowledged');
+      toast.warning('This transaction has already been acknowledged.');
       return;
     }
     if (transaction.status !== 'pending_acknowledgment') {
-      toast.error('This transaction is not pending acknowledgment');
+      toast.error('This transaction is not pending acknowledgment.');
       return;
     }
     setSelectedTransaction(transaction);
@@ -358,8 +419,10 @@ const PettyCashTransactions = () => {
       toast.error('User not found. Please log in again.');
       return;
     }
-    if (loggedInUser.id !== transaction.issued_by?.id) {
-      toast.error('Only the person who issued this transaction can edit it.');
+    if (!canEdit) {
+      toast.error(
+        'You do not have permission to edit transactions. Only first approvers can edit.',
+      );
       return;
     }
     if (!EDIT_ALLOWED_STATUSES.includes(transaction.status)) {
@@ -377,8 +440,10 @@ const PettyCashTransactions = () => {
       toast.error('User not found. Please log in again.');
       return;
     }
-    if (loggedInUser.id !== transaction.issued_by?.id) {
-      toast.error('Only the person who issued this transaction can delete it.');
+    if (!canDelete) {
+      toast.error(
+        'You do not have permission to delete transactions. Only first approvers can delete.',
+      );
       return;
     }
     setSelectedTransaction(transaction);
@@ -386,10 +451,28 @@ const PettyCashTransactions = () => {
   };
 
   const handleAddExpenses = (transaction) => {
+    if (!loggedInUser) {
+      toast.error('User not found. Please log in again.');
+      return;
+    }
+    if (!canApproveExpenses) {
+      toast.error('You do not have permission to manage expenses.');
+      return;
+    }
     navigate(`/manage-expenses/${transaction.id}`, { state: { transaction } });
   };
 
   const handleRequestPettyCash = (transaction) => {
+    if (!loggedInUser) {
+      toast.error('User not found. Please log in again.');
+      return;
+    }
+    if (!canApproveReplenishment) {
+      toast.error(
+        'You do not have permission to manage replenishment requests.',
+      );
+      return;
+    }
     navigate(`/request-petty-cash/${transaction.id}`, {
       state: { transaction },
     });
@@ -400,13 +483,9 @@ const PettyCashTransactions = () => {
       toast.error('User not found. Please log in again.');
       return;
     }
-    const isHolder = loggedInUser.id === transaction.holder?.id;
-    const isAdmin =
-      loggedInUser.role === 'admin' || loggedInUser.role === 'signer_admin';
-
-    if (!isHolder && !isAdmin) {
+    if (!canRollback) {
       toast.error(
-        'Only the transaction custodian or an admin can perform a rollback.',
+        'You do not have permission to perform a rollback. Only custodians, first approvers, or admins can rollback.',
       );
       return;
     }
@@ -417,6 +496,12 @@ const PettyCashTransactions = () => {
   const handleReplenish = (transaction) => {
     if (!loggedInUser) {
       toast.error('User not found. Please log in again.');
+      return;
+    }
+    if (!canTopUp) {
+      toast.error(
+        'You do not have permission to top up. Only first approvers can top up.',
+      );
       return;
     }
     setSelectedTransaction(transaction);
@@ -554,11 +639,19 @@ const PettyCashTransactions = () => {
           Transactions
         </Typography>
 
-        {/* Create Transaction — visible to all roles */}
+        {/* Create Transaction — is_first_approver only */}
         <Button
           variant="contained"
           startIcon={<AddIcon />}
-          onClick={handleOpenDialog}
+          onClick={() => {
+            if (!canEdit) {
+              toast.error(
+                'You do not have permission to create transactions. Only first approvers can create.',
+              );
+              return;
+            }
+            handleOpenDialog();
+          }}
           sx={{
             bgcolor: '#00529B',
             '&:hover': { bgcolor: '#003d73' },
@@ -702,7 +795,7 @@ const PettyCashTransactions = () => {
                         alignItems: 'center',
                       }}
                     >
-                      {/* View — visible to all */}
+                      {/* View — everyone */}
                       <Tooltip title="View" arrow>
                         <IconButton
                           size="small"
@@ -713,7 +806,7 @@ const PettyCashTransactions = () => {
                         </IconButton>
                       </Tooltip>
 
-                      {/* Acknowledge — visible to all */}
+                      {/* Acknowledge */}
                       <Tooltip title="Acknowledge" arrow>
                         <IconButton
                           size="small"
@@ -724,7 +817,7 @@ const PettyCashTransactions = () => {
                         </IconButton>
                       </Tooltip>
 
-                      {/* Edit — visible to all */}
+                      {/* Edit */}
                       <Tooltip title="Edit" arrow>
                         <IconButton
                           size="small"
@@ -735,7 +828,7 @@ const PettyCashTransactions = () => {
                         </IconButton>
                       </Tooltip>
 
-                      {/* Approve Expenses — visible to all */}
+                      {/* Approve Expenses */}
                       <Tooltip title="Approve Expenses" arrow>
                         <IconButton
                           size="small"
@@ -746,7 +839,7 @@ const PettyCashTransactions = () => {
                         </IconButton>
                       </Tooltip>
 
-                      {/* Approve Replenishment — visible to all */}
+                      {/* Approve Replenishment */}
                       <Tooltip title="Approve Replenishment" arrow>
                         <IconButton
                           size="small"
@@ -757,20 +850,7 @@ const PettyCashTransactions = () => {
                         </IconButton>
                       </Tooltip>
 
-                      {/* Top-Up — only visible when is_first_approver === true */}
-                      {canTopUp && (
-                        <Tooltip title="Top-Up" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleReplenish(transaction)}
-                            sx={{ color: '#00897B', padding: '6px' }}
-                          >
-                            <CurrencyExchangeIcon sx={{ fontSize: '1.1rem' }} />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-
-                      {/* Rollback — visible to all */}
+                      {/* Rollback */}
                       <Tooltip title="Rollback" arrow>
                         <IconButton
                           size="small"
@@ -781,7 +861,18 @@ const PettyCashTransactions = () => {
                         </IconButton>
                       </Tooltip>
 
-                      {/* Download Ledger Report — visible to all */}
+                      {/* Top-Up */}
+                      <Tooltip title="Top-Up" arrow>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleReplenish(transaction)}
+                          sx={{ color: '#00897B', padding: '6px' }}
+                        >
+                          <CurrencyExchangeIcon sx={{ fontSize: '1.1rem' }} />
+                        </IconButton>
+                      </Tooltip>
+
+                      {/* Download Ledger Report — everyone */}
                       <Tooltip title="Download Ledger Report" arrow>
                         <IconButton
                           size="small"
@@ -799,7 +890,7 @@ const PettyCashTransactions = () => {
                         </IconButton>
                       </Tooltip>
 
-                      {/* Delete — visible to all */}
+                      {/* Delete */}
                       <Tooltip title="Delete" arrow>
                         <IconButton
                           size="small"
@@ -1166,7 +1257,6 @@ const PettyCashTransactions = () => {
           handleClose={handleCloseAcknowledgeDialog}
           transaction={selectedTransaction}
           onAcknowledge={handleAcknowledgeSubmit}
-          signers={custodians}
         />
       )}
 
