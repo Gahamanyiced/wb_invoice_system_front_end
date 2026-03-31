@@ -898,19 +898,33 @@ const TrackAndSignPettyCashDialog = ({
                   </Button>
                 ) : (
                   <Box>
-                    {/* Action selector — visible actions per permission table:
-                        Expenses:  custodian | first | second → approve_and_forward, approve, deny, rollback
-                                   last approver              → approve_and_forward, approve_final, deny, rollback
-                        Request:   first | second             → approve_and_forward, approve, deny, rollback
-                                   last approver              → approve_and_forward, approve_final, deny, rollback
+                    {/* Action selector
+                        Visible actions depend on context + logged-in role:
+                        Expenses:
+                          custodian / first / second approver → approve_and_forward, deny, rollback
+                          last approver                       → approve_final, deny, rollback
+                        Request/Replenishment:
+                          first / second approver → approve_and_forward, deny, rollback
+                          last approver           → approve_final, deny, rollback
                     */}
                     {(() => {
+                      const _isCustodian = loggedInUser?.is_custodian === true;
+                      const _isFirstApprover =
+                        loggedInUser?.is_first_approver === true;
+                      const _isSecondApprover =
+                        loggedInUser?.is_second_approver === true;
                       const _isLastApprover =
                         loggedInUser?.is_last_approver === true;
 
-                      // Last approver gets Final Approval + Approve & Forward
-                      // Non-last approvers get simple Approve + Approve & Forward
-                      // Both contexts follow the same pattern
+                      // Last approver sees final approval; everyone else sees approve & forward
+                      const showFinal = isExpenseContext
+                        ? _isLastApprover &&
+                          !_isCustodian &&
+                          !_isFirstApprover &&
+                          !_isSecondApprover
+                        : _isLastApprover &&
+                          !_isFirstApprover &&
+                          !_isSecondApprover;
 
                       return (
                         <FormControl fullWidth sx={{ mb: 2 }}>
@@ -925,35 +939,9 @@ const TrackAndSignPettyCashDialog = ({
                             }}
                             label="Action *"
                           >
-                            {/* Approve & Forward — always visible */}
-                            <MenuItem value="approve_and_forward">
-                              <Box
-                                sx={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 1,
-                                }}
-                              >
-                                <ThumbUpIcon
-                                  sx={{ color: '#42A5F5', fontSize: 20 }}
-                                />
-                                <Box>
-                                  <Typography variant="body2" fontWeight={500}>
-                                    Approve &amp; Forward
-                                  </Typography>
-                                  <Typography
-                                    variant="caption"
-                                    color="text.secondary"
-                                  >
-                                    Approve and assign next approver
-                                  </Typography>
-                                </Box>
-                              </Box>
-                            </MenuItem>
-
-                            {/* Approve (simple) — custodian, first, second approver only */}
-                            {!_isLastApprover && (
-                              <MenuItem value="approve">
+                            {/* Approve & Forward — for non-last approvers */}
+                            {!showFinal && (
+                              <MenuItem value="approve_and_forward">
                                 <Box
                                   sx={{
                                     display: 'flex',
@@ -962,28 +950,28 @@ const TrackAndSignPettyCashDialog = ({
                                   }}
                                 >
                                   <ThumbUpIcon
-                                    sx={{ color: '#66BB6A', fontSize: 20 }}
+                                    sx={{ color: '#42A5F5', fontSize: 20 }}
                                   />
                                   <Box>
                                     <Typography
                                       variant="body2"
                                       fontWeight={500}
                                     >
-                                      Approve
+                                      Approve &amp; Forward
                                     </Typography>
                                     <Typography
                                       variant="caption"
                                       color="text.secondary"
                                     >
-                                      Simple approval
+                                      Approve and assign next approver
                                     </Typography>
                                   </Box>
                                 </Box>
                               </MenuItem>
                             )}
 
-                            {/* Final Approval — last approver only */}
-                            {_isLastApprover && (
+                            {/* Final Approval — for last approver only */}
+                            {showFinal && (
                               <MenuItem value="approve_final">
                                 <Box
                                   sx={{
