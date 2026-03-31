@@ -247,25 +247,36 @@ function AddCCSignerDialog({
   );
 }
 
-// ---- Edit Order Dialog ----
-function EditOrderDialog({ open, onClose, signer, isLoading }) {
+// ---- Edit Signer Dialog ----
+function EditCCSignerDialog({ open, onClose, signer, isLoading, signersList }) {
   const dispatch = useDispatch();
   const [order, setOrder] = useState('');
 
+  const signerOptions = signersList.map((s) => ({
+    id: s.id,
+    label: `${s.firstname} ${s.lastname}`,
+  }));
+
+  const currentSignerOption = signer
+    ? signerOptions.find((o) => o.id === signer.signer) || null
+    : null;
+
   useEffect(() => {
-    if (open && signer) setOrder(signer.order || '');
+    if (open && signer) {
+      setOrder(signer.order ?? '');
+    }
   }, [open, signer]);
 
-  const handleSubmit = async () => {
+  const handleUpdate = async () => {
     if (!order) {
-      toast.error('Order is required');
+      toast.error('Please enter an order');
       return;
     }
     const res = await dispatch(
       updateCostCenterSigner({ id: signer.id, data: { order: Number(order) } }),
     );
     if (res.meta.requestStatus === 'fulfilled') {
-      toast.success('Signer order updated');
+      toast.success('Signer updated successfully');
       dispatch(getAllCostCenterSigners());
       onClose();
     } else {
@@ -290,23 +301,32 @@ function EditOrderDialog({ open, onClose, signer, isLoading }) {
         </IconButton>
       </DialogTitle>
       <DialogContent sx={{ mt: 2 }}>
-        <TextField
-          fullWidth
-          size="small"
-          label="Order"
-          type="number"
-          value={order}
-          onChange={(e) => setOrder(e.target.value)}
-          inputProps={{ min: 1 }}
-          sx={{ mt: 1 }}
-        />
+        <Stack spacing={2} sx={{ mt: 1 }}>
+          <Autocomplete
+            options={signerOptions}
+            value={currentSignerOption}
+            disabled
+            isOptionEqualToValue={(option, value) => option.id === value?.id}
+            renderInput={(params) => (
+              <TextField {...params} label="Signer" size="small" />
+            )}
+          />
+          <TextField
+            size="small"
+            label="Order"
+            type="number"
+            value={order}
+            onChange={(e) => setOrder(e.target.value)}
+            inputProps={{ min: 1 }}
+          />
+        </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} variant="outlined" disabled={isLoading}>
           Cancel
         </Button>
         <Button
-          onClick={handleSubmit}
+          onClick={handleUpdate}
           variant="contained"
           disabled={isLoading}
           sx={styles.addButton}
@@ -327,7 +347,10 @@ function DeleteSignerDialog({ open, onClose, signer, isLoading }) {
   const dispatch = useDispatch();
 
   const handleDelete = async () => {
-    const res = await dispatch(deleteCostCenterSigner(signer.id));
+    // Send the signing flow record id in the URL and { order } in the body
+    const res = await dispatch(
+      deleteCostCenterSigner({ id: signer.id, data: { order: signer.order } }),
+    );
     if (res.meta.requestStatus === 'fulfilled') {
       toast.success('Signer removed from signing flow');
       dispatch(getAllCostCenterSigners());
@@ -569,14 +592,13 @@ function CostCenterSigningFlow() {
                                         size="small"
                                       />
                                     </TableCell>
-                                    {/* FIX: use flat field signer_name */}
                                     <TableCell>
                                       {s.signer_name || '—'}
                                     </TableCell>
                                     <TableCell>
                                       <Chip
                                         label={
-                                          s.is_active ? 'Active' : 'Inactive'
+                                          s.is_active ? 'active' : 'inactive'
                                         }
                                         size="small"
                                         color={
@@ -586,27 +608,26 @@ function CostCenterSigningFlow() {
                                       />
                                     </TableCell>
                                     <TableCell>
-                                      <Button
-                                        sx={styles.rowButton}
-                                        startIcon={<EditOutlinedIcon />}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
+                                      <IconButton
+                                        size="small"
+                                        sx={{ color: '#00529B' }}
+                                        onClick={() => {
                                           setSelectedSigner(s);
                                           setEditOpen(true);
                                         }}
-                                      />
-                                      <Button
-                                        sx={{
-                                          ...styles.rowButton,
-                                          color: '#d32f2f',
-                                        }}
-                                        startIcon={<DeleteOutlineIcon />}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
+                                      >
+                                        <EditOutlinedIcon fontSize="small" />
+                                      </IconButton>
+                                      <IconButton
+                                        size="small"
+                                        color="error"
+                                        onClick={() => {
                                           setSelectedSigner(s);
                                           setDeleteOpen(true);
                                         }}
-                                      />
+                                      >
+                                        <DeleteOutlineIcon fontSize="small" />
+                                      </IconButton>
                                     </TableCell>
                                   </TableRow>
                                 ))}
@@ -631,24 +652,23 @@ function CostCenterSigningFlow() {
         costCenters={costCenters}
         signersList={signersList}
       />
-      <EditOrderDialog
-        open={editOpen}
-        onClose={() => {
-          setEditOpen(false);
-          setSelectedSigner(null);
-        }}
-        signer={selectedSigner}
-        isLoading={isLoading}
-      />
-      <DeleteSignerDialog
-        open={deleteOpen}
-        onClose={() => {
-          setDeleteOpen(false);
-          setSelectedSigner(null);
-        }}
-        signer={selectedSigner}
-        isLoading={isLoading}
-      />
+      {selectedSigner && (
+        <>
+          <EditCCSignerDialog
+            open={editOpen}
+            onClose={() => setEditOpen(false)}
+            signer={selectedSigner}
+            isLoading={isLoading}
+            signersList={signersList}
+          />
+          <DeleteSignerDialog
+            open={deleteOpen}
+            onClose={() => setDeleteOpen(false)}
+            signer={selectedSigner}
+            isLoading={isLoading}
+          />
+        </>
+      )}
     </Box>
   );
 }

@@ -104,9 +104,11 @@ export const updateCostCenterSigner = createAsyncThunk(
 
 export const deleteCostCenterSigner = createAsyncThunk(
   'signingFlow/deleteCostCenterSigner',
-  async (id, thunkAPI) => {
+  // id  = signing flow record id
+  // data = { order: <signer's level> }
+  async ({ id, data }, thunkAPI) => {
     try {
-      return await signingFlowService.deleteCostCenterSigner(id);
+      return await signingFlowService.deleteCostCenterSigner(id, data);
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
@@ -150,9 +152,11 @@ export const updateLocationSigner = createAsyncThunk(
 
 export const deleteLocationSigner = createAsyncThunk(
   'signingFlow/deleteLocationSigner',
-  async (id, thunkAPI) => {
+  // id  = signing flow record id
+  // data = { order: <signer's level> }
+  async ({ id, data }, thunkAPI) => {
     try {
-      return await signingFlowService.deleteLocationSigner(id);
+      return await signingFlowService.deleteLocationSigner(id, data);
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
@@ -177,7 +181,6 @@ export const signingFlowSlice = createSlice({
       // ---- getAllSigningFlows ----
       .addCase(getAllSigningFlows.pending, (state) => {
         state.isLoading = true;
-        state.signingFlows = [];
         state.error = null;
       })
       .addCase(getAllSigningFlows.fulfilled, (state, action) => {
@@ -194,7 +197,6 @@ export const signingFlowSlice = createSlice({
       // ---- getAllSigningFlowByDepartment ----
       .addCase(getAllSigningFlowByDepartment.pending, (state) => {
         state.isLoading = true;
-        state.signingFlows = [];
         state.error = null;
       })
       .addCase(getAllSigningFlowByDepartment.fulfilled, (state, action) => {
@@ -211,7 +213,6 @@ export const signingFlowSlice = createSlice({
       // ---- addSigningFlow ----
       .addCase(addSigningFlow.pending, (state) => {
         state.isLoading = true;
-        state.signingFlow = '';
         state.error = null;
       })
       .addCase(addSigningFlow.fulfilled, (state, action) => {
@@ -228,7 +229,6 @@ export const signingFlowSlice = createSlice({
       // ---- editSigningFlow ----
       .addCase(editSigningFlow.pending, (state) => {
         state.isLoading = true;
-        state.signingFlow = '';
         state.error = null;
       })
       .addCase(editSigningFlow.fulfilled, (state, action) => {

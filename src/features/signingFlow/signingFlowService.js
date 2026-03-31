@@ -37,11 +37,11 @@ const editSigningFlow = async (data) => {
 };
 
 // ==================== Cost Center Signing Flow ====================
-// POST   /invoice/cost-center-signers/           — single or bulk create
-// GET    /invoice/cost-center-signers/            — list all
+// POST   /invoice/cost-center-signers/                — single or bulk create
+// GET    /invoice/cost-center-signers/                 — list all
 // GET    /invoice/cost-center-signers/?cost_center_id=1 — filter by CC
-// PUT    /invoice/cost-center-signers/{id}/       — update order
-// DELETE /invoice/cost-center-signers/{id}/       — delete signer
+// PUT    /invoice/cost-center-signers/{id}/            — update order
+// DELETE /invoice/cost-center-signers/{id}/            — delete signer (body: { order })
 
 const getAllCostCenterSigners = async (params = {}) => {
   const query = new URLSearchParams(
@@ -68,8 +68,11 @@ const updateCostCenterSigner = async (id, data) => {
   return response.data;
 };
 
-const deleteCostCenterSigner = async (id) => {
-  const response = await http.delete(`/invoice/cost-center-signers/${id}/`);
+const deleteCostCenterSigner = async (id, data) => {
+  // payload: { order: <signer's level> }
+  const response = await http.delete(`/invoice/cost-center-signers/${id}/`, {
+    data,
+  });
   return response.data;
 };
 
@@ -78,7 +81,7 @@ const deleteCostCenterSigner = async (id) => {
 // GET    /invoice/location-signers/               — list all
 // GET    /invoice/location-signers/?location_id=1 — filter by location
 // PUT    /invoice/location-signers/{id}/          — update order
-// DELETE /invoice/location-signers/{id}/          — delete signer
+// DELETE /invoice/location-signers/{id}/          — delete signer (body: { order })
 
 const getAllLocationSigners = async (params = {}) => {
   const query = new URLSearchParams(
@@ -105,8 +108,11 @@ const updateLocationSigner = async (id, data) => {
   return response.data;
 };
 
-const deleteLocationSigner = async (id) => {
-  const response = await http.delete(`/invoice/location-signers/${id}/`);
+const deleteLocationSigner = async (id, data) => {
+  // payload: { order: <signer's level> }
+  const response = await http.delete(`/invoice/location-signers/${id}/`, {
+    data,
+  });
   return response.data;
 };
 

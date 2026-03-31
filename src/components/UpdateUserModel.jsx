@@ -292,6 +292,7 @@ function UpdateUserModel({
     is_pettycash_initiator: false,
     is_custodian: false,
     is_expense_creator: false,
+    is_verifier: false, // ← added
     is_approver: false,
     is_first_approver: false,
     is_second_approver: false,
@@ -335,6 +336,7 @@ function UpdateUserModel({
         is_pettycash_initiator: defaultValues.is_pettycash_initiator ?? false,
         is_custodian: defaultValues.is_custodian ?? false,
         is_expense_creator: defaultValues.is_expense_creator ?? false,
+        is_verifier: defaultValues.is_verifier ?? false, // ← added
         is_approver: defaultValues.is_approver ?? false,
         is_first_approver: defaultValues.is_first_approver ?? false,
         is_second_approver: defaultValues.is_second_approver ?? false,
@@ -393,12 +395,13 @@ function UpdateUserModel({
     setUpdateTrigger((prev) => !prev);
   };
 
-  // active badge counts
+  // active badge counts — is_verifier included in petty cash group
   const pettyCashActiveCount = [
     formData.is_petty_cash_user,
     formData.is_pettycash_initiator,
     formData.is_custodian,
     formData.is_expense_creator,
+    formData.is_verifier, // ← added
   ].filter(Boolean).length;
 
   const approvalActiveCount = [
@@ -706,6 +709,14 @@ function UpdateUserModel({
                         description="Can create and submit expense entries"
                         name="is_expense_creator"
                         value={formData.is_expense_creator}
+                        onChange={handleToggle}
+                        accentColor={PRIMARY}
+                      />
+                      <ToggleRow
+                        label="Verifier"
+                        description="Can verify petty cash transactions"
+                        name="is_verifier"
+                        value={formData.is_verifier}
                         onChange={handleToggle}
                         accentColor={PRIMARY}
                       />

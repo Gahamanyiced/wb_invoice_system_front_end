@@ -110,6 +110,7 @@ const ViewUserModal = ({ defaultValues, open, handleClose }) => {
           { label: 'Petty Cash Initiator', key: 'is_pettycash_initiator' },
           { label: 'Custodian', key: 'is_custodian' },
           { label: 'Expense Creator', key: 'is_expense_creator' },
+          { label: 'Verifier', key: 'is_verifier' },
           { label: 'Approver', key: 'is_approver' },
           { label: 'First Approver', key: 'is_first_approver' },
           { label: 'Second Approver', key: 'is_second_approver' },

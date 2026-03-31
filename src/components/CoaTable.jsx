@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
@@ -8,11 +8,12 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   IconButton,
-  InputAdornment,
   Paper,
   Pagination,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -25,7 +26,6 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
 import { toast } from 'react-toastify';
 
@@ -61,6 +61,8 @@ function CoaFormDialog({
   fields,
 }) {
   const [form, setForm] = useState({});
+  // is_active toggle — only relevant when editing (initialValues present)
+  const [isActive, setIsActive] = useState(true);
 
   useEffect(() => {
     if (open) {
@@ -69,6 +71,8 @@ function CoaFormDialog({
         defaults[f.name] = initialValues?.[f.name] || '';
       });
       setForm(defaults);
+      // Seed from existing record; default true for new records
+      setIsActive(initialValues?.is_active ?? true);
     }
   }, [open, initialValues, fields]);
 
@@ -82,14 +86,17 @@ function CoaFormDialog({
         return;
       }
     }
-    onSubmit(form);
+    // Always include is_active in the submitted payload
+    onSubmit({ ...form, is_active: isActive });
   };
+
+  const isEditing = !!initialValues;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle
         sx={{
-          backgroundColor: initialValues ? '#00529B' : '#00529B',
+          backgroundColor: '#00529B',
           color: '#fff',
           display: 'flex',
           justifyContent: 'space-between',
@@ -117,6 +124,30 @@ function CoaFormDialog({
               rows={f.multiline ? 3 : 1}
             />
           ))}
+
+          {/* is_active toggle — shown on both add and edit, but especially
+              useful on edit to reactivate an inactive record */}
+          <FormControlLabel
+            control={
+              <Switch
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
+                color="primary"
+              />
+            }
+            label={
+              <Box>
+                <Typography variant="body2" fontWeight={500}>
+                  Active
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {isActive
+                    ? 'Record is active and visible in dropdowns'
+                    : 'Record is inactive and hidden from dropdowns'}
+                </Typography>
+              </Box>
+            }
+          />
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -131,7 +162,7 @@ function CoaFormDialog({
         >
           {isLoading ? (
             <CircularProgress size={20} color="inherit" />
-          ) : initialValues ? (
+          ) : isEditing ? (
             'Update'
           ) : (
             'Create'
@@ -207,28 +238,52 @@ function CoaTable({
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
 
+  // Active filter — default true (show active only)
+  const [showActiveOnly, setShowActiveOnly] = useState(true);
+
   // Dialog states
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedRow, setSelectedRow] = useState(null);
 
-  const fetchData = () => {
-    dispatch(getAll({ page, search: search || undefined }));
-  };
+  const fetchData = useCallback(() => {
+    dispatch(
+      getAll({
+        page,
+        search: search || undefined,
+        is_active: showActiveOnly,
+      }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispatch, getAll, page, showActiveOnly, search]);
 
+  // Re-fetch when page or showActiveOnly changes
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
+  }, [page, showActiveOnly]);
 
-  const handleSearch = () => {
+  // Debounced live search — fires 400ms after the user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(1);
+      dispatch(
+        getAll({
+          page: 1,
+          search: search || undefined,
+          is_active: showActiveOnly,
+        }),
+      );
+    }, 400);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  const handleToggleActive = (e) => {
     setPage(1);
-    dispatch(getAll({ page: 1, search: search || undefined }));
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') handleSearch();
+    setShowActiveOnly(e.target.checked);
   };
 
   // ---- Add ----
@@ -293,33 +348,42 @@ function CoaTable({
             </Typography>
           )}
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          sx={styles.addButton}
-          onClick={() => setAddOpen(true)}
-        >
-          Add {title}
-        </Button>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {/* Active-only toggle */}
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showActiveOnly}
+                onChange={handleToggleActive}
+                color="primary"
+              />
+            }
+            label={
+              <Typography variant="body2" color="text.secondary">
+                Show active only
+              </Typography>
+            }
+          />
+
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            sx={styles.addButton}
+            onClick={() => setAddOpen(true)}
+          >
+            Add {title}
+          </Button>
+        </Box>
       </Box>
 
-      {/* Search */}
+      {/* Live search field — debounced 400ms */}
       <Box sx={{ mb: 2 }}>
         <TextField
           size="small"
           placeholder={`Search ${title}...`}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={handleKeyDown}
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton onClick={handleSearch} size="small">
-                  <SearchIcon />
-                </IconButton>
-              </InputAdornment>
-            ),
-          }}
           sx={{ width: 300 }}
         />
       </Box>
