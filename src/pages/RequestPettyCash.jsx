@@ -851,6 +851,7 @@ const RequestPettyCash = () => {
                         border: '1px solid rgba(0, 82, 155, 0.2)',
                       }}
                     >
+                      {/* ── left: icon + name + size ── */}
                       <Box
                         sx={{
                           display: 'flex',
@@ -870,16 +871,41 @@ const RequestPettyCash = () => {
                         <Typography variant="body2" noWrap sx={{ flex: 1 }}>
                           {formData.expenses_csv.name}
                         </Typography>
-                      </Box>
-                      <Tooltip title="Remove">
-                        <IconButton
-                          size="small"
-                          onClick={handleRemoveFile}
-                          sx={{ color: '#d32f2f', flexShrink: 0 }}
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ ml: 1, flexShrink: 0 }}
                         >
-                          <CloseIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
+                          ({(formData.expenses_csv.size / 1024).toFixed(1)} KB)
+                        </Typography>
+                      </Box>
+                      {/* ── right: preview + remove ── */}
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Tooltip title="Preview">
+                          <IconButton
+                            size="small"
+                            onClick={() => previewFile(formData.expenses_csv)}
+                            sx={{ color: '#00529B' }}
+                          >
+                            <VisibilityOutlinedIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Remove">
+                          <IconButton
+                            size="small"
+                            onClick={handleRemoveFile}
+                            sx={{ color: '#d32f2f' }}
+                          >
+                            <CloseIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
                     </Box>
                   )}
                 </Grid>
