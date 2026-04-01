@@ -116,9 +116,11 @@ const updatePettyCashRequest = async (id, data) => {
 };
 
 // Delete Petty Cash Request
-const deletePettyCashRequest = async (id) => {
+// payload: { comment: string }
+const deletePettyCashRequest = async (id, data) => {
   const response = await http.delete(
     `/invoice/petty-cash-request/${id}/delete/`,
+    { data },
   );
   return response.data;
 };

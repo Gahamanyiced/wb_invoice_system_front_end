@@ -178,9 +178,11 @@ export const updatePettyCashRequest = createAsyncThunk(
 
 export const deletePettyCashRequest = createAsyncThunk(
   'pettyCash/deletePettyCashRequest',
-  async (id, thunkAPI) => {
+  async (data, thunkAPI) => {
     try {
-      return await pettyCashService.deletePettyCashRequest(id);
+      return await pettyCashService.deletePettyCashRequest(data.id, {
+        comment: data.comment,
+      });
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
