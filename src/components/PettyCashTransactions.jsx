@@ -172,6 +172,13 @@ const generateLedgerCSV = (ledger, transactionId) => {
 // Statuses that allow editing — must be issuer AND one of these statuses
 const EDIT_ALLOWED_STATUSES = ['rollback', 'pending_acknowledgment'];
 
+// ── File preview helper ───────────────────────────────────────────────────────
+const previewFile = (file) => {
+  const url = URL.createObjectURL(file);
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+};
+
 const PettyCashTransactions = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [openViewModal, setOpenViewModal] = useState(false);
@@ -1189,26 +1196,61 @@ const PettyCashTransactions = () => {
                         border: '1px solid rgba(0, 82, 155, 0.2)',
                       }}
                     >
-                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      {/* ── left: icon + name + size ── */}
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          flex: 1,
+                          minWidth: 0,
+                        }}
+                      >
                         <AttachFileIcon
-                          sx={{ mr: 1, color: '#00529B', fontSize: 20 }}
+                          sx={{
+                            mr: 1,
+                            color: '#00529B',
+                            fontSize: 20,
+                            flexShrink: 0,
+                          }}
                         />
-                        <Typography variant="body2">{file.name}</Typography>
+                        <Typography variant="body2" noWrap sx={{ flex: 1 }}>
+                          {file.name}
+                        </Typography>
                         <Typography
                           variant="caption"
                           color="text.secondary"
-                          sx={{ ml: 1 }}
+                          sx={{ ml: 1, flexShrink: 0 }}
                         >
                           ({(file.size / 1024).toFixed(1)} KB)
                         </Typography>
                       </Box>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleRemoveFile(index)}
-                        sx={{ color: '#d32f2f' }}
+                      {/* ── right: preview + remove ── */}
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          flexShrink: 0,
+                        }}
                       >
-                        <CloseIcon fontSize="small" />
-                      </IconButton>
+                        <Tooltip title="Preview">
+                          <IconButton
+                            size="small"
+                            onClick={() => previewFile(file)}
+                            sx={{ color: '#00529B' }}
+                          >
+                            <VisibilityOutlinedIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Remove">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleRemoveFile(index)}
+                            sx={{ color: '#d32f2f' }}
+                          >
+                            <CloseIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
                     </Box>
                   ))}
                 </Box>

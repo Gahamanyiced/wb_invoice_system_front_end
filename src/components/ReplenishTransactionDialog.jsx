@@ -14,11 +14,13 @@ import {
   Grid,
   TextField,
   Paper,
+  Tooltip,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import CurrencyExchangeIcon from '@mui/icons-material/CurrencyExchange';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { toast } from 'react-toastify';
 import { replenishPettyCash } from '../features/pettyCash/pettyCashSlice';
 
@@ -52,7 +54,14 @@ const styles = {
 const emptyForm = {
   issue_date: '',
   notes: '',
-  supporting_documents: [], // changed: array of File objects
+  supporting_documents: [],
+};
+
+// ── File preview helper ───────────────────────────────────────────────────────
+const previewFile = (file) => {
+  const url = URL.createObjectURL(file);
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 };
 
 const ReplenishTransactionDialog = ({
@@ -72,7 +81,6 @@ const ReplenishTransactionDialog = ({
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
   };
 
-  // changed: append new files, skip duplicates by filename
   const handleFileUpload = (e) => {
     const newFiles = Array.from(e.target.files);
     setFormData((prev) => {
@@ -85,15 +93,12 @@ const ReplenishTransactionDialog = ({
         supporting_documents: [...prev.supporting_documents, ...unique],
       };
     });
-    // reset so the same file can be re-added after removal
     e.target.value = '';
-    // clear the validation error once at least one file is selected
     if (errors.supporting_documents) {
       setErrors((prev) => ({ ...prev, supporting_documents: '' }));
     }
   };
 
-  // changed: remove a single file by index
   const handleRemoveFile = (index) => {
     setFormData((prev) => ({
       ...prev,
@@ -119,7 +124,6 @@ const ReplenishTransactionDialog = ({
     const submitData = new FormData();
     submitData.append('issue_date', formData.issue_date);
     if (formData.notes) submitData.append('notes', formData.notes);
-    // changed: append each file under the same key
     formData.supporting_documents.forEach((file) => {
       submitData.append('supporting_documents', file);
     });
@@ -198,66 +202,39 @@ const ReplenishTransactionDialog = ({
         </IconButton>
       </DialogTitle>
 
-      <DialogContent sx={{ mt: 2, px: 3 }}>
-        {/* Current Balance Summary */}
-        <Paper
-          elevation={0}
-          sx={{
-            mb: 3,
-            p: 2,
-            bgcolor: 'rgba(0, 82, 155, 0.04)',
-            borderRadius: 2,
-            border: '1px solid rgba(0, 82, 155, 0.12)',
-          }}
-        >
+      <DialogContent sx={{ pt: 3, pb: 1 }}>
+        {/* Transaction summary */}
+        <Paper elevation={0} sx={styles.section}>
           <Grid container spacing={2}>
             <Grid item xs={6}>
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                display="block"
-              >
-                Current Amount
-              </Typography>
-              <Typography variant="h6" fontWeight={700} color="#00529B">
-                {formatAmount(transaction?.amount)} {transaction?.currency}
+              <Typography sx={styles.fieldLabel}>Transaction</Typography>
+              <Typography variant="body2" fontWeight={500}>
+                #{transaction?.id}
               </Typography>
             </Grid>
             <Grid item xs={6}>
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                display="block"
-              >
-                Remaining
-              </Typography>
-              <Typography
-                variant="h6"
-                fontWeight={700}
-                color={
-                  parseFloat(transaction?.remaining_amount || 0) <= 0
-                    ? '#d32f2f'
-                    : '#66BB6A'
-                }
-              >
+              <Typography sx={styles.fieldLabel}>Current Balance</Typography>
+              <Typography variant="body2" fontWeight={700} color="#00529B">
                 {formatAmount(transaction?.remaining_amount)}{' '}
                 {transaction?.currency}
               </Typography>
             </Grid>
+            {transaction?.replenishment_amount && (
+              <Grid item xs={6}>
+                <Typography sx={styles.fieldLabel}>
+                  Replenishment Amount
+                </Typography>
+                <Typography variant="body2" fontWeight={500}>
+                  {formatAmount(transaction.replenishment_amount)}{' '}
+                  {transaction?.currency}
+                </Typography>
+              </Grid>
+            )}
           </Grid>
         </Paper>
 
-        {/* Replenishment Details */}
+        {/* Form fields */}
         <Paper elevation={0} sx={styles.section}>
-          <Typography
-            variant="subtitle1"
-            fontWeight={600}
-            color="#00529B"
-            gutterBottom
-          >
-            Replenishment Details
-          </Typography>
-          <Divider sx={{ mb: 2 }} />
           <Grid container spacing={2}>
             <Grid item xs={12}>
               <Typography sx={styles.fieldLabel}>
@@ -265,11 +242,10 @@ const ReplenishTransactionDialog = ({
               </Typography>
               <TextField
                 fullWidth
-                name="issue_date"
                 type="date"
+                name="issue_date"
                 value={formData.issue_date}
                 onChange={handleInputChange}
-                required
                 InputLabelProps={{ shrink: true }}
                 error={!!errors.issue_date}
                 helperText={errors.issue_date}
@@ -306,7 +282,7 @@ const ReplenishTransactionDialog = ({
           </Grid>
         </Paper>
 
-        {/* Supporting Documents — changed to multi-file */}
+        {/* Supporting Documents */}
         <Paper elevation={0} sx={{ ...styles.section, mb: 0 }}>
           <Typography
             variant="subtitle1"
@@ -390,26 +366,59 @@ const ReplenishTransactionDialog = ({
                     border: '1px solid rgba(0, 82, 155, 0.2)',
                   }}
                 >
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      flex: 1,
+                      minWidth: 0,
+                    }}
+                  >
                     <AttachFileIcon
-                      sx={{ mr: 1, color: '#00529B', fontSize: 20 }}
+                      sx={{
+                        mr: 1,
+                        color: '#00529B',
+                        fontSize: 20,
+                        flexShrink: 0,
+                      }}
                     />
-                    <Typography variant="body2">{file.name}</Typography>
+                    <Typography variant="body2" noWrap sx={{ flex: 1 }}>
+                      {file.name}
+                    </Typography>
                     <Typography
                       variant="caption"
                       color="text.secondary"
-                      sx={{ ml: 1 }}
+                      sx={{ ml: 1, flexShrink: 0 }}
                     >
                       ({(file.size / 1024).toFixed(1)} KB)
                     </Typography>
                   </Box>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleRemoveFile(index)}
-                    sx={{ color: '#d32f2f' }}
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      flexShrink: 0,
+                    }}
                   >
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
+                    <Tooltip title="Preview">
+                      <IconButton
+                        size="small"
+                        onClick={() => previewFile(file)}
+                        sx={{ color: '#00529B' }}
+                      >
+                        <VisibilityOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Remove">
+                      <IconButton
+                        size="small"
+                        onClick={() => handleRemoveFile(index)}
+                        sx={{ color: '#d32f2f' }}
+                      >
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
                 </Box>
               ))}
             </Box>

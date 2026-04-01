@@ -417,9 +417,19 @@ const TrackAndSignPettyCashDialog = ({
   const displayCurrency = isRequestContext
     ? entity.currency || entity.expenses?.[0]?.currency || 'USD'
     : entity.currency;
+
+  // ── Description ───────────────────────────────────────────────────────────
+  // Request context: top-level `description` field (may be empty string "").
+  // Expense context: item_description as before.
   const displayDescription = isRequestContext
-    ? entity.expenses?.[0]?.item_description || 'Replenishment Request'
+    ? (entity.description ?? '')
     : entity.item_description || request.item_description || 'Expense';
+
+  // Header subtitle: fall back to "Replenishment Request" when description empty
+  const headerSubtitle = isRequestContext
+    ? displayDescription || 'Replenishment Request'
+    : displayDescription;
+
   const displayStatus = entity.status || request.status;
   const displayDate = isRequestContext
     ? entity.created_at
@@ -515,7 +525,7 @@ const TrackAndSignPettyCashDialog = ({
             {isRequestContext ? 'Track & Sign Request' : 'Track & Sign Expense'}
           </Typography>
           <Typography variant="caption" sx={{ opacity: 0.85 }}>
-            ID #{request.id} — {displayDescription}
+            ID #{request.id} — {headerSubtitle}
           </Typography>
         </Box>
         <IconButton
@@ -554,7 +564,7 @@ const TrackAndSignPettyCashDialog = ({
                 {/* Amount */}
                 <Grid item xs={12} sm={6}>
                   <Typography sx={style.fieldLabel}>
-                    {isRequestContext ? 'Total Amount' : 'Amount'}
+                    {isRequestContext ? 'Replenishment Amount' : 'Amount'}
                   </Typography>
                   <Typography
                     sx={{
@@ -581,6 +591,31 @@ const TrackAndSignPettyCashDialog = ({
                     <StatusChip status={displayStatus} />
                   </Box>
                 </Grid>
+
+                {/* Description — request context only, empty-safe */}
+                {isRequestContext && (
+                  <Grid item xs={12}>
+                    <Typography sx={style.fieldLabel}>Description</Typography>
+                    {displayDescription ? (
+                      <Typography sx={style.fieldValue}>
+                        {displayDescription}
+                      </Typography>
+                    ) : (
+                      <Chip
+                        label="Replenishment"
+                        size="small"
+                        sx={{
+                          bgcolor: 'rgba(0, 82, 155, 0.08)',
+                          color: '#00529B',
+                          fontStyle: 'italic',
+                          fontWeight: 500,
+                          fontSize: '0.78rem',
+                          mt: 0.3,
+                        }}
+                      />
+                    )}
+                  </Grid>
+                )}
 
                 {/* Date */}
                 <Grid item xs={12} sm={6}>

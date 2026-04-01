@@ -17,6 +17,7 @@ import {
   CircularProgress,
   Alert,
   AlertTitle,
+  Tooltip,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -24,6 +25,7 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import BlockIcon from '@mui/icons-material/Block';
 import LockPersonIcon from '@mui/icons-material/LockPerson';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { toast } from 'react-toastify';
 import { updatePettyCash } from '../features/pettyCash/pettyCashSlice';
 import PETTY_CASH_CURRENCIES from '../constants/pettyCashCurrencies';
@@ -95,6 +97,13 @@ const formatStatus = (status) => {
     .split(' ')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
+};
+
+// ── File preview helper ───────────────────────────────────────────────────────
+const previewFile = (file) => {
+  const url = URL.createObjectURL(file);
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 };
 
 const EditTransactionModal = ({
@@ -302,7 +311,7 @@ const EditTransactionModal = ({
                 </Alert>
               )}
 
-              {/* ── Holder Section ── */}
+              {/* ── Custodian Section ── */}
               <Paper elevation={0} sx={style.section}>
                 <Typography
                   variant="subtitle1"
@@ -310,87 +319,43 @@ const EditTransactionModal = ({
                   color="#00529B"
                   gutterBottom
                 >
-                  Petty Cash Holder
+                  Petty Cash Custodian
                 </Typography>
                 <Divider sx={{ mb: 2 }} />
-
-                <Box
-                  sx={{
-                    p: 2,
-                    bgcolor: 'rgba(0, 82, 155, 0.03)',
-                    borderRadius: 2,
-                    border: '2px solid rgba(0, 82, 155, 0.1)',
-                  }}
-                >
-                  <Typography
-                    variant="subtitle2"
-                    sx={{
-                      color: '#00529B',
-                      fontWeight: 600,
-                      mb: 1.5,
-                      fontSize: '1rem',
-                    }}
-                  >
-                    Select Petty Cash Holder *
-                  </Typography>
-                  <FormControl fullWidth required size="large">
-                    <InputLabel sx={{ fontSize: '1.1rem' }}>
-                      Choose Holder
-                    </InputLabel>
+                <Box sx={style.fieldContainer}>
+                  <Typography sx={style.fieldLabel}>Custodian *</Typography>
+                  <FormControl fullWidth required>
+                    <InputLabel>Choose Custodian</InputLabel>
                     <Select
                       name="holder_id"
                       value={formData.holder_id}
                       onChange={handleInputChange}
-                      label="Choose Holder"
-                      sx={{
-                        fontSize: '1.1rem',
-                        '& .MuiSelect-select': { py: 2 },
-                      }}
+                      label="Choose Custodian"
                       MenuProps={{ PaperProps: { style: { maxHeight: 400 } } }}
                     >
                       <MenuItem value="" disabled>
-                        <em>Select a holder from the list</em>
+                        <em>Select a custodian</em>
                       </MenuItem>
-                      {signers.length > 0 ? (
-                        signers.map((signer) => (
-                          <MenuItem
-                            key={signer.id}
-                            value={signer.id}
-                            sx={{ py: 1.5 }}
-                          >
-                            <Box>
-                              <Typography variant="body1" fontWeight={500}>
-                                {signer.firstname} {signer.lastname}
-                              </Typography>
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                                sx={{ display: 'block' }}
-                              >
-                                {signer.position} • {signer.department} •{' '}
-                                {signer.section}
-                              </Typography>
-                            </Box>
-                          </MenuItem>
-                        ))
-                      ) : (
-                        <MenuItem value={transaction?.holder?.id || ''}>
+                      {signers.map((signer) => (
+                        <MenuItem
+                          key={signer.id}
+                          value={signer.id}
+                          sx={{ py: 1.5 }}
+                        >
                           <Box>
                             <Typography variant="body1" fontWeight={500}>
-                              {transaction?.holder?.firstname}{' '}
-                              {transaction?.holder?.lastname}
+                              {signer.firstname} {signer.lastname}
                             </Typography>
                             <Typography
                               variant="caption"
                               color="text.secondary"
                               sx={{ display: 'block' }}
                             >
-                              {transaction?.holder?.position} •{' '}
-                              {transaction?.holder?.department}
+                              {signer.position} • {signer.department}
                             </Typography>
                           </Box>
                         </MenuItem>
-                      )}
+                      ))}
                     </Select>
                   </FormControl>
                 </Box>
@@ -408,7 +373,7 @@ const EditTransactionModal = ({
                 </Typography>
                 <Divider sx={{ mb: 2 }} />
 
-                <Grid container spacing={3}>
+                <Grid container spacing={2}>
                   {/* Amount */}
                   <Grid item xs={12} md={4}>
                     <Box sx={style.fieldContainer}>
@@ -420,8 +385,7 @@ const EditTransactionModal = ({
                         value={formData.amount}
                         onChange={handleInputChange}
                         required
-                        InputProps={{ inputProps: { min: 0, step: 0.01 } }}
-                        placeholder="e.g., 500.00"
+                        inputProps={{ min: 0, step: '0.01' }}
                       />
                     </Box>
                   </Grid>
@@ -431,17 +395,19 @@ const EditTransactionModal = ({
                     <Box sx={style.fieldContainer}>
                       <Typography sx={style.fieldLabel}>Currency *</Typography>
                       <FormControl fullWidth required>
-                        <InputLabel>Currency</InputLabel>
                         <Select
                           name="currency"
                           value={formData.currency}
                           onChange={handleInputChange}
-                          label="Currency"
                         >
                           {PETTY_CASH_CURRENCIES.map((curr) => (
                             <MenuItem key={curr.code} value={curr.code}>
                               <Box
-                                sx={{ display: 'flex', alignItems: 'center' }}
+                                sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 1,
+                                }}
                               >
                                 <Typography variant="body2" sx={{ mr: 1 }}>
                                   {curr.symbol}
@@ -573,26 +539,61 @@ const EditTransactionModal = ({
                           border: '1px solid rgba(0, 82, 155, 0.2)',
                         }}
                       >
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        {/* ── left: icon + name + size ── */}
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            flex: 1,
+                            minWidth: 0,
+                          }}
+                        >
                           <AttachFileIcon
-                            sx={{ mr: 1, color: '#00529B', fontSize: 20 }}
+                            sx={{
+                              mr: 1,
+                              color: '#00529B',
+                              fontSize: 20,
+                              flexShrink: 0,
+                            }}
                           />
-                          <Typography variant="body2">{file.name}</Typography>
+                          <Typography variant="body2" noWrap sx={{ flex: 1 }}>
+                            {file.name}
+                          </Typography>
                           <Typography
                             variant="caption"
                             color="text.secondary"
-                            sx={{ ml: 1 }}
+                            sx={{ ml: 1, flexShrink: 0 }}
                           >
                             ({(file.size / 1024).toFixed(1)} KB)
                           </Typography>
                         </Box>
-                        <IconButton
-                          size="small"
-                          onClick={() => handleRemoveNewDocument(index)}
-                          sx={{ color: '#d32f2f' }}
+                        {/* ── right: preview + remove ── */}
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            flexShrink: 0,
+                          }}
                         >
-                          <CloseIcon fontSize="small" />
-                        </IconButton>
+                          <Tooltip title="Preview">
+                            <IconButton
+                              size="small"
+                              onClick={() => previewFile(file)}
+                              sx={{ color: '#00529B' }}
+                            >
+                              <VisibilityOutlinedIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Remove">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleRemoveNewDocument(index)}
+                              sx={{ color: '#d32f2f' }}
+                            >
+                              <CloseIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
                       </Box>
                     ))}
                   </Box>

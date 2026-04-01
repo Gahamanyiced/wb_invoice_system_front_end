@@ -82,6 +82,13 @@ const styles = {
   },
 };
 
+// ── File preview helper ───────────────────────────────────────────────────────
+const previewFile = (file) => {
+  const url = URL.createObjectURL(file);
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+};
+
 const RequestPettyCash = () => {
   const { transactionId } = useParams();
   const location = useLocation();
@@ -215,45 +222,75 @@ const RequestPettyCash = () => {
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
-        toast.error('Please upload a valid CSV file');
+    if (!file) return;
+
+    if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
+      toast.error('Please upload a valid CSV file');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const csvText = event.target.result;
+      const lines = csvText.split('\n');
+
+      // ── Find the header row that contains the "Cr" column ────────────────
+      let headerRowIndex = -1;
+      let crIndex = -1;
+      let dateIndex = 0;
+
+      for (let i = 0; i < lines.length; i++) {
+        const cols = lines[i].split(',').map((c) => c.trim().toLowerCase());
+        if (cols.includes('cr')) {
+          headerRowIndex = i;
+          crIndex = cols.indexOf('cr');
+          dateIndex = cols.indexOf('date') !== -1 ? cols.indexOf('date') : 0;
+          break;
+        }
+      }
+
+      if (headerRowIndex === -1 || crIndex === -1) {
+        toast.error('CSV does not contain a "Cr" column');
         return;
       }
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const csvText = event.target.result;
-        const lines = csvText.split('\n').filter((line) => line.trim());
-        if (lines.length <= 1) {
-          toast.error('CSV file is empty or invalid');
-          return;
+
+      // ── Sum Cr values from expense rows only ──────────────────────────────
+      // An expense row is one that has a non-empty date AND a non-empty Cr value.
+      // This skips the header label row ("DATE"), opening balance, replenishment,
+      // total, and closing balance rows which have no date or no Cr value.
+      let total = 0;
+
+      for (let i = headerRowIndex + 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        const cols = lines[i].split(',').map((c) => c.trim());
+        const dateVal = cols[dateIndex] ?? '';
+        const crVal = cols[crIndex] ?? '';
+
+        if (dateVal !== '' && crVal !== '') {
+          const amount = parseFloat(crVal);
+          if (!isNaN(amount)) {
+            total += amount;
+          }
         }
+      }
 
-        const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
-        const amountIndex = headers.indexOf('amount');
+      if (total === 0) {
+        toast.warning('No expense rows with a Cr value were found in the CSV.');
+      }
 
-        if (amountIndex === -1) {
-          toast.error('CSV does not contain an "amount" column');
-          return;
-        }
+      setFormData((prev) => ({
+        ...prev,
+        expenses_csv: file,
+        amount: total.toFixed(2),
+      }));
 
-        let total = 0;
-        for (let i = 1; i < lines.length; i++) {
-          const columns = lines[i].split(',');
-          const amount = parseFloat(columns[amountIndex]) || 0;
-          total += amount;
-        }
+      toast.success(`CSV uploaded. Total Cr amount: ${total.toFixed(2)}`);
+    };
 
-        setFormData({
-          ...formData,
-          expenses_csv: file,
-          amount: total.toFixed(2),
-        });
-        toast.success(`CSV uploaded. Total amount: $${total.toFixed(2)}`);
-      };
-      reader.onerror = () => toast.error('Error reading CSV file');
-      reader.readAsText(file);
-    }
+    reader.onerror = () => toast.error('Error reading CSV file');
+    reader.readAsText(file);
   };
 
   const handleRemoveFile = () => {
@@ -814,21 +851,35 @@ const RequestPettyCash = () => {
                         border: '1px solid rgba(0, 82, 155, 0.2)',
                       }}
                     >
-                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          flex: 1,
+                          minWidth: 0,
+                        }}
+                      >
                         <AttachFileIcon
-                          sx={{ mr: 1, color: '#00529B', fontSize: 20 }}
+                          sx={{
+                            mr: 1,
+                            color: '#00529B',
+                            fontSize: 20,
+                            flexShrink: 0,
+                          }}
                         />
-                        <Typography variant="body2">
+                        <Typography variant="body2" noWrap sx={{ flex: 1 }}>
                           {formData.expenses_csv.name}
                         </Typography>
                       </Box>
-                      <IconButton
-                        size="small"
-                        onClick={handleRemoveFile}
-                        sx={{ color: '#d32f2f' }}
-                      >
-                        <CloseIcon fontSize="small" />
-                      </IconButton>
+                      <Tooltip title="Remove">
+                        <IconButton
+                          size="small"
+                          onClick={handleRemoveFile}
+                          sx={{ color: '#d32f2f', flexShrink: 0 }}
+                        >
+                          <CloseIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                     </Box>
                   )}
                 </Grid>
@@ -844,7 +895,7 @@ const RequestPettyCash = () => {
                       readOnly: true,
                       startAdornment: <Typography sx={{ mr: 1 }}>$</Typography>,
                     }}
-                    helperText="Auto-calculated from CSV"
+                    helperText="Auto-calculated from the Cr (Credit) column in the CSV"
                   />
                 </Grid>
 
@@ -937,26 +988,61 @@ const RequestPettyCash = () => {
                             border: '1px solid rgba(0, 82, 155, 0.2)',
                           }}
                         >
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          {/* ── left: icon + name + size ── */}
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              flex: 1,
+                              minWidth: 0,
+                            }}
+                          >
                             <AttachFileIcon
-                              sx={{ mr: 1, color: '#00529B', fontSize: 18 }}
+                              sx={{
+                                mr: 1,
+                                color: '#00529B',
+                                fontSize: 18,
+                                flexShrink: 0,
+                              }}
                             />
-                            <Typography variant="body2">{file.name}</Typography>
+                            <Typography variant="body2" noWrap sx={{ flex: 1 }}>
+                              {file.name}
+                            </Typography>
                             <Typography
                               variant="caption"
                               color="text.secondary"
-                              sx={{ ml: 1 }}
+                              sx={{ ml: 1, flexShrink: 0 }}
                             >
                               ({(file.size / 1024).toFixed(1)} KB)
                             </Typography>
                           </Box>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleRemoveSupportingDoc(index)}
-                            sx={{ color: '#d32f2f' }}
+                          {/* ── right: preview + remove ── */}
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              flexShrink: 0,
+                            }}
                           >
-                            <CloseIcon fontSize="small" />
-                          </IconButton>
+                            <Tooltip title="Preview">
+                              <IconButton
+                                size="small"
+                                onClick={() => previewFile(file)}
+                                sx={{ color: '#00529B' }}
+                              >
+                                <VisibilityOutlinedIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Remove">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleRemoveSupportingDoc(index)}
+                                sx={{ color: '#d32f2f' }}
+                              >
+                                <CloseIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
                         </Box>
                       ))}
                     </Box>

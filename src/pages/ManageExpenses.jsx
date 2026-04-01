@@ -7,7 +7,7 @@ import {
   deletePettyCashExpense,
   getIssuancePettyCashExpenses,
   approvePettyCashExpense,
-  exportApprovedExpenses,
+  getPettyCashLedger,
 } from '../features/pettyCash/pettyCashSlice';
 import http from '../http-common';
 import { toast } from 'react-toastify';
@@ -90,6 +90,78 @@ const styles = {
   },
 };
 
+// ── CSV generation helper (mirrors PettyCashTransactions) ────────────────────
+const generateLedgerCSV = (ledger, transactionId) => {
+  const { header, expenses, closing_balance } = ledger;
+  const fmt = (val) => (val == null ? '' : val);
+  const rows = [];
+
+  rows.push(['RWANDAIR PETTY CASH', '', '', '', '']);
+  rows.push([`STATION : ${fmt(header.station)}`, '', '', '', '']);
+  rows.push([`PERIOD: ${fmt(header.period)}`, '', '', '', '']);
+  rows.push(['', 'Description', 'Dr', 'Cr', 'BALANCE']);
+  rows.push([
+    'DATE',
+    'Opening balance',
+    fmt(header.opening_balance.dr),
+    fmt(header.opening_balance.cr),
+    '',
+  ]);
+  rows.push([
+    '',
+    'Replenishment',
+    fmt(header.replenishment.dr),
+    fmt(header.replenishment.cr),
+    '',
+  ]);
+  rows.push(['', '', '', '', fmt(header.total)]);
+
+  expenses.forEach((exp) => {
+    rows.push([
+      fmt(exp.date),
+      fmt(exp.description),
+      fmt(exp.dr),
+      fmt(exp.cr),
+      fmt(exp.balance),
+    ]);
+  });
+
+  rows.push(['', 'Closing balance', '', '', fmt(closing_balance)]);
+
+  const csv = rows
+    .map((row) =>
+      row
+        .map((cell) => {
+          const str = String(cell);
+          return str.includes(',') || str.includes('"') || str.includes('\n')
+            ? `"${str.replace(/"/g, '""')}"`
+            : str;
+        })
+        .join(','),
+    )
+    .join('\r\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute(
+    'download',
+    `petty_cash_ledger_${transactionId}_${header.period?.replace(/\s/g, '_') || 'report'}.csv`,
+  );
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+};
+
+// ── File preview helper ───────────────────────────────────────────────────────
+const previewFile = (file) => {
+  const url = URL.createObjectURL(file);
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+};
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const ManageExpenses = () => {
@@ -100,7 +172,7 @@ const ManageExpenses = () => {
 
   const transaction = location.state?.transaction;
 
-  const { issuancePettyCashExpenses, isLoading, isExporting } = useSelector(
+  const { issuancePettyCashExpenses, isLoading } = useSelector(
     (state) => state.pettyCash,
   );
 
@@ -129,6 +201,7 @@ const ManageExpenses = () => {
   const [openTrackSignDialog, setOpenTrackSignDialog] = useState(false);
   const [openEditModal, setOpenEditModal] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Verifiers for the Add Expense form
   const [signers, setSigners] = useState([]);
@@ -418,44 +491,18 @@ const ManageExpenses = () => {
     refreshList();
   };
 
-  // ── Export CSV ────────────────────────────────────────────────────────────────
+  // ── Export CSV (Ledger) ───────────────────────────────────────────────────────
 
   const handleExportCSV = async () => {
+    setIsExporting(true);
     try {
-      const result = await dispatch(exportApprovedExpenses(transactionId));
-
-      if (exportApprovedExpenses.rejected.match(result)) {
-        toast.error(result.payload || 'Failed to export expenses.');
-        return;
-      }
-
-      const response = result.payload;
-
-      const disposition = response.headers?.['content-disposition'] || '';
-      const filenameMatch = disposition.match(
-        /filename[^;=\n]*=(['"]?)([^'";\n]+)\1/,
-      );
-      const filename = filenameMatch
-        ? filenameMatch[2].trim()
-        : `approved-expenses-${transactionId}-${new Date().toISOString().split('T')[0]}.csv`;
-
-      const blob = new Blob([response.data], {
-        type: response.headers?.['content-type'] || 'text/csv;charset=utf-8;',
-      });
-
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      toast.success('Approved expenses exported successfully.');
-    } catch {
-      toast.error('An unexpected error occurred during export.');
+      const result = await dispatch(getPettyCashLedger(transactionId)).unwrap();
+      generateLedgerCSV(result, transactionId);
+      toast.success('Ledger exported successfully.');
+    } catch (error) {
+      toast.error(error || 'Failed to export ledger.');
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -1243,10 +1290,13 @@ const ManageExpenses = () => {
                                         '1px solid rgba(0, 82, 155, 0.15)',
                                     }}
                                   >
+                                    {/* ── left: icon + name + size ── */}
                                     <Box
                                       sx={{
                                         display: 'flex',
                                         alignItems: 'center',
+                                        flex: 1,
+                                        minWidth: 0,
                                       }}
                                     >
                                       <AttachFileIcon
@@ -1254,31 +1304,56 @@ const ManageExpenses = () => {
                                           mr: 1,
                                           color: '#00529B',
                                           fontSize: 18,
+                                          flexShrink: 0,
                                         }}
                                       />
-                                      <Typography variant="caption">
+                                      <Typography
+                                        variant="caption"
+                                        noWrap
+                                        sx={{ flex: 1 }}
+                                      >
                                         {file.name}
                                       </Typography>
                                       <Typography
                                         variant="caption"
                                         color="text.secondary"
-                                        sx={{ ml: 0.75 }}
+                                        sx={{ ml: 0.75, flexShrink: 0 }}
                                       >
                                         ({(file.size / 1024).toFixed(1)} KB)
                                       </Typography>
                                     </Box>
-                                    <IconButton
-                                      size="small"
-                                      onClick={() =>
-                                        handleRemoveExpenseFile(
-                                          index,
-                                          fileIndex,
-                                        )
-                                      }
-                                      sx={{ color: '#d32f2f' }}
+                                    {/* ── right: preview + remove ── */}
+                                    <Box
+                                      sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        flexShrink: 0,
+                                      }}
                                     >
-                                      <CloseIcon fontSize="small" />
-                                    </IconButton>
+                                      <Tooltip title="Preview">
+                                        <IconButton
+                                          size="small"
+                                          onClick={() => previewFile(file)}
+                                          sx={{ color: '#00529B' }}
+                                        >
+                                          <VisibilityOutlinedIcon fontSize="small" />
+                                        </IconButton>
+                                      </Tooltip>
+                                      <Tooltip title="Remove">
+                                        <IconButton
+                                          size="small"
+                                          onClick={() =>
+                                            handleRemoveExpenseFile(
+                                              index,
+                                              fileIndex,
+                                            )
+                                          }
+                                          sx={{ color: '#d32f2f' }}
+                                        >
+                                          <CloseIcon fontSize="small" />
+                                        </IconButton>
+                                      </Tooltip>
+                                    </Box>
                                   </Box>
                                 ),
                               )}

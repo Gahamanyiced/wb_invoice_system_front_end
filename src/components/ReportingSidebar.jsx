@@ -50,83 +50,108 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
     const fmt = (val) => (val == null ? '' : val);
     const rows = [];
 
-    // ── One block per issuance, matching the ledger CSV structure ─────────────
-    data.forEach((record, recordIndex) => {
-      // Spacer between records (skip before the first one)
-      if (recordIndex > 0) {
-        rows.push(['', '', '', '', '']);
-        rows.push(['', '', '', '', '']);
+    // ── Group records by station + period + custodian + currency ─────────────
+    const groupKey = (r) =>
+      [
+        r.station ?? '',
+        r.period ?? '',
+        r.holder?.name ?? '',
+        r.currency ?? '',
+      ].join('|');
+
+    const groups = [];
+    const seen = new Map();
+
+    data.forEach((record) => {
+      const key = groupKey(record);
+      if (!seen.has(key)) {
+        seen.set(key, groups.length);
+        groups.push({ key, records: [record] });
+      } else {
+        groups[seen.get(key)].records.push(record);
       }
-
-      // Header block — mirrors ledger header exactly
-      rows.push(['RWANDAIR PETTY CASH', '', '', '', '']);
-      rows.push([`STATION : ${fmt(record.station)}`, '', '', '', '']);
-      rows.push([`PERIOD: ${fmt(record.period)}`, '', '', '', '']);
-
-      // Holder & issued by meta
-      rows.push([`CUSTODIAN: ${fmt(record.holder?.name)}`, '', '', '', '']);
-      if (record.issued_by?.name) {
-        rows.push([`ISSUED BY: ${fmt(record.issued_by.name)}`, '', '', '', '']);
-      }
-      rows.push([
-        `STATUS: ${fmt(record.status).replace(/_/g, ' ').toUpperCase()}`,
-        '',
-        '',
-        '',
-        '',
-      ]);
-      rows.push([`CURRENCY: ${fmt(record.currency)}`, '', '', '', '']);
-      rows.push(['', '', '', '', '']);
-
-      // Column headers — mirrors ledger exactly
-      rows.push(['', 'Description', 'Dr', 'Cr', 'BALANCE']);
-
-      // Opening balance row — field: opening_balance
-      rows.push([
-        'DATE',
-        'Opening balance',
-        fmt(record.opening_balance ?? 0),
-        '',
-        '',
-      ]);
-
-      // Replenishment row — field: replenishment (not amount_issued)
-      rows.push([
-        fmt(record.issue_date),
-        'Replenishment',
-        fmt(record.replenishment ?? 0),
-        '',
-        '',
-      ]);
-
-      // Total available — field: total_available
-      rows.push(['', '', '', '', fmt(record.total_available ?? 0)]);
-
-      // Expense rows — one per expense
-      // fields: exp.date, exp.description, exp.cr, exp.balance
-      const expenses = record.expenses || [];
-      expenses.forEach((exp) => {
-        rows.push([
-          fmt(exp.date),
-          fmt(exp.description),
-          '',
-          fmt(exp.cr),
-          fmt(exp.balance),
-        ]);
-      });
-
-      // Closing balance — field: closing_balance (the actual closing balance
-      // after expenses, not remaining_amount which is the unspent custodian balance)
-      rows.push([
-        '',
-        'Closing balance',
-        '',
-        '',
-        fmt(record.closing_balance ?? 0),
-      ]);
     });
 
-    // ── Summary block at the bottom ───────────────────────────────────────────
+    // ── Render each group ─────────────────────────────────────────────────────
+    groups.forEach((group, groupIndex) => {
+      if (groupIndex > 0) {
+        rows.push(['', '', '', '', '']);
+        rows.push(['', '', '', '', '']);
+      }
+
+      const first = group.records[0];
+
+      // ── Shared header block — printed ONCE per group ──────────────────────
+      rows.push(['RWANDAIR PETTY CASH', '', '', '', '']);
+      rows.push([`STATION : ${fmt(first.station)}`, '', '', '', '']);
+      rows.push([`PERIOD: ${fmt(first.period)}`, '', '', '', '']);
+      rows.push([`CUSTODIAN: ${fmt(first.holder?.name)}`, '', '', '', '']);
+
+      // issued_by: deduplicate unique names across records in this group
+      const issuedByNames = [
+        ...new Set(group.records.map((r) => r.issued_by?.name).filter(Boolean)),
+      ];
+      if (issuedByNames.length) {
+        rows.push([`ISSUED BY: ${issuedByNames.join(', ')}`, '', '', '', '']);
+      }
+
+      rows.push([`CURRENCY: ${fmt(first.currency)}`, '', '', '', '']);
+      rows.push(['', '', '', '', '']);
+
+      // ── One ledger section per record inside the group ────────────────────
+      group.records.forEach((record, recordIndex) => {
+        if (recordIndex > 0) {
+          rows.push(['', '', '', '', '']);
+        }
+
+        // Column headers
+        rows.push(['', 'Description', 'Dr', 'Cr', 'BALANCE']);
+
+        // Opening balance
+        rows.push([
+          'DATE',
+          'Opening balance',
+          fmt(record.opening_balance ?? 0),
+          '',
+          '',
+        ]);
+
+        // Replenishment
+        rows.push([
+          fmt(record.issue_date),
+          'Replenishment',
+          fmt(record.replenishment ?? 0),
+          '',
+          '',
+        ]);
+
+        // Total available
+        rows.push(['', '', '', '', fmt(record.total_available ?? 0)]);
+
+        // Expense rows
+        const expenses = record.expenses || [];
+        expenses.forEach((exp) => {
+          rows.push([
+            fmt(exp.date),
+            fmt(exp.description),
+            '',
+            fmt(exp.cr),
+            fmt(exp.balance),
+          ]);
+        });
+
+        // Closing balance
+        rows.push([
+          '',
+          'Closing balance',
+          '',
+          '',
+          fmt(record.closing_balance ?? 0),
+        ]);
+      });
+    });
+
+    // ── Summary block ─────────────────────────────────────────────────────────
     if (summary) {
       rows.push(['', '', '', '', '']);
       rows.push(['', '', '', '', '']);

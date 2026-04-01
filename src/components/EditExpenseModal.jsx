@@ -18,12 +18,14 @@ import {
   Select,
   MenuItem,
   CircularProgress,
+  Tooltip,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = {
   uploadBox: {
@@ -40,10 +42,20 @@ const styles = {
   },
 };
 
+// ── File preview helper ───────────────────────────────────────────────────────
+const previewFile = (file) => {
+  const url = URL.createObjectURL(file);
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+};
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
-// request prop shape (flat expense line):
-// { id, date, item_description, amount, currency, supporting_document, created_at }
+// request prop shape (from API response):
+// {
+//   id, date, item_description, amount, currency, created_at,
+//   documents: [{ id, document_url, document_name, uploaded_by, uploaded_by_id, created_at }]
+// }
 
 const EditExpenseModal = ({
   open,
@@ -60,36 +72,48 @@ const EditExpenseModal = ({
     item_description: '',
     amount: '',
     currency: 'USD',
-    new_documents: [], // changed: array of newly selected File objects
-    existing_document: null, // current URL from API (unchanged)
+    // Existing docs kept from API — objects: { id, document_url, document_name }
+    existing_documents: [],
+    // New File objects the user picked via the file input
+    new_documents: [],
   });
 
   const [comment, setComment] = useState('');
   const [commentError, setCommentError] = useState('');
 
-  // Pre-fill when modal opens / expense changes
+  // ── Pre-fill when modal opens / expense changes ───────────────────────────────
   useEffect(() => {
     if (request) {
+      const existingDocs = Array.isArray(request.documents)
+        ? request.documents.map((doc) => ({
+            id: doc.id,
+            document_url: doc.document_url,
+            document_name: doc.document_name,
+          }))
+        : [];
+
       setFormData({
         date: request.date || '',
         item_description: request.item_description || '',
         amount: request.amount || '',
         currency: request.currency || 'USD',
-        new_documents: [], // changed: reset to empty array
-        existing_document: request.supporting_document || null,
+        existing_documents: existingDocs,
+        new_documents: [],
       });
       setComment('');
       setCommentError('');
     }
   }, [request]);
 
-  // ── Handlers ──────────────────────────────────────────────────────────────────
+  // ── Field handlers ────────────────────────────────────────────────────────────
 
   const handleFieldChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  // changed: append new files, skip duplicates by filename
+  // ── New file handlers ─────────────────────────────────────────────────────────
+
+  // Append new files, skip duplicates by filename
   const handleFileChange = (newFiles) => {
     setFormData((prev) => {
       const existingNames = new Set(prev.new_documents.map((f) => f.name));
@@ -98,7 +122,6 @@ const EditExpenseModal = ({
     });
   };
 
-  // changed: remove a single new file by index
   const handleRemoveNewFile = (index) => {
     setFormData((prev) => ({
       ...prev,
@@ -106,9 +129,18 @@ const EditExpenseModal = ({
     }));
   };
 
-  const handleRemoveExistingDocument = () => {
-    setFormData((prev) => ({ ...prev, existing_document: null }));
+  // ── Existing doc handlers ─────────────────────────────────────────────────────
+
+  // Removing an existing doc marks it as deleted — its ID won't be sent in
+  // existing_document_ids, so the backend knows to delete it
+  const handleRemoveExistingDocument = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      existing_documents: prev.existing_documents.filter((_, i) => i !== index),
+    }));
   };
+
+  // ── Close ─────────────────────────────────────────────────────────────────────
 
   const handleClose_ = () => {
     setComment('');
@@ -116,7 +148,21 @@ const EditExpenseModal = ({
     handleClose();
   };
 
-  // ── Submit → updatePettyCashExpense ───────────────────────────────────────────
+  // ── Submit ────────────────────────────────────────────────────────────────────
+  //
+  // Mirrors ManageExpenses → handleSubmit (createPettyCashExpense) exactly:
+  //
+  //  CREATE payload:
+  //    payload.append('petty_cash_id', transactionId)
+  //    payload.append('verifier_id', formData.verifier_id)
+  //    payload.append('expenses', JSON.stringify(expensesData))     ← array of expense objects
+  //    payload.append(`expense_documents_${i}_${j}`, file)          ← files per line
+  //
+  //  EDIT payload (same shape, single expense line at index 0):
+  //    payload.append('expenses', JSON.stringify([{ date, item_description, amount, currency }]))
+  //    payload.append('expense_documents_0_0', file)  ← new files, line index fixed at 0
+  //    payload.append('existing_document_ids', JSON.stringify([11, ...]))  ← IDs to keep
+  //    payload.append('comment', '...')               ← mandatory reason
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -128,23 +174,36 @@ const EditExpenseModal = ({
     setCommentError('');
 
     const payload = new FormData();
-    payload.append('date', formData.date);
-    payload.append('item_description', formData.item_description);
-    payload.append('amount', formData.amount);
-    payload.append('currency', formData.currency);
-    payload.append('comment', comment.trim());
 
-    // Each file gets a unique key: expense_documents_0_<fileIndex>
-    // Edit always targets a single expense line so line index is fixed at 0
+    // ── 1. expenses JSON — same structure as create, single line at index 0 ──
+    const expensesData = [
+      {
+        date: formData.date,
+        item_description: formData.item_description,
+        amount: formData.amount,
+        currency: formData.currency,
+      },
+    ];
+    payload.append('expenses', JSON.stringify(expensesData));
+
+    // ── 2. New files — same key convention as create: expense_documents_<lineIdx>_<fileIdx> ──
+    // Line index is always 0 for a single-expense edit
     formData.new_documents.forEach((file, j) => {
       payload.append(`expense_documents_0_${j}`, file);
     });
 
+    // ── 3. IDs of existing documents the user chose to KEEP ──
+    // Any doc whose ID is NOT in this list should be deleted by the backend
+    const keptDocIds = formData.existing_documents.map((doc) => doc.id);
+    payload.append('existing_document_ids', JSON.stringify(keptDocIds));
+
+    // ── 4. Mandatory reason for edit ──
+    payload.append('comment', comment.trim());
+
     if (onUpdate) {
-      // Delegate to parent (ManageExpenses.handleEditSubmit)
+      // Delegate to ManageExpenses → handleEditSubmit(id, payload)
       onUpdate(request.id, payload);
     } else {
-      // Standalone fallback
       const result = await dispatch(
         updatePettyCashExpense({ id: request.id, formData: payload }),
       );
@@ -159,15 +218,17 @@ const EditExpenseModal = ({
 
   if (!request) return null;
 
+  const hasExistingDocs = formData.existing_documents.length > 0;
+  const hasNewDocs = formData.new_documents.length > 0;
+
   return (
     <Dialog
       open={open}
       onClose={handleClose_}
       maxWidth="sm"
       fullWidth
-      scroll="paper"
+      PaperProps={{ sx: { borderRadius: 2 } }}
     >
-      {/* Header */}
       <DialogTitle
         sx={{
           bgcolor: '#FFA726',
@@ -178,14 +239,9 @@ const EditExpenseModal = ({
           py: 1.5,
         }}
       >
-        <Box>
-          <Typography variant="h6" fontWeight={600}>
-            Edit Expense
-          </Typography>
-          <Typography variant="caption" sx={{ opacity: 0.9 }}>
-            ID #{request.id}
-          </Typography>
-        </Box>
+        <Typography variant="h6" fontWeight={600}>
+          Edit Expense #{request.id}
+        </Typography>
         <IconButton
           edge="end"
           color="inherit"
@@ -197,9 +253,9 @@ const EditExpenseModal = ({
       </DialogTitle>
 
       <form onSubmit={handleSubmit}>
-        <DialogContent sx={{ pt: 3 }}>
-          <Grid container spacing={2.5}>
-            {/* Date */}
+        <DialogContent sx={{ pt: 2 }}>
+          <Grid container spacing={2}>
+            {/* ── Date ── */}
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
@@ -210,46 +266,28 @@ const EditExpenseModal = ({
                 required
                 InputLabelProps={{ shrink: true }}
                 size="small"
+                sx={{
+                  '& .MuiOutlinedInput-root.Mui-focused fieldset': {
+                    borderColor: '#FFA726',
+                  },
+                }}
               />
             </Grid>
 
-            {/* Amount */}
+            {/* ── Currency (locked to transaction currency) ── */}
             <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Amount *"
-                type="number"
-                value={formData.amount}
-                onChange={(e) => handleFieldChange('amount', e.target.value)}
-                required
-                InputProps={{ inputProps: { min: 0, step: 0.01 } }}
-                size="small"
-              />
-            </Grid>
-
-            {/* Currency — locked to the expense's existing currency */}
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth required size="small">
+              <FormControl fullWidth size="small" disabled>
                 <InputLabel>Currency</InputLabel>
-                <Select value={formData.currency} label="Currency" disabled>
-                  {(currencies || []).map((curr) => (
-                    <MenuItem key={curr.code} value={curr.code}>
-                      {curr.symbol} {curr.code} — {curr.name}
-                    </MenuItem>
-                  ))}
+                <Select value={formData.currency} label="Currency">
+                  <MenuItem value={formData.currency}>
+                    {formData.currency}
+                  </MenuItem>
                 </Select>
               </FormControl>
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ mt: 0.5, display: 'block' }}
-              >
-                Currency is fixed to the transaction currency
-              </Typography>
             </Grid>
 
-            {/* Item Description */}
-            <Grid item xs={12} sm={6}>
+            {/* ── Item Description ── */}
+            <Grid item xs={12}>
               <TextField
                 fullWidth
                 label="Item Description *"
@@ -259,10 +297,34 @@ const EditExpenseModal = ({
                 }
                 required
                 size="small"
+                sx={{
+                  '& .MuiOutlinedInput-root.Mui-focused fieldset': {
+                    borderColor: '#FFA726',
+                  },
+                }}
               />
             </Grid>
 
-            {/* Supporting Documents — changed to multi-file */}
+            {/* ── Amount ── */}
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Amount *"
+                type="number"
+                value={formData.amount}
+                onChange={(e) => handleFieldChange('amount', e.target.value)}
+                required
+                inputProps={{ min: 0, step: '0.01' }}
+                size="small"
+                sx={{
+                  '& .MuiOutlinedInput-root.Mui-focused fieldset': {
+                    borderColor: '#FFA726',
+                  },
+                }}
+              />
+            </Grid>
+
+            {/* ── Supporting Documents ── */}
             <Grid item xs={12}>
               <Typography
                 variant="caption"
@@ -276,55 +338,80 @@ const EditExpenseModal = ({
                 Supporting Documents
               </Typography>
 
-              {/* Existing document from API */}
-              {formData.existing_document && (
-                <Box
-                  sx={{
-                    mb: 1,
-                    p: 1.25,
-                    display: 'flex',
-                    alignItems: 'center',
-                    bgcolor: 'rgba(0, 82, 155, 0.05)',
-                    borderRadius: 1,
-                    border: '1px solid rgba(0, 82, 155, 0.15)',
-                  }}
-                >
-                  <Box
-                    onClick={() =>
-                      window.open(formData.existing_document, '_blank')
-                    }
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      flex: 1,
-                      cursor: 'pointer',
-                      '&:hover': { opacity: 0.8 },
-                    }}
-                  >
-                    <AttachFileIcon
-                      sx={{ mr: 1, color: '#00529B', fontSize: 16 }}
-                    />
-                    <Typography variant="caption" sx={{ flex: 1 }}>
-                      Current: {formData.existing_document.split('/').pop()}
-                    </Typography>
-                    <Typography
-                      variant="caption"
-                      sx={{ color: '#00529B', fontWeight: 600, mr: 1 }}
+              {/* ── Existing documents from API ── */}
+              {hasExistingDocs && (
+                <Box sx={{ mb: 1 }}>
+                  {formData.existing_documents.map((doc, idx) => (
+                    <Box
+                      key={doc.id}
+                      sx={{
+                        mb: 0.75,
+                        p: 1.25,
+                        display: 'flex',
+                        alignItems: 'center',
+                        bgcolor: 'rgba(0, 82, 155, 0.05)',
+                        borderRadius: 1,
+                        border: '1px solid rgba(0, 82, 155, 0.15)',
+                      }}
                     >
-                      View
-                    </Typography>
-                  </Box>
-                  <IconButton
-                    size="small"
-                    onClick={handleRemoveExistingDocument}
-                    sx={{ color: '#d32f2f', p: '2px' }}
-                  >
-                    <CloseIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
+                      {/* Clickable → opens document in new tab */}
+                      <Box
+                        onClick={() => window.open(doc.document_url, '_blank')}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          flex: 1,
+                          minWidth: 0,
+                          cursor: 'pointer',
+                          '&:hover': { opacity: 0.8 },
+                        }}
+                      >
+                        <AttachFileIcon
+                          sx={{
+                            mr: 1,
+                            color: '#00529B',
+                            fontSize: 16,
+                            flexShrink: 0,
+                          }}
+                        />
+                        <Tooltip
+                          title={doc.document_name}
+                          arrow
+                          placement="top"
+                        >
+                          <Typography variant="caption" noWrap sx={{ flex: 1 }}>
+                            {doc.document_name}
+                          </Typography>
+                        </Tooltip>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: '#00529B',
+                            fontWeight: 600,
+                            mx: 1,
+                            flexShrink: 0,
+                          }}
+                        >
+                          View
+                        </Typography>
+                      </Box>
+
+                      {/* Remove existing document */}
+                      <Tooltip title="Remove">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleRemoveExistingDocument(idx)}
+                          sx={{ color: '#d32f2f', p: '2px', flexShrink: 0 }}
+                        >
+                          <CloseIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  ))}
                 </Box>
               )}
 
-              {/* Upload box — always visible to allow adding more files */}
+              {/* ── Upload box — always visible so user can add new files ── */}
               <Box sx={styles.uploadBox}>
                 <input
                   accept="*/*"
@@ -334,7 +421,7 @@ const EditExpenseModal = ({
                   multiple
                   onChange={(e) => {
                     handleFileChange(Array.from(e.target.files));
-                    e.target.value = '';
+                    e.target.value = ''; // reset so the same file can be re-selected
                   }}
                 />
                 <label htmlFor="edit-expense-file">
@@ -350,9 +437,9 @@ const EditExpenseModal = ({
                       sx={{ fontSize: 28, color: '#00529B', mb: 0.5 }}
                     />
                     <Typography variant="caption" color="text.secondary">
-                      {formData.new_documents.length > 0
+                      {hasNewDocs
                         ? 'Click to add more documents'
-                        : formData.existing_document
+                        : hasExistingDocs
                           ? 'Click to add new documents'
                           : 'Click to upload documents'}
                     </Typography>
@@ -367,8 +454,8 @@ const EditExpenseModal = ({
                 </label>
               </Box>
 
-              {/* Newly selected files list */}
-              {formData.new_documents.length > 0 && (
+              {/* ── Newly selected files list ── */}
+              {hasNewDocs && (
                 <Box sx={{ mt: 1 }}>
                   {formData.new_documents.map((file, index) => (
                     <Box
@@ -384,33 +471,69 @@ const EditExpenseModal = ({
                         border: '1px solid rgba(0, 82, 155, 0.2)',
                       }}
                     >
-                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      {/* Left: icon + name + size */}
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          flex: 1,
+                          minWidth: 0,
+                        }}
+                      >
                         <AttachFileIcon
-                          sx={{ mr: 1, color: '#00529B', fontSize: 16 }}
+                          sx={{
+                            mr: 1,
+                            color: '#00529B',
+                            fontSize: 16,
+                            flexShrink: 0,
+                          }}
                         />
-                        <Typography variant="caption">{file.name}</Typography>
+                        <Typography variant="caption" noWrap sx={{ flex: 1 }}>
+                          {file.name}
+                        </Typography>
                         <Typography
                           variant="caption"
                           color="text.secondary"
-                          sx={{ ml: 0.75 }}
+                          sx={{ ml: 0.75, flexShrink: 0 }}
                         >
                           ({(file.size / 1024).toFixed(1)} KB)
                         </Typography>
                       </Box>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleRemoveNewFile(index)}
-                        sx={{ color: '#d32f2f' }}
+
+                      {/* Right: preview + remove */}
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          flexShrink: 0,
+                        }}
                       >
-                        <CloseIcon fontSize="small" />
-                      </IconButton>
+                        <Tooltip title="Preview">
+                          <IconButton
+                            size="small"
+                            onClick={() => previewFile(file)}
+                            sx={{ color: '#00529B' }}
+                          >
+                            <VisibilityOutlinedIcon sx={{ fontSize: 15 }} />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Remove">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleRemoveNewFile(index)}
+                            sx={{ color: '#d32f2f' }}
+                          >
+                            <CloseIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
                     </Box>
                   ))}
                 </Box>
               )}
             </Grid>
 
-            {/* Reason for Edit — mandatory */}
+            {/* ── Reason for Edit — mandatory ── */}
             <Grid item xs={12}>
               <Box
                 sx={{
@@ -475,8 +598,7 @@ const EditExpenseModal = ({
               bgcolor: '#FFA726',
               '&:hover': { bgcolor: '#F57C00' },
               textTransform: 'none',
-              minWidth: 140,
-              px: 3,
+              minWidth: 130,
             }}
           >
             {isLoading ? 'Saving...' : 'Save Changes'}

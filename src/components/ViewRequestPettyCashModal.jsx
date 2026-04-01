@@ -198,7 +198,7 @@ const ViewRequestPettyCashModal = ({ open, handleClose, request }) => {
             {formatAmount(request.total_expenses)}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-            Total Request Amount
+            Replenishment Amount
           </Typography>
           <StatusChip status={request.status} />
         </Paper>
@@ -284,6 +284,28 @@ const ViewRequestPettyCashModal = ({ open, handleClose, request }) => {
           </Typography>
           <Divider sx={{ mb: 2 }} />
           <Grid container spacing={2}>
+            {/* Description — full width, empty-safe */}
+            <Grid item xs={12}>
+              <Typography sx={style.fieldLabel}>Description</Typography>
+              {request.description ? (
+                <Typography sx={style.fieldValue}>
+                  {request.description}
+                </Typography>
+              ) : (
+                <Chip
+                  label="Replenishment"
+                  size="small"
+                  sx={{
+                    bgcolor: 'rgba(0, 82, 155, 0.08)',
+                    color: '#00529B',
+                    fontStyle: 'italic',
+                    fontWeight: 500,
+                    fontSize: '0.78rem',
+                    mt: 0.3,
+                  }}
+                />
+              )}
+            </Grid>
             <Grid item xs={6}>
               <Field
                 label="Created At"
