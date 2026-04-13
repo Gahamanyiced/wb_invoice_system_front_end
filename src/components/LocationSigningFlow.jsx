@@ -11,9 +11,11 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   IconButton,
   Paper,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -67,9 +69,12 @@ function AddLocationSignerDialog({
   const [location, setLocation] = useState(null);
   const [rows, setRows] = useState([{ signer: null, order: 1 }]);
 
-  const locationOptions = (locations?.results || locations || []).map((l) => ({
+  // Same pattern as CostCenter: "loc_code — loc_name"
+  const locationOptions = (
+    locations?.results || (Array.isArray(locations) ? locations : [])
+  ).map((l) => ({
     id: l.id,
-    label: l.location_name || l.name || `Location #${l.id}`,
+    label: `${l.loc_code} — ${l.loc_name}`,
   }));
 
   const signerOptions = signersList.map((s) => ({
@@ -86,9 +91,7 @@ function AddLocationSignerDialog({
 
   const addRow = () =>
     setRows([...rows, { signer: null, order: rows.length + 1 }]);
-
   const removeRow = (i) => setRows(rows.filter((_, idx) => idx !== i));
-
   const updateRow = (i, field, value) => {
     const updated = [...rows];
     updated[i] = { ...updated[i], [field]: value };
@@ -151,6 +154,7 @@ function AddLocationSignerDialog({
 
       <DialogContent sx={{ mt: 2 }}>
         <Stack spacing={2} sx={{ mt: 1 }}>
+          {/* Location — same display style as Cost Center (no custom renderOption) */}
           <Autocomplete
             options={locationOptions}
             value={location}
@@ -162,7 +166,7 @@ function AddLocationSignerDialog({
                 label="Location"
                 size="small"
                 required
-                placeholder="Search location..."
+                placeholder="Search by code or name..."
               />
             )}
             noOptionsText="No locations found"
@@ -247,7 +251,7 @@ function AddLocationSignerDialog({
   );
 }
 
-// ---- Edit Signer Dialog ----
+// ---- Edit Signer Dialog — includes signer, order AND is_active ----
 function EditLocationSignerDialog({
   open,
   onClose,
@@ -256,30 +260,43 @@ function EditLocationSignerDialog({
   signersList,
 }) {
   const dispatch = useDispatch();
+  const [selectedSigner, setSelectedSigner] = useState(null);
   const [order, setOrder] = useState('');
+  const [isActive, setIsActive] = useState(true);
 
   const signerOptions = signersList.map((s) => ({
     id: s.id,
     label: `${s.firstname} ${s.lastname}`,
   }));
 
-  const currentSignerOption = signer
-    ? signerOptions.find((o) => o.id === signer.signer) || null
-    : null;
-
   useEffect(() => {
     if (open && signer) {
       setOrder(signer.order ?? '');
+      setIsActive(signer.is_active ?? true);
+      const matched = signerOptions.find((o) => o.id === signer.signer) || null;
+      setSelectedSigner(matched);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, signer]);
 
   const handleUpdate = async () => {
+    if (!selectedSigner) {
+      toast.error('Please select a signer');
+      return;
+    }
     if (!order) {
       toast.error('Please enter an order');
       return;
     }
     const res = await dispatch(
-      updateLocationSigner({ id: signer.id, data: { order: Number(order) } }),
+      updateLocationSigner({
+        id: signer.id,
+        data: {
+          signer: selectedSigner.id,
+          order: Number(order),
+          is_active: isActive,
+        },
+      }),
     );
     if (res.meta.requestStatus === 'fulfilled') {
       toast.success('Signer updated successfully');
@@ -301,7 +318,7 @@ function EditLocationSignerDialog({
           alignItems: 'center',
         }}
       >
-        Edit Signer Order
+        Edit Signer
         <IconButton onClick={onClose} sx={{ color: '#fff' }}>
           <CloseIcon />
         </IconButton>
@@ -310,12 +327,13 @@ function EditLocationSignerDialog({
         <Stack spacing={2} sx={{ mt: 1 }}>
           <Autocomplete
             options={signerOptions}
-            value={currentSignerOption}
-            disabled
+            value={selectedSigner}
+            onChange={(_, newValue) => setSelectedSigner(newValue)}
             isOptionEqualToValue={(option, value) => option.id === value?.id}
             renderInput={(params) => (
-              <TextField {...params} label="Signer" size="small" />
+              <TextField {...params} label="Signer" size="small" required />
             )}
+            noOptionsText="No signers found"
           />
           <TextField
             size="small"
@@ -324,6 +342,20 @@ function EditLocationSignerDialog({
             value={order}
             onChange={(e) => setOrder(e.target.value)}
             inputProps={{ min: 1 }}
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
+                color="primary"
+              />
+            }
+            label={
+              <Typography variant="body2">
+                {isActive ? 'Active' : 'Inactive'}
+              </Typography>
+            }
           />
         </Stack>
       </DialogContent>
@@ -353,7 +385,6 @@ function DeleteSignerDialog({ open, onClose, signer, isLoading }) {
   const dispatch = useDispatch();
 
   const handleDelete = async () => {
-    // Send the signing flow record id in the URL and { order } in the body
     const res = await dispatch(
       deleteLocationSigner({ id: signer.id, data: { order: signer.order } }),
     );
@@ -414,7 +445,6 @@ function LocationSigningFlow() {
   const dispatch = useDispatch();
   const { isLoading } = useSelector((s) => s.signingFlow);
 
-  // API returns { count, results: [...] }
   const rawSigners = useSelector((s) => s.signingFlow.locationSigners);
   const locationSigners = Array.isArray(rawSigners)
     ? rawSigners
@@ -439,22 +469,18 @@ function LocationSigningFlow() {
     dispatch(getAllSigners());
   }, [dispatch]);
 
-  // Group by location id using flat API fields
-  // Each item: { id, location, location_name, signer, signer_name, order, is_active }
+  const toggleLoc = (id) =>
+    setExpandedLoc((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  // Group by location id
   const grouped = locationSigners.reduce((acc, item) => {
     const key = item.location;
     if (!acc[key]) {
-      acc[key] = {
-        locationName: item.location_name,
-        signers: [],
-      };
+      acc[key] = { locationName: item.location_name, signers: [] };
     }
     acc[key].signers.push(item);
     return acc;
   }, {});
-
-  const toggleLoc = (id) =>
-    setExpandedLoc((prev) => ({ ...prev, [id]: !prev[id] }));
 
   return (
     <Box>

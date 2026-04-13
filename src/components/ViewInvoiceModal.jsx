@@ -123,32 +123,16 @@ const formatCurrency = (amount, currency) => {
 };
 
 function ViewInvoiceModal({ defaultValues, open, handleClose }) {
-  // ── COA data from DB (replaces loadExcelData + excelData state) ────────────
-  // enabled: open  → only fetch when the modal is actually open,
-  //                  matching the old "if (open) loadExcelData()" behaviour.
   const { excelData, isLoading: coaLoading } = useCOAData({ enabled: open });
 
   // ── value helpers ──────────────────────────────────────────────────────────
   const getValue = (field) => defaultValues?.[field] || 'N/A';
 
-  // Resolve a stored code/key to its human-readable label using excelData.
-  // Unchanged from original — only data source is different.
+  // getDescriptiveValue: only used for supplier_number and payment_terms
+  // (those fields have no _detail equivalents in the API response)
   const getDescriptiveValue = (field, value) => {
     if (!value || value === 'N/A') return 'N/A';
-
     switch (field) {
-      case 'location': {
-        const loc = excelData.locations.find((item) => item.value === value);
-        return loc ? loc.label : value;
-      }
-      case 'aircraft_type': {
-        const ac = excelData.aircraftTypes.find((item) => item.value === value);
-        return ac ? ac.label : value;
-      }
-      case 'route': {
-        const route = excelData.routes.find((item) => item.value === value);
-        return route ? route.label : value;
-      }
       case 'payment_terms': {
         const pt = paymentTermsOptions.find((option) => option.value === value);
         return pt ? pt.label : value;
@@ -164,16 +148,38 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
     }
   };
 
-  const getGLCodeDescription = (glCode) => {
-    if (!glCode || glCode === 'N/A') return 'N/A';
-    const gl = excelData.glCodes.find((item) => item.value === glCode);
-    return gl ? gl.label : glCode;
+  // ── GL line _detail resolvers ─────────────────────────────────────────────
+  // API now returns _detail nested objects alongside raw IDs.
+  // Always prefer _detail; fall back to raw value if detail is absent.
+
+  const resolveGLCode = (line) => {
+    if (line?.gl_account_detail)
+      return `${line.gl_account_detail.gl_code} - ${line.gl_account_detail.gl_description}`;
+    return line?.gl_description || 'N/A';
   };
 
-  const getCostCenterDescription = (costCenter) => {
-    if (!costCenter || costCenter === 'N/A') return 'N/A';
-    const cc = excelData.costCenters.find((item) => item.value === costCenter);
-    return cc ? cc.label : costCenter;
+  const resolveCostCenter = (line) => {
+    if (line?.cost_center_detail)
+      return `${line.cost_center_detail.cc_code} - ${line.cost_center_detail.cc_description}`;
+    return line?.cost_center ? String(line.cost_center) : 'N/A';
+  };
+
+  const resolveLocation = (line) => {
+    if (line?.location_detail)
+      return `${line.location_detail.loc_code} - ${line.location_detail.loc_name}`;
+    return line?.location ? String(line.location) : 'N/A';
+  };
+
+  const resolveAircraftType = (line) => {
+    if (line?.aircraft_type_detail)
+      return `${line.aircraft_type_detail.code} - ${line.aircraft_type_detail.description}`;
+    return line?.aircraft_type ? String(line.aircraft_type) : 'N/A';
+  };
+
+  const resolveRoute = (line) => {
+    if (line?.route_detail)
+      return `${line.route_detail.code} - ${line.route_detail.description}`;
+    return line?.route ? String(line.route) : 'N/A';
   };
 
   // ── data ───────────────────────────────────────────────────────────────────
@@ -184,9 +190,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
   const ownerName = invoiceOwner
     ? `${invoiceOwner.firstname || ''} ${invoiceOwner.lastname || ''}`.trim()
     : 'N/A';
-
-  // Placeholder shown while COA data is still loading from the API
-  const loading = (text = 'Loading...') => (coaLoading ? 'Loading...' : text);
 
   // ── render ─────────────────────────────────────────────────────────────────
   return (
@@ -401,9 +404,7 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                         <Box sx={style.fieldContainer}>
                           <Typography sx={style.fieldLabel}>GL Code</Typography>
                           <Typography sx={style.fieldValue}>
-                            {coaLoading
-                              ? 'Loading...'
-                              : getGLCodeDescription(line.gl_code)}
+                            {resolveGLCode(line)}
                           </Typography>
                         </Box>
                       </Grid>
@@ -425,9 +426,7 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                             Cost Center
                           </Typography>
                           <Typography sx={style.fieldValue}>
-                            {coaLoading
-                              ? 'Loading...'
-                              : getCostCenterDescription(line.cost_center)}
+                            {resolveCostCenter(line)}
                           </Typography>
                         </Box>
                       </Grid>
@@ -451,9 +450,7 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                             Location
                           </Typography>
                           <Typography sx={style.fieldValue}>
-                            {coaLoading
-                              ? 'Loading...'
-                              : getDescriptiveValue('location', line.location)}
+                            {resolveLocation(line)}
                           </Typography>
                         </Box>
                       </Grid>
@@ -464,12 +461,7 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                             Aircraft Type
                           </Typography>
                           <Typography sx={style.fieldValue}>
-                            {coaLoading
-                              ? 'Loading...'
-                              : getDescriptiveValue(
-                                  'aircraft_type',
-                                  line.aircraft_type,
-                                )}
+                            {resolveAircraftType(line)}
                           </Typography>
                         </Box>
                       </Grid>
@@ -478,9 +470,7 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                         <Box sx={style.fieldContainer}>
                           <Typography sx={style.fieldLabel}>Route</Typography>
                           <Typography sx={style.fieldValue}>
-                            {coaLoading
-                              ? 'Loading...'
-                              : getDescriptiveValue('route', line.route)}
+                            {resolveRoute(line)}
                           </Typography>
                         </Box>
                       </Grid>

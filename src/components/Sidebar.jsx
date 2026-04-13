@@ -198,6 +198,20 @@ export default function Sidebar() {
   const firstName = user?.firstname || username.split('.')[0] || '';
   const lastName = user?.lastname || username.split('.')[1] || '';
 
+  // ── Permission flags ──────────────────────────────────────────────────────
+  const isAdmin = user?.role === 'admin';
+  const isSignerAdmin = user?.role === 'signer_admin';
+
+  // signer_admin + is_invoice_verifier → Signing Flow, Delegation, COA
+  const canSeeAdminTools =
+    isAdmin || (isSignerAdmin && !!user?.is_invoice_verifier);
+
+  // admin OR (signer_admin + is_verifier) → Reports
+  const canSeeReports = isAdmin || (isSignerAdmin && !!user?.is_verifier);
+
+  // Show Administration heading if the user can see at least one admin item
+  const showAdminSection = isAdmin || canSeeAdminTools;
+
   useEffect(() => {
     const path = location.pathname;
     if (path === '/dashboard') {
@@ -352,7 +366,7 @@ export default function Sidebar() {
               </StyledNavLink>
 
               <Collapse in={dashboardMenuOpen} timeout="auto" unmountOnExit>
-                {user?.role === 'admin' && (
+                {isAdmin && (
                   <SubMenuItem
                     className={activeDashboardOption === 1 ? 'active' : ''}
                     onClick={() => handleDashboardOption(1)}
@@ -360,8 +374,7 @@ export default function Sidebar() {
                     All Invoices
                   </SubMenuItem>
                 )}
-                {(user?.role === 'supplier' ||
-                  user?.role === 'signer_admin') && (
+                {(user?.role === 'supplier' || isSignerAdmin) && (
                   <SubMenuItem
                     className={activeDashboardOption === 2 ? 'active' : ''}
                     onClick={() => handleDashboardOption(2)}
@@ -369,7 +382,7 @@ export default function Sidebar() {
                     Invoices Upload
                   </SubMenuItem>
                 )}
-                {(user?.role === 'signer' || user?.role === 'signer_admin') && (
+                {(user?.role === 'signer' || isSignerAdmin) && (
                   <SubMenuItem
                     className={activeDashboardOption === 3 ? 'active' : ''}
                     onClick={() => handleDashboardOption(3)}
@@ -397,7 +410,7 @@ export default function Sidebar() {
               </StyledNavLink>
 
               <Collapse in={invoiceMenuOpen} timeout="auto" unmountOnExit>
-                {user?.role === 'admin' && (
+                {isAdmin && (
                   <SubMenuItem
                     className={activeInvoiceOption === 1 ? 'active' : ''}
                     onClick={() => handleInvoiceOption(1)}
@@ -405,8 +418,7 @@ export default function Sidebar() {
                     All Invoices
                   </SubMenuItem>
                 )}
-                {(user?.role === 'supplier' ||
-                  user?.role === 'signer_admin') && (
+                {(user?.role === 'supplier' || isSignerAdmin) && (
                   <SubMenuItem
                     className={activeInvoiceOption === 2 ? 'active' : ''}
                     onClick={() => handleInvoiceOption(2)}
@@ -414,7 +426,7 @@ export default function Sidebar() {
                     Invoices Upload
                   </SubMenuItem>
                 )}
-                {(user?.role === 'signer' || user?.role === 'signer_admin') && (
+                {(user?.role === 'signer' || isSignerAdmin) && (
                   <SubMenuItem
                     className={activeInvoiceOption === 3 ? 'active' : ''}
                     onClick={() => handleInvoiceOption(3)}
@@ -435,13 +447,15 @@ export default function Sidebar() {
               </StyledNavLink>
             )}
 
-            {/* Reports */}
-            <MenuLink onClick={handleOpenReporting}>
-              <MenuIcon>
-                <AssessmentIcon fontSize="small" />
-              </MenuIcon>
-              <Typography sx={{ fontSize: '15px' }}>Reports</Typography>
-            </MenuLink>
+            {/* Reports — admin OR (signer_admin + is_verifier) */}
+            {canSeeReports && (
+              <MenuLink onClick={handleOpenReporting}>
+                <MenuIcon>
+                  <AssessmentIcon fontSize="small" />
+                </MenuIcon>
+                <Typography sx={{ fontSize: '15px' }}>Reports</Typography>
+              </MenuLink>
+            )}
 
             {/* Supplier Profile */}
             {user?.role === 'supplier' && (
@@ -454,176 +468,190 @@ export default function Sidebar() {
             )}
 
             {/* Administration */}
-            {(user?.role === 'admin' || user?.role === 'signer_admin') && (
+            {showAdminSection && (
               <>
                 <MenuHeading>Administration</MenuHeading>
 
-                {user?.role === 'admin' && (
-                  <>
-                    <StyledNavLink to="/user">
-                      <MenuIcon>
-                        <PersonOutlineOutlinedIcon fontSize="small" />
-                      </MenuIcon>
-                      <Typography sx={{ fontSize: '15px' }}>Users</Typography>
-                    </StyledNavLink>
-
-                    <StyledNavLink to="/department">
-                      <MenuIcon>
-                        <CorporateFareOutlinedIcon fontSize="small" />
-                      </MenuIcon>
-                      <Typography sx={{ fontSize: '15px' }}>
-                        Departments
-                      </Typography>
-                    </StyledNavLink>
-
-                    <StyledNavLink to="/section">
-                      <MenuIcon>
-                        <MenuBookOutlinedIcon fontSize="small" />
-                      </MenuIcon>
-                      <Typography sx={{ fontSize: '15px' }}>
-                        Sections
-                      </Typography>
-                    </StyledNavLink>
-                  </>
+                {/* Users — admin only */}
+                {isAdmin && (
+                  <StyledNavLink to="/user">
+                    <MenuIcon>
+                      <PersonOutlineOutlinedIcon fontSize="small" />
+                    </MenuIcon>
+                    <Typography sx={{ fontSize: '15px' }}>Users</Typography>
+                  </StyledNavLink>
                 )}
 
-                {/* Signing Flow Menu */}
-                <Box>
-                  <MenuLink onClick={toggleSigningFlowMenu}>
+                {/* Departments — commented out */}
+                {/* {isAdmin && (
+                  <StyledNavLink to="/department">
                     <MenuIcon>
-                      <AssignmentTurnedInOutlinedIcon fontSize="small" />
+                      <CorporateFareOutlinedIcon fontSize="small" />
                     </MenuIcon>
-                    <Typography sx={{ flexGrow: 1, fontSize: '15px' }}>
-                      Signing Flow
+                    <Typography sx={{ fontSize: '15px' }}>
+                      Departments
                     </Typography>
-                    {signingFlowMenuOpen ? (
-                      <KeyboardArrowUpIcon fontSize="small" />
-                    ) : (
-                      <KeyboardArrowDownIcon fontSize="small" />
-                    )}
-                  </MenuLink>
+                  </StyledNavLink>
+                )} */}
 
-                  <Collapse
-                    in={signingFlowMenuOpen}
-                    timeout="auto"
-                    unmountOnExit
-                  >
-                    <SubMenuItem
-                      className={
-                        activeSigningFlowOption === '/signing-flow/department'
-                          ? 'active'
-                          : ''
-                      }
-                      onClick={() =>
-                        handleSigningFlowOption('/signing-flow/department')
-                      }
-                    >
-                      Department / Section
-                    </SubMenuItem>
-                    <SubMenuItem
-                      className={
-                        activeSigningFlowOption === '/signing-flow/cost-center'
-                          ? 'active'
-                          : ''
-                      }
-                      onClick={() =>
-                        handleSigningFlowOption('/signing-flow/cost-center')
-                      }
-                    >
-                      Cost Center
-                    </SubMenuItem>
-                    <SubMenuItem
-                      className={
-                        activeSigningFlowOption === '/signing-flow/location'
-                          ? 'active'
-                          : ''
-                      }
-                      onClick={() =>
-                        handleSigningFlowOption('/signing-flow/location')
-                      }
-                    >
-                      Location
-                    </SubMenuItem>
-                  </Collapse>
-                </Box>
-
-                {/* Delegation */}
-                <StyledNavLink to="/delegation">
-                  <MenuIcon>
-                    <SwapHorizIcon fontSize="small" />
-                  </MenuIcon>
-                  <Typography sx={{ fontSize: '15px' }}>Delegation</Typography>
-                </StyledNavLink>
-
-                {/* Chart of Accounts */}
-                <Box>
-                  <MenuLink onClick={toggleCoaMenu}>
+                {/* Sections — commented out */}
+                {/* {isAdmin && (
+                  <StyledNavLink to="/section">
                     <MenuIcon>
-                      <TableChartOutlinedIcon fontSize="small" />
+                      <MenuBookOutlinedIcon fontSize="small" />
                     </MenuIcon>
-                    <Typography sx={{ flexGrow: 1, fontSize: '15px' }}>
-                      Chart of Accounts
-                    </Typography>
-                    {coaMenuOpen ? (
-                      <KeyboardArrowUpIcon fontSize="small" />
-                    ) : (
-                      <KeyboardArrowDownIcon fontSize="small" />
-                    )}
-                  </MenuLink>
+                    <Typography sx={{ fontSize: '15px' }}>Sections</Typography>
+                  </StyledNavLink>
+                )} */}
 
-                  <Collapse in={coaMenuOpen} timeout="auto" unmountOnExit>
-                    <SubMenuItem
-                      className={
-                        activeCoaOption === '/coa/suppliers' ? 'active' : ''
-                      }
-                      onClick={() => handleCoaOption('/coa/suppliers')}
+                {/* Signing Flow — admin OR (signer_admin + is_invoice_verifier) */}
+                {canSeeAdminTools && (
+                  <Box>
+                    <MenuLink onClick={toggleSigningFlowMenu}>
+                      <MenuIcon>
+                        <AssignmentTurnedInOutlinedIcon fontSize="small" />
+                      </MenuIcon>
+                      <Typography sx={{ flexGrow: 1, fontSize: '15px' }}>
+                        Signing Flow
+                      </Typography>
+                      {signingFlowMenuOpen ? (
+                        <KeyboardArrowUpIcon fontSize="small" />
+                      ) : (
+                        <KeyboardArrowDownIcon fontSize="small" />
+                      )}
+                    </MenuLink>
+
+                    <Collapse
+                      in={signingFlowMenuOpen}
+                      timeout="auto"
+                      unmountOnExit
                     >
-                      Supplier Details
-                    </SubMenuItem>
-                    <SubMenuItem
-                      className={
-                        activeCoaOption === '/coa/cost-centers' ? 'active' : ''
-                      }
-                      onClick={() => handleCoaOption('/coa/cost-centers')}
-                    >
-                      Cost Center
-                    </SubMenuItem>
-                    <SubMenuItem
-                      className={
-                        activeCoaOption === '/coa/gl-accounts' ? 'active' : ''
-                      }
-                      onClick={() => handleCoaOption('/coa/gl-accounts')}
-                    >
-                      GL Account
-                    </SubMenuItem>
-                    <SubMenuItem
-                      className={
-                        activeCoaOption === '/coa/locations' ? 'active' : ''
-                      }
-                      onClick={() => handleCoaOption('/coa/locations')}
-                    >
-                      Location
-                    </SubMenuItem>
-                    <SubMenuItem
-                      className={
-                        activeCoaOption === '/coa/aircraft-types'
-                          ? 'active'
-                          : ''
-                      }
-                      onClick={() => handleCoaOption('/coa/aircraft-types')}
-                    >
-                      Aircraft Type
-                    </SubMenuItem>
-                    <SubMenuItem
-                      className={
-                        activeCoaOption === '/coa/routes' ? 'active' : ''
-                      }
-                      onClick={() => handleCoaOption('/coa/routes')}
-                    >
-                      Route
-                    </SubMenuItem>
-                  </Collapse>
-                </Box>
+                      <SubMenuItem
+                        className={
+                          activeSigningFlowOption === '/signing-flow/department'
+                            ? 'active'
+                            : ''
+                        }
+                        onClick={() =>
+                          handleSigningFlowOption('/signing-flow/department')
+                        }
+                      >
+                        Department / Section
+                      </SubMenuItem>
+                      <SubMenuItem
+                        className={
+                          activeSigningFlowOption ===
+                          '/signing-flow/cost-center'
+                            ? 'active'
+                            : ''
+                        }
+                        onClick={() =>
+                          handleSigningFlowOption('/signing-flow/cost-center')
+                        }
+                      >
+                        Cost Center
+                      </SubMenuItem>
+                      <SubMenuItem
+                        className={
+                          activeSigningFlowOption === '/signing-flow/location'
+                            ? 'active'
+                            : ''
+                        }
+                        onClick={() =>
+                          handleSigningFlowOption('/signing-flow/location')
+                        }
+                      >
+                        Location
+                      </SubMenuItem>
+                    </Collapse>
+                  </Box>
+                )}
+
+                {/* Delegation — admin OR (signer_admin + is_invoice_verifier) */}
+                {canSeeAdminTools && (
+                  <StyledNavLink to="/delegation">
+                    <MenuIcon>
+                      <SwapHorizIcon fontSize="small" />
+                    </MenuIcon>
+                    <Typography sx={{ fontSize: '15px' }}>
+                      Delegation
+                    </Typography>
+                  </StyledNavLink>
+                )}
+
+                {/* Chart of Accounts — admin OR (signer_admin + is_invoice_verifier) */}
+                {canSeeAdminTools && (
+                  <Box>
+                    <MenuLink onClick={toggleCoaMenu}>
+                      <MenuIcon>
+                        <TableChartOutlinedIcon fontSize="small" />
+                      </MenuIcon>
+                      <Typography sx={{ flexGrow: 1, fontSize: '15px' }}>
+                        Chart of Accounts
+                      </Typography>
+                      {coaMenuOpen ? (
+                        <KeyboardArrowUpIcon fontSize="small" />
+                      ) : (
+                        <KeyboardArrowDownIcon fontSize="small" />
+                      )}
+                    </MenuLink>
+
+                    <Collapse in={coaMenuOpen} timeout="auto" unmountOnExit>
+                      <SubMenuItem
+                        className={
+                          activeCoaOption === '/coa/suppliers' ? 'active' : ''
+                        }
+                        onClick={() => handleCoaOption('/coa/suppliers')}
+                      >
+                        Supplier Details
+                      </SubMenuItem>
+                      <SubMenuItem
+                        className={
+                          activeCoaOption === '/coa/cost-centers'
+                            ? 'active'
+                            : ''
+                        }
+                        onClick={() => handleCoaOption('/coa/cost-centers')}
+                      >
+                        Cost Center
+                      </SubMenuItem>
+                      <SubMenuItem
+                        className={
+                          activeCoaOption === '/coa/gl-accounts' ? 'active' : ''
+                        }
+                        onClick={() => handleCoaOption('/coa/gl-accounts')}
+                      >
+                        GL Account
+                      </SubMenuItem>
+                      <SubMenuItem
+                        className={
+                          activeCoaOption === '/coa/locations' ? 'active' : ''
+                        }
+                        onClick={() => handleCoaOption('/coa/locations')}
+                      >
+                        Location
+                      </SubMenuItem>
+                      <SubMenuItem
+                        className={
+                          activeCoaOption === '/coa/aircraft-types'
+                            ? 'active'
+                            : ''
+                        }
+                        onClick={() => handleCoaOption('/coa/aircraft-types')}
+                      >
+                        Aircraft Type
+                      </SubMenuItem>
+                      <SubMenuItem
+                        className={
+                          activeCoaOption === '/coa/routes' ? 'active' : ''
+                        }
+                        onClick={() => handleCoaOption('/coa/routes')}
+                      >
+                        Route
+                      </SubMenuItem>
+                    </Collapse>
+                  </Box>
+                )}
               </>
             )}
           </List>

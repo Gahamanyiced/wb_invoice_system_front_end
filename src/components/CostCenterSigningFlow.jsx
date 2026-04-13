@@ -11,9 +11,11 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   IconButton,
   Paper,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -86,9 +88,7 @@ function AddCCSignerDialog({
 
   const addRow = () =>
     setRows([...rows, { signer: null, order: rows.length + 1 }]);
-
   const removeRow = (i) => setRows(rows.filter((_, idx) => idx !== i));
-
   const updateRow = (i, field, value) => {
     const updated = [...rows];
     updated[i] = { ...updated[i], [field]: value };
@@ -247,33 +247,46 @@ function AddCCSignerDialog({
   );
 }
 
-// ---- Edit Signer Dialog ----
+// ---- Edit Signer Dialog — now includes signer, order AND is_active ----
 function EditCCSignerDialog({ open, onClose, signer, isLoading, signersList }) {
   const dispatch = useDispatch();
+  const [selectedSigner, setSelectedSigner] = useState(null);
   const [order, setOrder] = useState('');
+  const [isActive, setIsActive] = useState(true);
 
   const signerOptions = signersList.map((s) => ({
     id: s.id,
     label: `${s.firstname} ${s.lastname}`,
   }));
 
-  const currentSignerOption = signer
-    ? signerOptions.find((o) => o.id === signer.signer) || null
-    : null;
-
   useEffect(() => {
     if (open && signer) {
       setOrder(signer.order ?? '');
+      setIsActive(signer.is_active ?? true);
+      const matched = signerOptions.find((o) => o.id === signer.signer) || null;
+      setSelectedSigner(matched);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, signer]);
 
   const handleUpdate = async () => {
+    if (!selectedSigner) {
+      toast.error('Please select a signer');
+      return;
+    }
     if (!order) {
       toast.error('Please enter an order');
       return;
     }
     const res = await dispatch(
-      updateCostCenterSigner({ id: signer.id, data: { order: Number(order) } }),
+      updateCostCenterSigner({
+        id: signer.id,
+        data: {
+          signer: selectedSigner.id,
+          order: Number(order),
+          is_active: isActive,
+        },
+      }),
     );
     if (res.meta.requestStatus === 'fulfilled') {
       toast.success('Signer updated successfully');
@@ -295,7 +308,7 @@ function EditCCSignerDialog({ open, onClose, signer, isLoading, signersList }) {
           alignItems: 'center',
         }}
       >
-        Edit Signer Order
+        Edit Signer
         <IconButton onClick={onClose} sx={{ color: '#fff' }}>
           <CloseIcon />
         </IconButton>
@@ -304,12 +317,13 @@ function EditCCSignerDialog({ open, onClose, signer, isLoading, signersList }) {
         <Stack spacing={2} sx={{ mt: 1 }}>
           <Autocomplete
             options={signerOptions}
-            value={currentSignerOption}
-            disabled
+            value={selectedSigner}
+            onChange={(_, newValue) => setSelectedSigner(newValue)}
             isOptionEqualToValue={(option, value) => option.id === value?.id}
             renderInput={(params) => (
-              <TextField {...params} label="Signer" size="small" />
+              <TextField {...params} label="Signer" size="small" required />
             )}
+            noOptionsText="No signers found"
           />
           <TextField
             size="small"
@@ -318,6 +332,20 @@ function EditCCSignerDialog({ open, onClose, signer, isLoading, signersList }) {
             value={order}
             onChange={(e) => setOrder(e.target.value)}
             inputProps={{ min: 1 }}
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
+                color="primary"
+              />
+            }
+            label={
+              <Typography variant="body2">
+                {isActive ? 'Active' : 'Inactive'}
+              </Typography>
+            }
           />
         </Stack>
       </DialogContent>
@@ -347,7 +375,6 @@ function DeleteSignerDialog({ open, onClose, signer, isLoading }) {
   const dispatch = useDispatch();
 
   const handleDelete = async () => {
-    // Send the signing flow record id in the URL and { order } in the body
     const res = await dispatch(
       deleteCostCenterSigner({ id: signer.id, data: { order: signer.order } }),
     );
@@ -408,7 +435,6 @@ function CostCenterSigningFlow() {
   const dispatch = useDispatch();
   const { isLoading } = useSelector((s) => s.signingFlow);
 
-  // API returns { count, results: [...] }
   const rawSigners = useSelector((s) => s.signingFlow.costCenterSigners);
   const costCenterSigners = Array.isArray(rawSigners)
     ? rawSigners
@@ -433,22 +459,17 @@ function CostCenterSigningFlow() {
     dispatch(getAllSigners());
   }, [dispatch]);
 
-  // Group by cost_center id using flat API fields
-  // Each item: { id, cost_center, cost_center_name, signer, signer_name, order, is_active }
+  const toggleCC = (id) =>
+    setExpandedCC((prev) => ({ ...prev, [id]: !prev[id] }));
+
   const grouped = costCenterSigners.reduce((acc, item) => {
     const key = item.cost_center;
     if (!acc[key]) {
-      acc[key] = {
-        costCenterName: item.cost_center_name,
-        signers: [],
-      };
+      acc[key] = { costCenterName: item.cost_center_name, signers: [] };
     }
     acc[key].signers.push(item);
     return acc;
   }, {});
-
-  const toggleCC = (id) =>
-    setExpandedCC((prev) => ({ ...prev, [id]: !prev[id] }));
 
   return (
     <Box>
@@ -508,7 +529,6 @@ function CostCenterSigningFlow() {
             ) : (
               Object.entries(grouped).map(([ccId, group], index) => (
                 <React.Fragment key={ccId}>
-                  {/* Cost Center row */}
                   <TableRow
                     hover
                     sx={{
@@ -546,7 +566,6 @@ function CostCenterSigningFlow() {
                     </TableCell>
                   </TableRow>
 
-                  {/* Expanded signer rows */}
                   <TableRow>
                     <TableCell colSpan={4} sx={{ p: 0, border: 0 }}>
                       <Collapse

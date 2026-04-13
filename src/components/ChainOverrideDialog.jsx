@@ -43,18 +43,18 @@ import { getAllSigners } from '../features/user/userSlice';
 
 // ── Status options ─────────────────────────────────────────────────────────────
 const INVOICE_STATUSES = [
-  { value: 'pending',    label: 'Pending' },
+  { value: 'pending', label: 'Pending' },
   { value: 'processing', label: 'Processing' },
-  { value: 'approved',   label: 'Approved' },
-  { value: 'rollback',   label: 'Rollback' },
-  { value: 'forwarded',  label: 'Forwarded' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'rollback', label: 'Rollback' },
+  { value: 'forwarded', label: 'Forwarded' },
 ];
 
 const HISTORY_STATUSES = [
-  { value: 'to_sign',  label: 'To Sign' },
-  { value: 'signed',   label: 'Signed' },
-  { value: 'pending',  label: 'Pending' },
-  { value: 'denied',   label: 'Denied' },
+  { value: 'to_sign', label: 'To Sign' },
+  { value: 'signed', label: 'Signed' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'denied', label: 'Denied' },
 ];
 
 // ── Shared styles ──────────────────────────────────────────────────────────────
@@ -76,6 +76,17 @@ const signerLabel = (item) =>
   `${item?.signer?.firstname || ''} ${item?.signer?.lastname || ''}`.trim() ||
   `History #${item.id}`;
 
+// ── Helper: resolve the correct invoice ID for chain endpoints ─────────────────
+// The chain endpoints use invoice_histories[].invoice (e.g. 5) — the FK integer
+// used in /invoice/invoices/{id}/chain/... URLs.
+// invoice.invoice.id (e.g. 200588) is the tracking object ID — NOT what the
+// chain endpoints expect.
+const resolveChainInvoiceId = (invoice) => {
+  const fromHistory = invoice?.invoice_histories?.[0]?.invoice;
+  if (fromHistory) return fromHistory;
+  return invoice?.invoice?.id || invoice?.id;
+};
+
 // ═════════════════════════════════════════════════════════════════════════════
 // Tab panels
 // ═════════════════════════════════════════════════════════════════════════════
@@ -87,9 +98,9 @@ function ReplaceSignerTab({ invoice, invoiceId, signersList, onSuccess }) {
 
   const histories = invoice?.invoice_histories || [];
 
-  const [historyId,   setHistoryId]   = useState('');
-  const [newSigner,   setNewSigner]   = useState(null);
-  const [reason,      setReason]      = useState('');
+  const [historyId, setHistoryId] = useState('');
+  const [newSigner, setNewSigner] = useState(null);
+  const [reason, setReason] = useState('');
 
   const signerOptions = signersList.map((s) => ({
     id: s.id,
@@ -102,11 +113,16 @@ function ReplaceSignerTab({ invoice, invoiceId, signersList, onSuccess }) {
       return;
     }
     const res = await dispatch(
-      chainReplaceSigner({ invoiceId, data: { history_id: historyId, new_signer_id: newSigner.id, reason } })
+      chainReplaceSigner({
+        invoiceId,
+        data: { history_id: historyId, new_signer_id: newSigner.id, reason },
+      }),
     );
     if (res.meta.requestStatus === 'fulfilled') {
       toast.success('Signer replaced successfully');
-      setHistoryId(''); setNewSigner(null); setReason('');
+      setHistoryId('');
+      setNewSigner(null);
+      setReason('');
       onSuccess();
     } else {
       toast.error(res.payload || 'Failed to replace signer');
@@ -116,7 +132,8 @@ function ReplaceSignerTab({ invoice, invoiceId, signersList, onSuccess }) {
   return (
     <Stack spacing={2} sx={{ mt: 1 }}>
       <Typography variant="body2" color="text.secondary">
-        Replace an existing signer in the approval chain with a different person.
+        Replace an existing signer in the approval chain with a different
+        person.
       </Typography>
 
       <TextField
@@ -133,7 +150,13 @@ function ReplaceSignerTab({ invoice, invoiceId, signersList, onSuccess }) {
               <Chip
                 label={item.status?.toUpperCase()}
                 size="small"
-                color={item.status === 'signed' ? 'success' : item.status === 'denied' ? 'error' : 'default'}
+                color={
+                  item.status === 'signed'
+                    ? 'success'
+                    : item.status === 'denied'
+                      ? 'error'
+                      : 'default'
+                }
                 sx={{ fontSize: '10px', height: 18 }}
               />
               <span>{signerLabel(item)}</span>
@@ -148,7 +171,12 @@ function ReplaceSignerTab({ invoice, invoiceId, signersList, onSuccess }) {
         onChange={(_, v) => setNewSigner(v)}
         isOptionEqualToValue={(o, v) => o.id === v?.id}
         renderInput={(params) => (
-          <TextField {...params} label="New signer *" size="small" placeholder="Search by name..." />
+          <TextField
+            {...params}
+            label="New signer *"
+            size="small"
+            placeholder="Search by name..."
+          />
         )}
         noOptionsText="No signers found"
       />
@@ -164,8 +192,18 @@ function ReplaceSignerTab({ invoice, invoiceId, signersList, onSuccess }) {
         placeholder="e.g. Cedric is unavailable, replacing with Lys."
       />
 
-      <Button variant="contained" sx={saveBtn} disabled={isLoading} onClick={handleSubmit}
-        startIcon={isLoading ? <CircularProgress size={16} color="inherit" /> : <SwapHorizIcon />}
+      <Button
+        variant="contained"
+        sx={saveBtn}
+        disabled={isLoading}
+        onClick={handleSubmit}
+        startIcon={
+          isLoading ? (
+            <CircularProgress size={16} color="inherit" />
+          ) : (
+            <SwapHorizIcon />
+          )
+        }
       >
         {isLoading ? 'Replacing...' : 'Replace Signer'}
       </Button>
@@ -180,24 +218,38 @@ function ChangeStatusTab({ invoice, invoiceId, onSuccess }) {
 
   const histories = invoice?.invoice_histories || [];
 
-  const [target,    setTarget]    = useState('invoice');
+  const [target, setTarget] = useState('invoice');
   const [historyId, setHistoryId] = useState('');
   const [newStatus, setNewStatus] = useState('');
-  const [reason,    setReason]    = useState('');
+  const [reason, setReason] = useState('');
 
   const handleSubmit = async () => {
-    if (!newStatus || !reason.trim()) { toast.error('Status and reason are required'); return; }
-    if (target === 'history' && !historyId) { toast.error('Please select a history entry'); return; }
+    if (!newStatus || !reason.trim()) {
+      toast.error('Status and reason are required');
+      return;
+    }
+    if (target === 'history' && !historyId) {
+      toast.error('Please select a history entry');
+      return;
+    }
 
     const payload =
       target === 'invoice'
         ? { target: 'invoice', new_status: newStatus, reason }
-        : { target: 'history', history_id: historyId, new_status: newStatus, reason };
+        : {
+            target: 'history',
+            history_id: historyId,
+            new_status: newStatus,
+            reason,
+          };
 
     const res = await dispatch(chainChangeStatus({ invoiceId, data: payload }));
     if (res.meta.requestStatus === 'fulfilled') {
       toast.success('Status changed successfully');
-      setTarget('invoice'); setHistoryId(''); setNewStatus(''); setReason('');
+      setTarget('invoice');
+      setHistoryId('');
+      setNewStatus('');
+      setReason('');
       onSuccess();
     } else {
       toast.error(res.payload || 'Failed to change status');
@@ -207,13 +259,21 @@ function ChangeStatusTab({ invoice, invoiceId, onSuccess }) {
   return (
     <Stack spacing={2} sx={{ mt: 1 }}>
       <Typography variant="body2" color="text.secondary">
-        Change the status of the invoice itself or a specific signer's history entry.
+        Change the status of the invoice itself or a specific signer's history
+        entry.
       </Typography>
 
       <TextField
-        select label="Target *" value={target}
-        onChange={(e) => { setTarget(e.target.value); setHistoryId(''); setNewStatus(''); }}
-        size="small" fullWidth
+        select
+        label="Target *"
+        value={target}
+        onChange={(e) => {
+          setTarget(e.target.value);
+          setHistoryId('');
+          setNewStatus('');
+        }}
+        size="small"
+        fullWidth
       >
         <MenuItem value="invoice">Invoice</MenuItem>
         <MenuItem value="history">Signer History Entry</MenuItem>
@@ -221,15 +281,26 @@ function ChangeStatusTab({ invoice, invoiceId, onSuccess }) {
 
       {target === 'history' && (
         <TextField
-          select label="History entry *" value={historyId}
-          onChange={(e) => setHistoryId(e.target.value)} size="small" fullWidth
+          select
+          label="History entry *"
+          value={historyId}
+          onChange={(e) => setHistoryId(e.target.value)}
+          size="small"
+          fullWidth
         >
           {histories.map((item) => (
             <MenuItem key={item.id} value={item.id}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Chip
-                  label={item.status?.toUpperCase()} size="small"
-                  color={item.status === 'signed' ? 'success' : item.status === 'denied' ? 'error' : 'default'}
+                  label={item.status?.toUpperCase()}
+                  size="small"
+                  color={
+                    item.status === 'signed'
+                      ? 'success'
+                      : item.status === 'denied'
+                        ? 'error'
+                        : 'default'
+                  }
                   sx={{ fontSize: '10px', height: 18 }}
                 />
                 <span>{signerLabel(item)}</span>
@@ -240,22 +311,45 @@ function ChangeStatusTab({ invoice, invoiceId, onSuccess }) {
       )}
 
       <TextField
-        select label="New status *" value={newStatus}
-        onChange={(e) => setNewStatus(e.target.value)} size="small" fullWidth
+        select
+        label="New status *"
+        value={newStatus}
+        onChange={(e) => setNewStatus(e.target.value)}
+        size="small"
+        fullWidth
       >
-        {(target === 'invoice' ? INVOICE_STATUSES : HISTORY_STATUSES).map((s) => (
-          <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>
-        ))}
+        {(target === 'invoice' ? INVOICE_STATUSES : HISTORY_STATUSES).map(
+          (s) => (
+            <MenuItem key={s.value} value={s.value}>
+              {s.label}
+            </MenuItem>
+          ),
+        )}
       </TextField>
 
       <TextField
-        label="Reason *" value={reason} onChange={(e) => setReason(e.target.value)}
-        size="small" fullWidth multiline rows={2}
+        label="Reason *"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        size="small"
+        fullWidth
+        multiline
+        rows={2}
         placeholder="e.g. Sent back for correction."
       />
 
-      <Button variant="contained" sx={saveBtn} disabled={isLoading} onClick={handleSubmit}
-        startIcon={isLoading ? <CircularProgress size={16} color="inherit" /> : <EditIcon />}
+      <Button
+        variant="contained"
+        sx={saveBtn}
+        disabled={isLoading}
+        onClick={handleSubmit}
+        startIcon={
+          isLoading ? (
+            <CircularProgress size={16} color="inherit" />
+          ) : (
+            <EditIcon />
+          )
+        }
       >
         {isLoading ? 'Saving...' : 'Change Status'}
       </Button>
@@ -270,15 +364,14 @@ function ReorderChainTab({ invoice, invoiceId, onSuccess }) {
 
   const histories = invoice?.invoice_histories || [];
 
-  // Ordered list of history IDs — user can drag/move items
   const [ordered, setOrdered] = useState([]);
-  const [reason,  setReason]  = useState('');
+  const [reason, setReason] = useState('');
 
   useEffect(() => {
     setOrdered(histories.map((h) => h.id));
   }, [invoice]);
 
-  const moveUp   = (idx) => {
+  const moveUp = (idx) => {
     if (idx === 0) return;
     const arr = [...ordered];
     [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
@@ -292,8 +385,13 @@ function ReorderChainTab({ invoice, invoiceId, onSuccess }) {
   };
 
   const handleSubmit = async () => {
-    if (!reason.trim()) { toast.error('Reason is required'); return; }
-    const res = await dispatch(chainReorder({ invoiceId, data: { order: ordered, reason } }));
+    if (!reason.trim()) {
+      toast.error('Reason is required');
+      return;
+    }
+    const res = await dispatch(
+      chainReorder({ invoiceId, data: { order: ordered, reason } }),
+    );
     if (res.meta.requestStatus === 'fulfilled') {
       toast.success('Chain reordered successfully');
       setReason('');
@@ -308,7 +406,8 @@ function ReorderChainTab({ invoice, invoiceId, onSuccess }) {
   return (
     <Stack spacing={2} sx={{ mt: 1 }}>
       <Typography variant="body2" color="text.secondary">
-        Drag the signers into the desired signing order. Use the ↑↓ buttons to move them.
+        Drag the signers into the desired signing order. Use the ↑↓ buttons to
+        move them.
       </Typography>
 
       <Paper variant="outlined" sx={{ p: 1 }}>
@@ -316,24 +415,59 @@ function ReorderChainTab({ invoice, invoiceId, onSuccess }) {
           const item = getHistoryItem(id);
           if (!item) return null;
           return (
-            <Box key={id} sx={{
-              display: 'flex', alignItems: 'center', gap: 1, p: 1,
-              borderRadius: 1, mb: 0.5, bgcolor: 'rgba(0,82,155,0.04)',
-              border: '1px solid #e0e0e0',
-            }}>
+            <Box
+              key={id}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                p: 1,
+                borderRadius: 1,
+                mb: 0.5,
+                bgcolor: 'rgba(0,82,155,0.04)',
+                border: '1px solid #e0e0e0',
+              }}
+            >
               <DragIndicatorIcon sx={{ color: '#999', fontSize: 18 }} />
-              <Chip label={`#${idx + 1}`} size="small" sx={{ fontSize: '11px', minWidth: 28 }} />
               <Chip
-                label={item.status?.toUpperCase()} size="small"
-                color={item.status === 'signed' ? 'success' : item.status === 'denied' ? 'error' : 'default'}
+                label={`#${idx + 1}`}
+                size="small"
+                sx={{ fontSize: '11px', minWidth: 28 }}
+              />
+              <Chip
+                label={item.status?.toUpperCase()}
+                size="small"
+                color={
+                  item.status === 'signed'
+                    ? 'success'
+                    : item.status === 'denied'
+                      ? 'error'
+                      : 'default'
+                }
                 sx={{ fontSize: '10px', height: 18 }}
               />
-              <Typography variant="body2" sx={{ flex: 1 }}>{signerLabel(item)}</Typography>
+              <Typography variant="body2" sx={{ flex: 1 }}>
+                {signerLabel(item)}
+              </Typography>
               <Stack direction="row" spacing={0.5}>
-                <Button size="small" variant="outlined" sx={{ minWidth: 28, px: 0.5 }}
-                  disabled={idx === 0} onClick={() => moveUp(idx)}>↑</Button>
-                <Button size="small" variant="outlined" sx={{ minWidth: 28, px: 0.5 }}
-                  disabled={idx === ordered.length - 1} onClick={() => moveDown(idx)}>↓</Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  sx={{ minWidth: 28, px: 0.5 }}
+                  disabled={idx === 0}
+                  onClick={() => moveUp(idx)}
+                >
+                  ↑
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  sx={{ minWidth: 28, px: 0.5 }}
+                  disabled={idx === ordered.length - 1}
+                  onClick={() => moveDown(idx)}
+                >
+                  ↓
+                </Button>
               </Stack>
             </Box>
           );
@@ -341,13 +475,28 @@ function ReorderChainTab({ invoice, invoiceId, onSuccess }) {
       </Paper>
 
       <TextField
-        label="Reason *" value={reason} onChange={(e) => setReason(e.target.value)}
-        size="small" fullWidth multiline rows={2}
+        label="Reason *"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        size="small"
+        fullWidth
+        multiline
+        rows={2}
         placeholder="e.g. Eric should sign before Lys."
       />
 
-      <Button variant="contained" sx={saveBtn} disabled={isLoading} onClick={handleSubmit}
-        startIcon={isLoading ? <CircularProgress size={16} color="inherit" /> : <SortIcon />}
+      <Button
+        variant="contained"
+        sx={saveBtn}
+        disabled={isLoading}
+        onClick={handleSubmit}
+        startIcon={
+          isLoading ? (
+            <CircularProgress size={16} color="inherit" />
+          ) : (
+            <SortIcon />
+          )
+        }
       >
         {isLoading ? 'Reordering...' : 'Save New Order'}
       </Button>
@@ -362,9 +511,9 @@ function InsertSignerTab({ invoice, invoiceId, signersList, onSuccess }) {
 
   const histories = invoice?.invoice_histories || [];
 
-  const [newSigner,           setNewSigner]           = useState(null);
-  const [insertAfterHistoryId,setInsertAfterHistoryId] = useState('beginning');
-  const [reason,              setReason]              = useState('');
+  const [newSigner, setNewSigner] = useState(null);
+  const [insertAfterHistoryId, setInsertAfterHistoryId] = useState('beginning');
+  const [reason, setReason] = useState('');
 
   const signerOptions = signersList.map((s) => ({
     id: s.id,
@@ -372,19 +521,29 @@ function InsertSignerTab({ invoice, invoiceId, signersList, onSuccess }) {
   }));
 
   const handleSubmit = async () => {
-    if (!newSigner || !reason.trim()) { toast.error('Signer and reason are required'); return; }
+    if (!newSigner || !reason.trim()) {
+      toast.error('Signer and reason are required');
+      return;
+    }
 
-    const afterId = insertAfterHistoryId === 'beginning' ? null : insertAfterHistoryId;
+    const afterId =
+      insertAfterHistoryId === 'beginning' ? null : insertAfterHistoryId;
 
     const res = await dispatch(
       chainInsertSigner({
         invoiceId,
-        data: { signer_id: newSigner.id, insert_after_history_id: afterId, reason },
-      })
+        data: {
+          signer_id: newSigner.id,
+          insert_after_history_id: afterId,
+          reason,
+        },
+      }),
     );
     if (res.meta.requestStatus === 'fulfilled') {
       toast.success('Signer inserted into chain');
-      setNewSigner(null); setInsertAfterHistoryId('beginning'); setReason('');
+      setNewSigner(null);
+      setInsertAfterHistoryId('beginning');
+      setReason('');
       onSuccess();
     } else {
       toast.error(res.payload || 'Failed to insert signer');
@@ -403,7 +562,12 @@ function InsertSignerTab({ invoice, invoiceId, signersList, onSuccess }) {
         onChange={(_, v) => setNewSigner(v)}
         isOptionEqualToValue={(o, v) => o.id === v?.id}
         renderInput={(params) => (
-          <TextField {...params} label="Signer to insert *" size="small" placeholder="Search by name..." />
+          <TextField
+            {...params}
+            label="Signer to insert *"
+            size="small"
+            placeholder="Search by name..."
+          />
         )}
         noOptionsText="No signers found"
       />
@@ -422,10 +586,23 @@ function InsertSignerTab({ invoice, invoiceId, signersList, onSuccess }) {
         {histories.map((item) => (
           <MenuItem key={item.id} value={item.id}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography variant="body2" color="text.secondary" sx={{ mr: 0.5 }}>After:</Typography>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mr: 0.5 }}
+              >
+                After:
+              </Typography>
               <Chip
-                label={item.status?.toUpperCase()} size="small"
-                color={item.status === 'signed' ? 'success' : item.status === 'denied' ? 'error' : 'default'}
+                label={item.status?.toUpperCase()}
+                size="small"
+                color={
+                  item.status === 'signed'
+                    ? 'success'
+                    : item.status === 'denied'
+                      ? 'error'
+                      : 'default'
+                }
                 sx={{ fontSize: '10px', height: 18 }}
               />
               <span>{signerLabel(item)}</span>
@@ -435,13 +612,28 @@ function InsertSignerTab({ invoice, invoiceId, signersList, onSuccess }) {
       </TextField>
 
       <TextField
-        label="Reason *" value={reason} onChange={(e) => setReason(e.target.value)}
-        size="small" fullWidth multiline rows={2}
+        label="Reason *"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        size="small"
+        fullWidth
+        multiline
+        rows={2}
         placeholder="e.g. CFO approval required for this amount."
       />
 
-      <Button variant="contained" sx={saveBtn} disabled={isLoading} onClick={handleSubmit}
-        startIcon={isLoading ? <CircularProgress size={16} color="inherit" /> : <PersonAddIcon />}
+      <Button
+        variant="contained"
+        sx={saveBtn}
+        disabled={isLoading}
+        onClick={handleSubmit}
+        startIcon={
+          isLoading ? (
+            <CircularProgress size={16} color="inherit" />
+          ) : (
+            <PersonAddIcon />
+          )
+        }
       >
         {isLoading ? 'Inserting...' : 'Insert Signer'}
       </Button>
@@ -457,14 +649,20 @@ function RemoveSignerTab({ invoice, invoiceId, onSuccess }) {
   const histories = invoice?.invoice_histories || [];
 
   const [historyId, setHistoryId] = useState('');
-  const [reason,    setReason]    = useState('');
+  const [reason, setReason] = useState('');
 
   const handleSubmit = async () => {
-    if (!historyId || !reason.trim()) { toast.error('Please select a signer and provide a reason'); return; }
-    const res = await dispatch(chainRemoveSigner({ invoiceId, data: { history_id: historyId, reason } }));
+    if (!historyId || !reason.trim()) {
+      toast.error('Please select a signer and provide a reason');
+      return;
+    }
+    const res = await dispatch(
+      chainRemoveSigner({ invoiceId, data: { history_id: historyId, reason } }),
+    );
     if (res.meta.requestStatus === 'fulfilled') {
       toast.success('Signer removed from chain');
-      setHistoryId(''); setReason('');
+      setHistoryId('');
+      setReason('');
       onSuccess();
     } else {
       toast.error(res.payload || 'Failed to remove signer');
@@ -478,15 +676,26 @@ function RemoveSignerTab({ invoice, invoiceId, onSuccess }) {
       </Typography>
 
       <TextField
-        select label="Signer to remove *" value={historyId}
-        onChange={(e) => setHistoryId(e.target.value)} size="small" fullWidth
+        select
+        label="Signer to remove *"
+        value={historyId}
+        onChange={(e) => setHistoryId(e.target.value)}
+        size="small"
+        fullWidth
       >
         {histories.map((item) => (
           <MenuItem key={item.id} value={item.id}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Chip
-                label={item.status?.toUpperCase()} size="small"
-                color={item.status === 'signed' ? 'success' : item.status === 'denied' ? 'error' : 'default'}
+                label={item.status?.toUpperCase()}
+                size="small"
+                color={
+                  item.status === 'signed'
+                    ? 'success'
+                    : item.status === 'denied'
+                      ? 'error'
+                      : 'default'
+                }
                 sx={{ fontSize: '10px', height: 18 }}
               />
               <span>{signerLabel(item)}</span>
@@ -496,13 +705,28 @@ function RemoveSignerTab({ invoice, invoiceId, onSuccess }) {
       </TextField>
 
       <TextField
-        label="Reason *" value={reason} onChange={(e) => setReason(e.target.value)}
-        size="small" fullWidth multiline rows={2}
+        label="Reason *"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        size="small"
+        fullWidth
+        multiline
+        rows={2}
         placeholder="e.g. Signer no longer required for this amount."
       />
 
-      <Button variant="contained" color="error" disabled={isLoading} onClick={handleSubmit}
-        startIcon={isLoading ? <CircularProgress size={16} color="inherit" /> : <PersonRemoveIcon />}
+      <Button
+        variant="contained"
+        color="error"
+        disabled={isLoading}
+        onClick={handleSubmit}
+        startIcon={
+          isLoading ? (
+            <CircularProgress size={16} color="inherit" />
+          ) : (
+            <PersonRemoveIcon />
+          )
+        }
       >
         {isLoading ? 'Removing...' : 'Remove Signer'}
       </Button>
@@ -514,22 +738,29 @@ function RemoveSignerTab({ invoice, invoiceId, onSuccess }) {
 // Main dialog
 // ═════════════════════════════════════════════════════════════════════════════
 const TABS = [
-  { label: 'Replace Signer',  icon: <SwapHorizIcon  sx={{ fontSize: 16 }} /> },
-  { label: 'Change Status',   icon: <EditIcon        sx={{ fontSize: 16 }} /> },
-  { label: 'Reorder Chain',   icon: <SortIcon        sx={{ fontSize: 16 }} /> },
-  { label: 'Insert Signer',   icon: <PersonAddIcon   sx={{ fontSize: 16 }} /> },
-  { label: 'Remove Signer',   icon: <PersonRemoveIcon sx={{ fontSize: 16 }} /> },
+  { label: 'Replace Signer', icon: <SwapHorizIcon sx={{ fontSize: 16 }} /> },
+  { label: 'Change Status', icon: <EditIcon sx={{ fontSize: 16 }} /> },
+  { label: 'Reorder Chain', icon: <SortIcon sx={{ fontSize: 16 }} /> },
+  { label: 'Insert Signer', icon: <PersonAddIcon sx={{ fontSize: 16 }} /> },
+  { label: 'Remove Signer', icon: <PersonRemoveIcon sx={{ fontSize: 16 }} /> },
 ];
 
 function ChainOverrideDialog({ open, onClose, invoice, onSuccess }) {
   const dispatch = useDispatch();
 
   const rawUsers = useSelector((s) => s.user.users);
-  const signersList = Array.isArray(rawUsers) ? rawUsers : rawUsers?.results || [];
+  const signersList = Array.isArray(rawUsers)
+    ? rawUsers
+    : rawUsers?.results || [];
 
   const [activeTab, setActiveTab] = useState(0);
 
-  const invoiceId = invoice?.invoice?.id || invoice?.id;
+  // ── Resolve correct invoice ID for chain API endpoints ─────────────────────
+  // invoice_histories[].invoice is the FK integer (e.g. 5) used in the chain
+  // URL: /invoice/invoices/{id}/chain/...
+  // invoice.invoice.id (e.g. 200588) is the tracking object — NOT what chain
+  // endpoints expect.
+  const invoiceId = resolveChainInvoiceId(invoice);
 
   useEffect(() => {
     if (open) {
@@ -541,14 +772,21 @@ function ChainOverrideDialog({ open, onClose, invoice, onSuccess }) {
     onSuccess(); // triggers getInvoiceTrackingData in parent
   };
 
-  const tabProps = { invoice, invoiceId, signersList, onSuccess: handleSuccess };
+  const tabProps = {
+    invoice,
+    invoiceId,
+    signersList,
+    onSuccess: handleSuccess,
+  };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={headerSx}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <EditIcon sx={{ fontSize: 20 }} />
-          <Typography variant="h6" fontWeight={500}>Manage Signing Chain</Typography>
+          <Typography variant="h6" fontWeight={500}>
+            Manage Signing Chain
+          </Typography>
         </Box>
         <IconButton onClick={onClose} sx={{ color: '#fff' }}>
           <CloseIcon />
@@ -563,13 +801,22 @@ function ChainOverrideDialog({ open, onClose, invoice, onSuccess }) {
           variant="scrollable"
           scrollButtons="auto"
           sx={{
-            '& .MuiTab-root': { fontSize: '12px', minHeight: 42, textTransform: 'none' },
+            '& .MuiTab-root': {
+              fontSize: '12px',
+              minHeight: 42,
+              textTransform: 'none',
+            },
             '& .Mui-selected': { color: '#00529B !important', fontWeight: 600 },
             '& .MuiTabs-indicator': { backgroundColor: '#00529B' },
           }}
         >
           {TABS.map((tab, idx) => (
-            <Tab key={idx} label={tab.label} icon={tab.icon} iconPosition="start" />
+            <Tab
+              key={idx}
+              label={tab.label}
+              icon={tab.icon}
+              iconPosition="start"
+            />
           ))}
         </Tabs>
       </Box>
@@ -577,9 +824,24 @@ function ChainOverrideDialog({ open, onClose, invoice, onSuccess }) {
       <DialogContent sx={{ pt: 2, pb: 1, minHeight: 320 }}>
         {/* Current chain summary */}
         {invoice?.invoice_histories?.length > 0 && (
-          <Box sx={{ mb: 2, p: 1.5, bgcolor: '#f5f8fc', borderRadius: 1, border: '1px solid #e0e0e0' }}>
-            <Typography variant="caption" color="text.secondary" fontWeight={600} display="block" mb={0.5}>
-              CURRENT CHAIN ({invoice.invoice_histories.length} signers)
+          <Box
+            sx={{
+              mb: 2,
+              p: 1.5,
+              bgcolor: '#f5f8fc',
+              borderRadius: 1,
+              border: '1px solid #e0e0e0',
+            }}
+          >
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              fontWeight={600}
+              display="block"
+              mb={0.5}
+            >
+              CURRENT CHAIN ({invoice.invoice_histories.length} signers) —
+              Invoice ID: {invoiceId}
             </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
               {invoice.invoice_histories.map((item, i) => (
@@ -587,7 +849,15 @@ function ChainOverrideDialog({ open, onClose, invoice, onSuccess }) {
                   <Chip
                     size="small"
                     label={`${i + 1}. ${signerLabel(item)}`}
-                    color={item.status === 'signed' ? 'success' : item.status === 'denied' ? 'error' : item.status === 'to sign' ? 'primary' : 'default'}
+                    color={
+                      item.status === 'signed'
+                        ? 'success'
+                        : item.status === 'denied'
+                          ? 'error'
+                          : item.status === 'to_sign'
+                            ? 'primary'
+                            : 'default'
+                    }
                     variant={item.status === 'signed' ? 'filled' : 'outlined'}
                     sx={{ fontSize: '11px' }}
                   />
@@ -599,14 +869,16 @@ function ChainOverrideDialog({ open, onClose, invoice, onSuccess }) {
 
         {/* Tab panels */}
         {activeTab === 0 && <ReplaceSignerTab {...tabProps} />}
-        {activeTab === 1 && <ChangeStatusTab  {...tabProps} />}
-        {activeTab === 2 && <ReorderChainTab  {...tabProps} />}
-        {activeTab === 3 && <InsertSignerTab  {...tabProps} />}
-        {activeTab === 4 && <RemoveSignerTab  {...tabProps} />}
+        {activeTab === 1 && <ChangeStatusTab {...tabProps} />}
+        {activeTab === 2 && <ReorderChainTab {...tabProps} />}
+        {activeTab === 3 && <InsertSignerTab {...tabProps} />}
+        {activeTab === 4 && <RemoveSignerTab {...tabProps} />}
       </DialogContent>
 
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} variant="outlined">Close</Button>
+        <Button onClick={onClose} variant="outlined">
+          Close
+        </Button>
       </DialogActions>
     </Dialog>
   );

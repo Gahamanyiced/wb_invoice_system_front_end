@@ -122,36 +122,29 @@ export default function Invoice() {
 
   // Helper function to normalize invoice data structure
   const normalizeInvoiceData = (item) => {
-    // Check if invoice data is nested under 'invoice' property
     if (item.invoice) {
       return {
         ...item.invoice,
-        // Preserve top-level properties that might be needed
         row_number: item.row_number,
         signer: item.signer,
-        // Use nested status if available, otherwise fall back to top-level
         status: item.status || item.invoice.status,
         created_at: item.created_at || item.invoice.created_at,
         updated_at: item.updated_at || item.invoice.updated_at,
       };
     }
-    // If data is already flat, return as is
     return item;
   };
 
-  // Helper function to get GL lines - now supports both structures
   const getGLLines = (invoice) => {
     const normalized = normalizeInvoiceData(invoice);
     return normalized?.gl_lines || [];
   };
 
-  // Helper function to get documents
   const getDocuments = (invoice) => {
     const normalized = normalizeInvoiceData(invoice);
     return normalized?.documents || [];
   };
 
-  // Helper function to get invoice owner information
   const getInvoiceOwner = (invoice) => {
     const normalized = normalizeInvoiceData(invoice);
     return normalized?.invoice_owner || {};
@@ -388,6 +381,41 @@ export default function Invoice() {
     setExpandedRows(newExpandedRows);
   };
 
+  // ── GL line field resolvers ───────────────────────────────────────────────
+  // API now returns _detail nested objects alongside raw IDs.
+  // Always prefer _detail; fall back to raw value if detail is absent.
+
+  const resolveGLCode = (line) => {
+    if (line?.gl_account_detail)
+      return `${line.gl_account_detail.gl_code} - ${line.gl_account_detail.gl_description}`;
+    // No gl_account_detail → show gl_description as the label (it carries the name)
+    return line?.gl_description || '-';
+  };
+
+  const resolveCostCenter = (line) => {
+    if (line?.cost_center_detail)
+      return `${line.cost_center_detail.cc_code} - ${line.cost_center_detail.cc_description}`;
+    return line?.cost_center ? String(line.cost_center) : '-';
+  };
+
+  const resolveLocation = (line) => {
+    if (line?.location_detail)
+      return `${line.location_detail.loc_code} - ${line.location_detail.loc_name}`;
+    return line?.location ? String(line.location) : '-';
+  };
+
+  const resolveAircraftType = (line) => {
+    if (line?.aircraft_type_detail)
+      return `${line.aircraft_type_detail.code} - ${line.aircraft_type_detail.description}`;
+    return line?.aircraft_type ? String(line.aircraft_type) : '-';
+  };
+
+  const resolveRoute = (line) => {
+    if (line?.route_detail)
+      return `${line.route_detail.code} - ${line.route_detail.description}`;
+    return line?.route ? String(line.route) : '-';
+  };
+
   // Helper function to get GL lines display
   const getGLLinesDisplay = (invoice, isExpanded = false) => {
     const glLines = getGLLines(invoice);
@@ -403,27 +431,27 @@ export default function Invoice() {
       };
 
     if (glLines.length === 1 || !isExpanded) {
-      const firstLine = glLines[0];
+      const line = glLines[0];
       return {
-        code: firstLine?.gl_code || '-',
-        description: firstLine?.gl_description || '-',
-        costCenter: firstLine?.cost_center || '-',
-        amount: firstLine?.gl_amount || '-',
-        location: firstLine?.location || '-',
-        aircraftType: firstLine?.aircraft_type || '-',
-        route: firstLine?.route || '-',
+        code: resolveGLCode(line),
+        description: line?.gl_description || '-',
+        costCenter: resolveCostCenter(line),
+        amount: line?.gl_amount || '-',
+        location: resolveLocation(line),
+        aircraftType: resolveAircraftType(line),
+        route: resolveRoute(line),
       };
     }
 
-    // For multiple lines, show summary
+    // Multiple lines — show summary
     const totalAmount = glLines.reduce(
       (sum, line) => sum + parseFloat(line?.gl_amount || 0),
-      0
+      0,
     );
     return {
       code: `${glLines.length} lines`,
-      description: `Multiple GL accounts`,
-      costCenter: `Multiple centers`,
+      description: 'Multiple GL accounts',
+      costCenter: 'Multiple centers',
       amount: totalAmount.toFixed(2),
       location: 'Multiple',
       aircraftType: 'Multiple',
@@ -434,26 +462,21 @@ export default function Invoice() {
   // Helper function to calculate and format total amount
   const getTotalAmount = (invoice) => {
     const normalized = normalizeInvoiceData(invoice);
-    // First try to get from amount field
     const amount = normalized?.amount;
     if (amount) {
       return parseFloat(amount).toFixed(2);
     }
-
-    // If no direct amount, calculate from GL lines
     const glLines = getGLLines(invoice);
     if (glLines.length > 0) {
       const total = glLines.reduce(
         (sum, line) => sum + parseFloat(line?.gl_amount || 0),
-        0
+        0,
       );
       return total.toFixed(2);
     }
-
     return '-';
   };
 
-  // Helper function to format currency with amount
   const formatCurrencyAmount = (amount, currency) => {
     if (amount === '-' || !amount) return '-';
     return `${currency || ''} ${amount}`;
@@ -506,10 +529,8 @@ export default function Invoice() {
     ],
   };
 
-  // Determine the report title based on user role and current view
   const getReportTitle = () => {
     let title = 'Invoices Report';
-
     if (user?.role === 'admin' && indexInvoice === 1) {
       title = 'All Invoices Report';
       if (cardIndex === 2) title = 'Pending Invoices Report';
@@ -536,21 +557,20 @@ export default function Invoice() {
       if (cardIndex === 6) title = 'My Processing Invoices Report';
       if (cardIndex === 9) title = 'My Forwarded Invoices Report';
     }
-
     return title;
   };
 
-  // Function to render expanded GL lines
+  // Render expanded GL lines — read from _detail objects
   const renderExpandedGLLines = (glLines) => {
     return glLines.map((line, index) => (
       <TableRow key={`gl-${index}`} sx={styles.expandedRow}>
         <TableCell colSpan={4} />
-        <TableCell align="left">{line?.gl_code || '-'}</TableCell>
+        <TableCell align="left">{resolveGLCode(line)}</TableCell>
         <TableCell align="left">{line?.gl_description || '-'}</TableCell>
-        <TableCell align="left">{line?.location || '-'}</TableCell>
-        <TableCell align="left">{line?.cost_center || '-'}</TableCell>
-        <TableCell align="left">{line?.aircraft_type || '-'}</TableCell>
-        <TableCell align="left">{line?.route || '-'}</TableCell>
+        <TableCell align="left">{resolveLocation(line)}</TableCell>
+        <TableCell align="left">{resolveCostCenter(line)}</TableCell>
+        <TableCell align="left">{resolveAircraftType(line)}</TableCell>
+        <TableCell align="left">{resolveRoute(line)}</TableCell>
         <TableCell colSpan={1} />
         <TableCell align="left">{line?.gl_amount || '-'}</TableCell>
         <TableCell colSpan={2} />
@@ -636,7 +656,7 @@ export default function Invoice() {
           </TableHead>
           <TableBody>
             {invoices?.results?.map((item, index) => {
-              const invoice = normalizeInvoiceData(item); // Normalize the data first
+              const invoice = normalizeInvoiceData(item);
               const glDisplay = getGLLinesDisplay(invoice, false);
               const glLines = getGLLines(invoice);
               const hasMultipleGLLines = glLines.length > 1;
@@ -703,14 +723,14 @@ export default function Invoice() {
                           status === 'pending'
                             ? 'warning'
                             : status === 'approved'
-                            ? 'success'
-                            : status === 'denied'
-                            ? 'error'
-                            : status === 'to sign'
-                            ? 'info'
-                            : status === 'signed'
-                            ? 'success'
-                            : 'default'
+                              ? 'success'
+                              : status === 'denied'
+                                ? 'error'
+                                : status === 'to sign'
+                                  ? 'info'
+                                  : status === 'signed'
+                                    ? 'success'
+                                    : 'default'
                         }
                       />
                     </TableCell>
@@ -797,7 +817,7 @@ export default function Invoice() {
                     </TableCell>
                   </TableRow>
 
-                  {/* Render expanded GL lines if invoice is expanded and has multiple GL lines */}
+                  {/* Render expanded GL lines */}
                   {isExpanded &&
                     hasMultipleGLLines &&
                     renderExpandedGLLines(glLines)}

@@ -203,29 +203,49 @@ const formatCurrency = (amount, currency) => {
   }
 };
 
-// ── MyDocument — excelData now comes from Redux via the parent component prop.
-//   All lookup helpers and JSX are completely unchanged.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── GL line _detail resolvers (used inside MyDocument) ───────────────────────
+// API now returns _detail nested objects alongside raw IDs.
+// Always prefer _detail; fall back to raw value if detail is absent.
+
+const resolveGLCode = (line) => {
+  if (line?.gl_account_detail)
+    return `${line.gl_account_detail.gl_code} - ${line.gl_account_detail.gl_description}`;
+  return line?.gl_description || '-';
+};
+
+const resolveCostCenter = (line) => {
+  if (line?.cost_center_detail)
+    return `${line.cost_center_detail.cc_code} - ${line.cost_center_detail.cc_description}`;
+  return line?.cost_center ? String(line.cost_center) : '-';
+};
+
+const resolveLocation = (line) => {
+  if (line?.location_detail)
+    return `${line.location_detail.loc_code} - ${line.location_detail.loc_name}`;
+  return line?.location ? String(line.location) : '-';
+};
+
+const resolveAircraftType = (line) => {
+  if (line?.aircraft_type_detail)
+    return `${line.aircraft_type_detail.code} - ${line.aircraft_type_detail.description}`;
+  return line?.aircraft_type ? String(line.aircraft_type) : '-';
+};
+
+const resolveRoute = (line) => {
+  if (line?.route_detail)
+    return `${line.route_detail.code} - ${line.route_detail.description}`;
+  return line?.route ? String(line.route) : '-';
+};
+
+// ── MyDocument ────────────────────────────────────────────────────────────────
 const MyDocument = ({ invoice, user, excelData }) => {
   if (!invoice) return null;
 
+  // getDescriptiveValue: only used for supplier_number and payment_terms
+  // (those fields have no _detail equivalents in the API response)
   const getDescriptiveValue = (field, value) => {
     if (!value || value === '-') return '-';
     switch (field) {
-      case 'location': {
-        const loc = excelData?.locations?.find((item) => item.value === value);
-        return loc ? loc.label : value;
-      }
-      case 'aircraft_type': {
-        const ac = excelData?.aircraftTypes?.find(
-          (item) => item.value === value,
-        );
-        return ac ? ac.label : value;
-      }
-      case 'route': {
-        const route = excelData?.routes?.find((item) => item.value === value);
-        return route ? route.label : value;
-      }
       case 'payment_terms': {
         const pt = paymentTermsOptions.find((option) => option.value === value);
         return pt ? pt.label : value;
@@ -239,20 +259,6 @@ const MyDocument = ({ invoice, user, excelData }) => {
       default:
         return value;
     }
-  };
-
-  const getGLCodeDescription = (glCode) => {
-    if (!glCode || glCode === '-') return '-';
-    const gl = excelData?.glCodes?.find((item) => item.value === glCode);
-    return gl ? gl.label : glCode;
-  };
-
-  const getCostCenterDescription = (costCenter) => {
-    if (!costCenter || costCenter === '-') return '-';
-    const cc = excelData?.costCenters?.find(
-      (item) => item.value === costCenter,
-    );
-    return cc ? cc.label : costCenter;
   };
 
   let allHistoryItems = invoice?.invoice_histories || [];
@@ -402,21 +408,6 @@ const MyDocument = ({ invoice, user, excelData }) => {
                 {invoiceData?.quantity || '-'}
               </Text>
             </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Aircraft Type:</Text>
-              <Text style={styles.detailValue}>
-                {getDescriptiveValue(
-                  'aircraft_type',
-                  invoiceData?.aircraft_type,
-                ) || '-'}
-              </Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Route:</Text>
-              <Text style={styles.detailValue}>
-                {getDescriptiveValue('route', invoiceData?.route) || '-'}
-              </Text>
-            </View>
           </View>
 
           {/* GL Lines */}
@@ -428,24 +419,54 @@ const MyDocument = ({ invoice, user, excelData }) => {
               {glLines.map((line, index) => (
                 <View key={index} style={styles.glLineBlock} wrap={false}>
                   <Text style={styles.glLineHeader}>GL Line {index + 1}</Text>
+
+                  {/* GL Code — from _detail */}
                   <View style={styles.glLineRow}>
                     <Text style={styles.glLineLabel}>GL Code:</Text>
                     <Text style={styles.glLineValue}>
-                      {getGLCodeDescription(line?.gl_code) || '-'}
+                      {resolveGLCode(line)}
                     </Text>
                   </View>
+
+                  {/* GL Description */}
                   <View style={styles.glLineRow}>
                     <Text style={styles.glLineLabel}>Description:</Text>
                     <Text style={styles.glLineValue}>
                       {line?.gl_description || '-'}
                     </Text>
                   </View>
+
+                  {/* Cost Center — from _detail */}
                   <View style={styles.glLineRow}>
                     <Text style={styles.glLineLabel}>Cost Center:</Text>
                     <Text style={styles.glLineValue}>
-                      {getCostCenterDescription(line?.cost_center) || '-'}
+                      {resolveCostCenter(line)}
                     </Text>
                   </View>
+
+                  {/* Location — from _detail */}
+                  <View style={styles.glLineRow}>
+                    <Text style={styles.glLineLabel}>Location:</Text>
+                    <Text style={styles.glLineValue}>
+                      {resolveLocation(line)}
+                    </Text>
+                  </View>
+
+                  {/* Aircraft Type — from _detail */}
+                  <View style={styles.glLineRow}>
+                    <Text style={styles.glLineLabel}>Aircraft Type:</Text>
+                    <Text style={styles.glLineValue}>
+                      {resolveAircraftType(line)}
+                    </Text>
+                  </View>
+
+                  {/* Route — from _detail */}
+                  <View style={styles.glLineRow}>
+                    <Text style={styles.glLineLabel}>Route:</Text>
+                    <Text style={styles.glLineValue}>{resolveRoute(line)}</Text>
+                  </View>
+
+                  {/* Amount */}
                   <View style={styles.glLineRow}>
                     <Text style={styles.glLineLabel}>Amount:</Text>
                     <Text style={styles.glLineValue}>
@@ -457,14 +478,14 @@ const MyDocument = ({ invoice, user, excelData }) => {
             </View>
           )}
 
-          {/* Legacy GL Information */}
+          {/* Legacy GL Information — no gl_lines */}
           {(!glLines || glLines.length === 0) && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>GL Information</Text>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>GL Code:</Text>
                 <Text style={styles.detailValue}>
-                  {getGLCodeDescription(invoiceData?.gl_code) || '-'}
+                  {invoiceData?.gl_description || '-'}
                 </Text>
               </View>
               <View style={styles.detailRow}>
@@ -476,7 +497,9 @@ const MyDocument = ({ invoice, user, excelData }) => {
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Cost Center:</Text>
                 <Text style={styles.detailValue}>
-                  {getCostCenterDescription(invoiceData?.cost_center) || '-'}
+                  {invoiceData?.cost_center
+                    ? String(invoiceData.cost_center)
+                    : '-'}
                 </Text>
               </View>
             </View>
@@ -485,12 +508,6 @@ const MyDocument = ({ invoice, user, excelData }) => {
           {/* Financial Details */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Financial Details</Text>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Location:</Text>
-              <Text style={styles.detailValue}>
-                {getDescriptiveValue('location', invoiceData?.location) || '-'}
-              </Text>
-            </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Currency:</Text>
               <Text style={styles.detailValue}>
@@ -656,12 +673,8 @@ const DownloadPdf = () => {
 
   const user = JSON?.parse(localStorage?.getItem('user') || '{}');
 
-  // ── COA data from DB (replaces loadExcelData + excelData state) ────────────
-  // This is a standalone page (not a modal), so enabled is always true.
-  // useCOAData only dispatches thunks when data is not already in Redux.
   const { excelData, isLoading: coaLoading } = useCOAData();
 
-  // Overall loading = waiting for invoice QR prep OR COA data from API
   const isLoading = invoiceLoading || coaLoading;
 
   useEffect(() => {
@@ -674,9 +687,6 @@ const DownloadPdf = () => {
 
       try {
         setInvoiceLoading(true);
-
-        // No more loadExcelData() call here — useCOAData handles it above.
-        // prepareData now only handles QR code generation for signed items.
 
         if (
           invoice?.invoice_histories &&

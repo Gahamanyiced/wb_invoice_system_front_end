@@ -12,43 +12,49 @@ import {
 /**
  * useCOAData
  *
- * Drop-in replacement for the old `loadExcelData` pattern.
- *
- * Returns the same `excelData` shape all components already use:
+ * Returns excelData shape used across all components:
  * {
- *   suppliers:     [{ value, label }]  — vendor_id, "vendor_id - vendor_name"
- *   costCenters:   [{ value, label }]  — cc_code,   "cc_code - cc_description"
- *   glCodes:       [{ value, label }]  — gl_code,   "gl_code - gl_description"
- *   locations:     [{ value, label }]  — loc_code,  "loc_code - loc_name"
- *   aircraftTypes: [{ value, label }]  — code,      "code - description"
- *   routes:        [{ value, label }]  — code,      "code - description"
+ *   suppliers:     [{ id, value, label, description }]
+ *   costCenters:   [{ id, value, label, description }]
+ *   glCodes:       [{ id, value, label, description }]
+ *   locations:     [{ id, value, label, description }]
+ *   aircraftTypes: [{ id, value, label, description }]
+ *   routes:        [{ id, value, label, description }]
  * }
  *
- * Also returns `isLoading` so components can show a spinner if needed.
- *
- * Usage (replaces the loadExcelData useEffect):
- *
- *   const { excelData, isLoading: coaLoading } = useCOAData({ enabled: open });
+ * `id`    — DB primary key, used when sending IDs in payloads
+ *            and for invoice number uniqueness check (supplier_id)
+ * `value` — the code string, used for display/lookup in view modals
+ * `label` — "CODE - Description", shown in Autocomplete input field
  */
 const useCOAData = ({ enabled = true } = {}) => {
   const dispatch = useDispatch();
-  const { suppliers, costCenters, glAccounts, locations, aircraftTypes, routes, isLoading } =
-    useSelector((state) => state.coa);
+  const {
+    suppliers,
+    costCenters,
+    glAccounts,
+    locations,
+    aircraftTypes,
+    routes,
+    isLoading,
+  } = useSelector((state) => state.coa);
 
   useEffect(() => {
     if (!enabled) return;
     // Only fetch if not already loaded — avoids repeated API calls
-    if (!suppliers) dispatch(getAllSuppliers({ page: 1 }));
-    if (!costCenters) dispatch(getAllCostCenters({ page: 1 }));
-    if (!glAccounts) dispatch(getAllGLAccounts({ page: 1 }));
-    if (!locations) dispatch(getAllLocations({ page: 1 }));
-    if (!aircraftTypes) dispatch(getAllAircraftTypes({ page: 1 }));
-    if (!routes) dispatch(getAllRoutes({ page: 1 }));
+    if (!suppliers) dispatch(getAllSuppliers());
+    if (!costCenters) dispatch(getAllCostCenters());
+    if (!glAccounts) dispatch(getAllGLAccounts());
+    if (!locations) dispatch(getAllLocations());
+    if (!aircraftTypes) dispatch(getAllAircraftTypes());
+    if (!routes) dispatch(getAllRoutes());
   }, [dispatch, enabled]);
 
-  // Build the same { value, label } shape the old Excel parsing produced
+  // id is included so components can send the DB primary key in payloads
+  // (e.g. gl_code id, cost_center id, supplier_id for invoice number check)
   const toOptions = (results, valueKey, labelKey) =>
     (results || []).map((item) => ({
+      id: item.id,
       value: String(item[valueKey]),
       label: `${item[valueKey]} - ${item[labelKey]}`,
       description: item[labelKey],
@@ -58,32 +64,33 @@ const useCOAData = ({ enabled = true } = {}) => {
     suppliers: toOptions(
       suppliers?.results || (Array.isArray(suppliers) ? suppliers : []),
       'vendor_id',
-      'vendor_name'
+      'vendor_name',
     ),
     costCenters: toOptions(
       costCenters?.results || (Array.isArray(costCenters) ? costCenters : []),
       'cc_code',
-      'cc_description'
+      'cc_description',
     ),
     glCodes: toOptions(
       glAccounts?.results || (Array.isArray(glAccounts) ? glAccounts : []),
       'gl_code',
-      'gl_description'
+      'gl_description',
     ),
     locations: toOptions(
       locations?.results || (Array.isArray(locations) ? locations : []),
       'loc_code',
-      'loc_name'
+      'loc_name',
     ),
     aircraftTypes: toOptions(
-      aircraftTypes?.results || (Array.isArray(aircraftTypes) ? aircraftTypes : []),
+      aircraftTypes?.results ||
+        (Array.isArray(aircraftTypes) ? aircraftTypes : []),
       'code',
-      'description'
+      'description',
     ),
     routes: toOptions(
       routes?.results || (Array.isArray(routes) ? routes : []),
       'code',
-      'description'
+      'description',
     ),
   };
 

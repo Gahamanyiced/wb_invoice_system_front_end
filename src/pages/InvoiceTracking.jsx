@@ -130,6 +130,7 @@ const getStatusColor = (status) => {
     case 'signed':
       return 'success';
     case 'pending':
+    case 'to_sign':
     case 'to sign':
       return 'warning';
     case 'denied':
@@ -151,26 +152,27 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
   const dispatch = useDispatch();
   const { invoiceReport } = useSelector((state) => state.report);
 
-  const [open, setOpen] = useState(false);
+  const [stepperOpen, setStepperOpen] = useState(false);
   const [buttonClicked, setButtonClicked] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [invoice, setInvoice] = useState();
   const [isAllowed, setIsAllowed] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [user] = useState(JSON.parse(localStorage.getItem('user')));
-  const isAdmin = user?.role === 'admin' || user?.role === 'signer_admin';
   const [selectedId] = useState(selected?.invoice?.id || selected?.id);
-
   const [chainOpen, setChainOpen] = useState(false);
 
-  // ── COA data from DB (replaces loadExcelData + excelData state) ────────────
-  // enabled: openModal  → only fetch when the modal is open,
-  //                       matching the old "if (openModal) loadExcelData()" behaviour.
+  // Visible to: admin  OR  (signer_admin AND is_invoice_verifier === true)
+  const canManageChain =
+    user?.role === 'admin' ||
+    (user?.role === 'signer_admin' && user?.is_invoice_verifier === true);
+
+  // ── COA data from DB ──────────────────────────────────────────────────────
   const { excelData, isLoading: coaLoading } = useCOAData({
     enabled: openModal,
   });
 
-  // ── value helpers — completely unchanged from original ─────────────────────
+  // ── value helpers ─────────────────────────────────────────────────────────
   const getValue = (field) =>
     invoice?.invoice?.[field] || invoice?.[field] || 'N/A';
 
@@ -179,18 +181,6 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
   const getDescriptiveValue = (field, value) => {
     if (!value || value === 'N/A') return 'N/A';
     switch (field) {
-      case 'location': {
-        const loc = excelData.locations.find((item) => item.value === value);
-        return loc ? loc.label : value;
-      }
-      case 'aircraft_type': {
-        const ac = excelData.aircraftTypes.find((item) => item.value === value);
-        return ac ? ac.label : value;
-      }
-      case 'route': {
-        const route = excelData.routes.find((item) => item.value === value);
-        return route ? route.label : value;
-      }
       case 'payment_terms': {
         const pt = paymentTermsOptions.find((option) => option.value === value);
         return pt ? pt.label : value;
@@ -206,16 +196,35 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
     }
   };
 
-  const getGLCodeDescription = (glCode) => {
-    if (!glCode || glCode === 'N/A') return 'N/A';
-    const gl = excelData.glCodes.find((item) => item.value === glCode);
-    return gl ? gl.label : glCode;
+  // ── GL line _detail resolvers ─────────────────────────────────────────────
+  const resolveGLCode = (line) => {
+    if (line?.gl_account_detail)
+      return `${line.gl_account_detail.gl_code} - ${line.gl_account_detail.gl_description}`;
+    return line?.gl_description || 'N/A';
   };
 
-  const getCostCenterDescription = (costCenter) => {
-    if (!costCenter || costCenter === 'N/A') return 'N/A';
-    const cc = excelData.costCenters.find((item) => item.value === costCenter);
-    return cc ? cc.label : costCenter;
+  const resolveCostCenter = (line) => {
+    if (line?.cost_center_detail)
+      return `${line.cost_center_detail.cc_code} - ${line.cost_center_detail.cc_description}`;
+    return line?.cost_center ? String(line.cost_center) : 'N/A';
+  };
+
+  const resolveLocation = (line) => {
+    if (line?.location_detail)
+      return `${line.location_detail.loc_code} - ${line.location_detail.loc_name}`;
+    return line?.location ? String(line.location) : 'N/A';
+  };
+
+  const resolveAircraftType = (line) => {
+    if (line?.aircraft_type_detail)
+      return `${line.aircraft_type_detail.code} - ${line.aircraft_type_detail.description}`;
+    return line?.aircraft_type ? String(line.aircraft_type) : 'N/A';
+  };
+
+  const resolveRoute = (line) => {
+    if (line?.route_detail)
+      return `${line.route_detail.code} - ${line.route_detail.description}`;
+    return line?.route ? String(line.route) : 'N/A';
   };
 
   // Supports BOTH flat and nested structures
@@ -227,24 +236,34 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
     : 'N/A';
   const isRollBack = invoice?.invoice?.is_roll_back || invoice?.is_roll_back;
 
-  // ── event handlers — all unchanged ────────────────────────────────────────
-  const handleStepClick = (status) => {
+  // ── FIX: use 'to_sign' (underscore) to match API response ────────────────
+  const handleStepClick = (invoiceItem) => {
     const currentUser = JSON.parse(localStorage.getItem('user'));
-    const signer = invoice?.invoice_histories?.find(
+
+    // Determine if the logged-in user is allowed to act on this invoice.
+    // FIX: API returns 'to_sign' with underscore, not 'to sign' with space.
+    const myHistoryEntry = invoice?.invoice_histories?.find(
       (item) => item?.signer?.email === currentUser?.email,
     );
-    if (
+    const allowed =
       (currentUser?.role === 'signer' ||
         currentUser?.role === 'signer_admin') &&
-      signer?.status === 'to sign'
+      myHistoryEntry?.status === 'to_sign'; // ← FIXED
+
+    setIsAllowed(allowed);
+
+    // Open the stepper for any actionable step, or when the step belongs to
+    // the current user. isAllowed gates the action buttons inside StepperModal.
+    if (
+      invoiceItem?.status === 'to_sign' || // ← FIXED
+      invoiceItem?.signer?.email === currentUser?.email
     ) {
-      setIsAllowed(true);
+      setStepperOpen(true);
     }
-    if (status === 'to sign') setOpen(true);
   };
 
-  const handleClose = () => {
-    setOpen(false);
+  const handleStepperClose = () => {
+    setStepperOpen(false);
     setShowActions(false);
     setIsAllowed(false);
   };
@@ -332,7 +351,6 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
     }
   };
 
-  // ── render — JSX completely unchanged, only dataLoading → coaLoading ───────
   return (
     <Modal
       open={openModal}
@@ -564,9 +582,7 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                                 GL Code
                               </Typography>
                               <Typography sx={style.fieldValue}>
-                                {coaLoading
-                                  ? 'Loading...'
-                                  : getGLCodeDescription(line.gl_code)}
+                                {resolveGLCode(line)}
                               </Typography>
                             </Box>
                           </Grid>
@@ -586,9 +602,7 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                                 Cost Center
                               </Typography>
                               <Typography sx={style.fieldValue}>
-                                {coaLoading
-                                  ? 'Loading...'
-                                  : getCostCenterDescription(line.cost_center)}
+                                {resolveCostCenter(line)}
                               </Typography>
                             </Box>
                           </Grid>
@@ -616,12 +630,7 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                                 Location
                               </Typography>
                               <Typography sx={style.fieldValue}>
-                                {coaLoading
-                                  ? 'Loading...'
-                                  : getDescriptiveValue(
-                                      'location',
-                                      line.location,
-                                    )}
+                                {resolveLocation(line)}
                               </Typography>
                             </Box>
                           </Grid>
@@ -631,12 +640,7 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                                 Aircraft Type
                               </Typography>
                               <Typography sx={style.fieldValue}>
-                                {coaLoading
-                                  ? 'Loading...'
-                                  : getDescriptiveValue(
-                                      'aircraft_type',
-                                      line.aircraft_type,
-                                    )}
+                                {resolveAircraftType(line)}
                               </Typography>
                             </Box>
                           </Grid>
@@ -646,9 +650,7 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                                 Route
                               </Typography>
                               <Typography sx={style.fieldValue}>
-                                {coaLoading
-                                  ? 'Loading...'
-                                  : getDescriptiveValue('route', line.route)}
+                                {resolveRoute(line)}
                               </Typography>
                             </Box>
                           </Grid>
@@ -683,7 +685,7 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                 </Paper>
               )}
 
-              {/* ── Approval Workflow Stepper — completely unchanged ─────── */}
+              {/* ── Approval Workflow Stepper ────────────────────────────── */}
               <Paper elevation={0} sx={style.stepperContainer}>
                 <Typography
                   variant="subtitle1"
@@ -702,7 +704,7 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                   {invoice?.invoice_histories?.map((invoiceItem, index) => (
                     <Step
                       key={index}
-                      onClick={() => handleStepClick(invoiceItem?.status)}
+                      onClick={() => handleStepClick(invoiceItem)}
                       orientation="vertical"
                       indicator={
                         <StepIndicator
@@ -731,7 +733,7 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                           <Typography variant="body2" fontWeight="500">
                             {invoiceItem?.status === 'pending'
                               ? 'To be signed by: '
-                              : invoiceItem?.status === 'to sign'
+                              : invoiceItem?.status === 'to_sign' // ← FIXED
                                 ? 'Next to sign: '
                                 : invoiceItem?.status === 'denied'
                                   ? 'Denied by: '
@@ -755,6 +757,18 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                               Position: {invoiceItem.signer.position}
                             </Typography>
                           )}
+
+                          {invoiceItem?.is_delegated &&
+                            invoiceItem?.original_signer && (
+                              <Typography
+                                variant="caption"
+                                display="block"
+                                color="text.secondary"
+                              >
+                                Delegated from:{' '}
+                                {invoiceItem.original_signer.name}
+                              </Typography>
+                            )}
 
                           {invoiceItem?.status === 'signed' && (
                             <Typography
@@ -805,7 +819,9 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                                                   '',
                                                 )
                                                 ?.replace(/\n/g, ''),
-                                            )}/${encodeURIComponent(invoiceItem?.signature)}`
+                                            )}/${encodeURIComponent(
+                                              invoiceItem?.signature,
+                                            )}`
                                           : ''
                                       }
                                     />
@@ -835,8 +851,7 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
         <Box sx={style.footer}>
           <Comment selected={selectedId} />
           <Box sx={{ display: 'flex', gap: 2 }}>
-            {/* Manage Chain — admin / signer_admin only */}
-            {isAdmin && invoice && (
+            {canManageChain && invoice && (
               <Button
                 variant="outlined"
                 onClick={() => setChainOpen(true)}
@@ -879,11 +894,11 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
           />
         )}
 
-        {open && (
+        {stepperOpen && (
           <StepperModal
             isAllowed={isAllowed}
-            open={open}
-            handleClose={handleClose}
+            open={stepperOpen}
+            handleClose={handleStepperClose}
             selectedId={selected?.invoice?.id || selected?.id}
             reloadFunction={getInvoiceTrackingData}
             invoice={invoice}

@@ -2,53 +2,31 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDispatch } from 'react-redux';
 import { checkInvoiceNumber } from '../features/invoice/invoiceSlice';
 
-/**
- * useInvoiceNumberCheck
- *
- * Debounced hook that calls GET /invoice/check-invoice-number/
- * whenever invoice_number changes (after 600ms idle).
- *
- * Usage:
- *   const { invoiceNumStatus, checkInvoiceNum } = useInvoiceNumberCheck(supplierId);
- *
- *   // In the input onChange / setValue callback:
- *   checkInvoiceNum(value);
- *
- *   // In the JSX:
- *   invoiceNumStatus === 'checking' → show spinner
- *   invoiceNumStatus === 'taken'    → show error helper text
- *   invoiceNumStatus === 'available'→ show green helper text
- *   invoiceNumStatus === null       → field is empty / untouched, show nothing
- *
- * @param {number|string|null} supplierId  — passed as supplier_id query param
- * @param {number} debounceMs             — debounce delay (default 600ms)
- */
 const useInvoiceNumberCheck = (supplierId = null, debounceMs = 600) => {
   const dispatch = useDispatch();
-
   // 'idle' | 'checking' | 'available' | 'taken'
   const [invoiceNumStatus, setInvoiceNumStatus] = useState('idle');
+  const [invoiceNumMessage, setInvoiceNumMessage] = useState('');
   const debounceTimer = useRef(null);
   const lastChecked = useRef('');
 
-  // Cancel any pending debounce on unmount
   useEffect(() => () => clearTimeout(debounceTimer.current), []);
 
   const checkInvoiceNum = useCallback(
     (value) => {
       clearTimeout(debounceTimer.current);
 
-      // Reset to idle if field is cleared
       if (!value || !value.trim()) {
         setInvoiceNumStatus('idle');
+        setInvoiceNumMessage('');
         lastChecked.current = '';
         return;
       }
 
-      // Skip re-check if the value hasn't changed
       if (value.trim() === lastChecked.current) return;
 
       setInvoiceNumStatus('checking');
+      setInvoiceNumMessage('');
 
       debounceTimer.current = setTimeout(async () => {
         lastChecked.current = value.trim();
@@ -61,28 +39,36 @@ const useInvoiceNumberCheck = (supplierId = null, debounceMs = 600) => {
           );
 
           if (res.meta.requestStatus === 'fulfilled') {
-            // Backend returns plain boolean: true = already used, false = available
-            setInvoiceNumStatus(res.payload === true ? 'taken' : 'available');
+            // Backend returns { exists: true/false, message: "..." }
+            const { exists, message } = res.payload;
+            setInvoiceNumStatus(exists ? 'taken' : 'available');
+            setInvoiceNumMessage(message || '');
           } else {
-            // API error — don't block submission, just reset
             setInvoiceNumStatus('idle');
+            setInvoiceNumMessage('');
           }
         } catch {
           setInvoiceNumStatus('idle');
+          setInvoiceNumMessage('');
         }
       }, debounceMs);
     },
     [dispatch, supplierId, debounceMs],
   );
 
-  // Reset when modal closes / supplier changes
   const resetInvoiceNumCheck = useCallback(() => {
     clearTimeout(debounceTimer.current);
     setInvoiceNumStatus('idle');
+    setInvoiceNumMessage('');
     lastChecked.current = '';
   }, []);
 
-  return { invoiceNumStatus, checkInvoiceNum, resetInvoiceNumCheck };
+  return {
+    invoiceNumStatus,
+    invoiceNumMessage,
+    checkInvoiceNum,
+    resetInvoiceNumCheck,
+  };
 };
 
 export default useInvoiceNumberCheck;

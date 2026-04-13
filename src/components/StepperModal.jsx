@@ -110,13 +110,15 @@ const style = {
   },
 };
 
+// FIX: added 'to_sign' (underscore) as a recognised status colour
 const getStatusColor = (status) => {
   switch (status?.toLowerCase()) {
     case 'approved':
     case 'signed':
       return 'success';
     case 'pending':
-    case 'to sign':
+    case 'to_sign': // ← FIXED (API value)
+    case 'to sign': // ← kept for backward-compat with any legacy data
       return 'warning';
     case 'denied':
       return 'error';
@@ -134,7 +136,7 @@ const formatCurrency = (amount, currency) => {
   return `${currency || ''} ${parseFloat(amount).toLocaleString()}`;
 };
 
-// ══ StepperModal wrapper — completely unchanged ══════════════════════════════
+// ══ StepperModal wrapper ═════════════════════════════════════════════════════
 function StepperModal({
   open,
   handleClose,
@@ -185,7 +187,6 @@ function StepperModal({
 }
 
 // ══ Actions sub-component ════════════════════════════════════════════════════
-// Only this sub-component used loadExcelData — that's where the change lives.
 const Actions = ({
   isAllowed,
   handleApproveClick,
@@ -193,13 +194,10 @@ const Actions = ({
   handleClose,
   open,
 }) => {
-  // ── COA data from DB (replaces loadExcelData + excelData state) ────────────
-  // enabled: open  → only fetch when the modal is open,
-  //                  matching the old "if (open) loadExcelData()" behaviour.
+  // ── COA data from DB ───────────────────────────────────────────────────────
   const { excelData, isLoading: coaLoading } = useCOAData({ enabled: open });
 
-  // ── value helpers — unchanged from original ────────────────────────────────
-  // Supports BOTH flat and nested invoice structures.
+  // ── value helpers ──────────────────────────────────────────────────────────
   const getValue = (field) =>
     invoice?.invoice?.[field] || invoice?.[field] || 'N/A';
 
@@ -255,7 +253,6 @@ const Actions = ({
     ? `${invoiceOwner.firstname || ''} ${invoiceOwner.lastname || ''}`.trim()
     : 'N/A';
 
-  // ── render — JSX completely unchanged, only dataLoading → coaLoading ───────
   return (
     <Box sx={style.modal}>
       {/* Header */}
@@ -690,7 +687,7 @@ const Actions = ({
         )}
       </Box>
 
-      {/* ── Footer — action buttons (unchanged) ───────────────────────────── */}
+      {/* ── Footer — action buttons ────────────────────────────────────────── */}
       {isAllowed && (
         <Box sx={style.footer}>
           <Stack direction="row" spacing={2} sx={{ width: '100%' }}>

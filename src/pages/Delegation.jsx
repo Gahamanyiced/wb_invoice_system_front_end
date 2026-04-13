@@ -58,7 +58,13 @@ const styles = {
 };
 
 // ==================== Add Dialog ====================
-function AddDelegationDialog({ open, onClose, isLoading, signersList, isAdmin }) {
+function AddDelegationDialog({
+  open,
+  onClose,
+  isLoading,
+  signersList,
+  isAdmin,
+}) {
   const dispatch = useDispatch();
 
   const [delegator, setDelegator] = useState(null);
@@ -104,7 +110,6 @@ function AddDelegationDialog({ open, onClose, isLoading, signersList, isAdmin })
       return;
     }
 
-    // Build payload based on role
     const payload = isAdmin
       ? {
           delegator: delegator.id,
@@ -149,8 +154,7 @@ function AddDelegationDialog({ open, onClose, isLoading, signersList, isAdmin })
 
       <DialogContent sx={{ mt: 2 }}>
         <Stack spacing={2} sx={{ mt: 1 }}>
-
-          {/* Delegator — admin only */}
+          {/* Delegator — shown only when logged-in user is strictly admin */}
           {isAdmin && (
             <Autocomplete
               options={signerOptions}
@@ -237,7 +241,11 @@ function AddDelegationDialog({ open, onClose, isLoading, signersList, isAdmin })
           disabled={isLoading}
           sx={styles.addButton}
         >
-          {isLoading ? <CircularProgress size={20} color="inherit" /> : 'Create'}
+          {isLoading ? (
+            <CircularProgress size={20} color="inherit" />
+          ) : (
+            'Create'
+          )}
         </Button>
       </DialogActions>
     </Dialog>
@@ -245,20 +253,70 @@ function AddDelegationDialog({ open, onClose, isLoading, signersList, isAdmin })
 }
 
 // ==================== Edit Dialog ====================
-function EditDelegationDialog({ open, onClose, delegation, isLoading }) {
+function EditDelegationDialog({
+  open,
+  onClose,
+  delegation,
+  isLoading,
+  isAdmin,
+  signersList,
+}) {
   const dispatch = useDispatch();
 
+  const [delegator, setDelegator] = useState(null);
+  const [substitute, setSubstitute] = useState(null);
+  const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [reason, setReason] = useState('');
+  const [isActive, setIsActive] = useState(true);
+
+  const signerOptions = signersList.map((s) => ({
+    id: s.id,
+    label: `${s.firstname} ${s.lastname}`,
+  }));
 
   useEffect(() => {
     if (open && delegation) {
+      if (isAdmin && signersList.length > 0) {
+        const matchedDelegator = signersList.find(
+          (s) => `${s.firstname} ${s.lastname}` === delegation.delegator_name,
+        );
+        setDelegator(
+          matchedDelegator
+            ? { id: matchedDelegator.id, label: delegation.delegator_name }
+            : null,
+        );
+      }
+
+      const matchedSubstitute = signersList.find(
+        (s) => `${s.firstname} ${s.lastname}` === delegation.substitute_name,
+      );
+      setSubstitute(
+        matchedSubstitute
+          ? { id: matchedSubstitute.id, label: delegation.substitute_name }
+          : null,
+      );
+
+      setStartDate(delegation.start_date || '');
       setEndDate(delegation.end_date || '');
       setReason(delegation.reason || '');
+      setIsActive(delegation.is_active ?? true);
     }
-  }, [open, delegation]);
+  }, [open, delegation, isAdmin, signersList]);
 
   const handleSubmit = async () => {
+    if (isAdmin && !delegator) {
+      toast.error('Please select a Delegator');
+      return;
+    }
+    if (!substitute) {
+      toast.error('Please select a Substitute');
+      return;
+    }
+    if (!startDate) {
+      toast.error('Start date is required');
+      return;
+    }
     if (!endDate) {
       toast.error('End date is required');
       return;
@@ -268,9 +326,24 @@ function EditDelegationDialog({ open, onClose, delegation, isLoading }) {
       return;
     }
 
-    const res = await dispatch(
-      updateDelegation({ id: delegation.id, data: { end_date: endDate, reason } })
-    );
+    const data = isAdmin
+      ? {
+          delegator: delegator.id,
+          substitute: substitute.id,
+          start_date: startDate,
+          end_date: endDate,
+          reason,
+          is_active: isActive,
+        }
+      : {
+          substitute: substitute.id,
+          start_date: startDate,
+          end_date: endDate,
+          reason,
+          is_active: isActive,
+        };
+
+    const res = await dispatch(updateDelegation({ id: delegation.id, data }));
     if (res.meta.requestStatus === 'fulfilled') {
       toast.success('Delegation updated successfully');
       dispatch(getAllDelegations());
@@ -299,9 +372,25 @@ function EditDelegationDialog({ open, onClose, delegation, isLoading }) {
 
       <DialogContent sx={{ mt: 2 }}>
         <Stack spacing={2} sx={{ mt: 1 }}>
-
-          {/* Read-only info */}
-          {delegation && (
+          {/* Delegator — editable for admin only */}
+          {isAdmin ? (
+            <Autocomplete
+              options={signerOptions}
+              value={delegator}
+              onChange={(_, newValue) => setDelegator(newValue)}
+              isOptionEqualToValue={(option, value) => option.id === value?.id}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Delegator (who is delegating)"
+                  size="small"
+                  required
+                  placeholder="Search signer..."
+                />
+              )}
+              noOptionsText="No signers found"
+            />
+          ) : (
             <Box
               sx={{
                 p: 2,
@@ -313,29 +402,55 @@ function EditDelegationDialog({ open, onClose, delegation, isLoading }) {
               <Typography variant="body2" color="text.secondary" mb={0.5}>
                 Delegator
               </Typography>
-              <Typography variant="body1" fontWeight={500} mb={1}>
-                {delegation.delegator_name || '—'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" mb={0.5}>
-                Substitute
-              </Typography>
               <Typography variant="body1" fontWeight={500}>
-                {delegation.substitute_name || '—'}
+                {delegation?.delegator_name || '—'}
               </Typography>
             </Box>
           )}
 
-          <TextField
-            label="End Date"
-            type="date"
-            size="small"
-            fullWidth
-            required
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            InputLabelProps={{ shrink: true }}
+          {/* Substitute — editable for everyone */}
+          <Autocomplete
+            options={signerOptions}
+            value={substitute}
+            onChange={(_, newValue) => setSubstitute(newValue)}
+            isOptionEqualToValue={(option, value) => option.id === value?.id}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Substitute (who will sign instead)"
+                size="small"
+                required
+                placeholder="Search signer..."
+              />
+            )}
+            noOptionsText="No signers found"
           />
 
+          {/* Date range */}
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <TextField
+              label="Start Date"
+              type="date"
+              size="small"
+              fullWidth
+              required
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              label="End Date"
+              type="date"
+              size="small"
+              fullWidth
+              required
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+          </Box>
+
+          {/* Reason */}
           <TextField
             label="Reason"
             size="small"
@@ -345,6 +460,22 @@ function EditDelegationDialog({ open, onClose, delegation, isLoading }) {
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
+          />
+
+          {/* Active status toggle */}
+          <FormControlLabel
+            control={
+              <Switch
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
+                color="primary"
+              />
+            }
+            label={
+              <Typography variant="body2">
+                {isActive ? 'Active' : 'Inactive'}
+              </Typography>
+            }
           />
         </Stack>
       </DialogContent>
@@ -359,7 +490,11 @@ function EditDelegationDialog({ open, onClose, delegation, isLoading }) {
           disabled={isLoading}
           sx={styles.addButton}
         >
-          {isLoading ? <CircularProgress size={20} color="inherit" /> : 'Update'}
+          {isLoading ? (
+            <CircularProgress size={20} color="inherit" />
+          ) : (
+            'Update'
+          )}
         </Button>
       </DialogActions>
     </Dialog>
@@ -401,8 +536,7 @@ function DeleteDelegationDialog({ open, onClose, delegation, isLoading }) {
         <Typography>
           Are you sure you want to delete the delegation from{' '}
           <strong>{delegation?.delegator_name}</strong> to{' '}
-          <strong>{delegation?.substitute_name}</strong>? This cannot be
-          undone.
+          <strong>{delegation?.substitute_name}</strong>? This cannot be undone.
         </Typography>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -415,7 +549,11 @@ function DeleteDelegationDialog({ open, onClose, delegation, isLoading }) {
           color="error"
           disabled={isLoading}
         >
-          {isLoading ? <CircularProgress size={20} color="inherit" /> : 'Delete'}
+          {isLoading ? (
+            <CircularProgress size={20} color="inherit" />
+          ) : (
+            'Delete'
+          )}
         </Button>
       </DialogActions>
     </Dialog>
@@ -440,10 +578,13 @@ function Delegation() {
     }
   })();
 
-  const isAdmin =
-    loggedInUser?.role === 'admin' || loggedInUser?.role === 'signer_admin';
+  // Only strictly 'admin' role sees the Delegator select.
+  // signer_admin can still add delegations — backend uses their own account as delegator.
+  const isAdmin = loggedInUser?.role === 'admin';
 
   // Filter state
+  // true  → show active only   (is_active=true)
+  // false → show inactive only (is_active=false)
   const [showActiveOnly, setShowActiveOnly] = useState(false);
 
   // Dialog states
@@ -453,7 +594,10 @@ function Delegation() {
   const [selectedDelegation, setSelectedDelegation] = useState(null);
 
   const fetchDelegations = () => {
-    const params = showActiveOnly ? { is_active: 'true' } : {};
+    // Always send is_active filter:
+    // toggle ON  → is_active=true  (active delegations only)
+    // toggle OFF → is_active=false (inactive delegations only)
+    const params = { is_active: showActiveOnly ? 'true' : 'false' };
     dispatch(getAllDelegations(params));
   };
 
@@ -463,7 +607,8 @@ function Delegation() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch, showActiveOnly]);
 
-  const rows = delegations?.results || (Array.isArray(delegations) ? delegations : []);
+  const rows =
+    delegations?.results || (Array.isArray(delegations) ? delegations : []);
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '—';
@@ -506,7 +651,9 @@ function Delegation() {
               }
               label={
                 <Typography variant="body2" color="text.secondary">
-                  Show active only
+                  {showActiveOnly
+                    ? 'Showing active only'
+                    : 'Showing inactive only'}
                 </Typography>
               }
             />
@@ -645,6 +792,8 @@ function Delegation() {
               }}
               delegation={selectedDelegation}
               isLoading={isLoading}
+              isAdmin={isAdmin}
+              signersList={signersList}
             />
             <DeleteDelegationDialog
               open={deleteOpen}

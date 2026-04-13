@@ -24,6 +24,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
 import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined';
+import ReceiptOutlinedIcon from '@mui/icons-material/ReceiptOutlined';
 
 // ─── Theme tokens ─────────────────────────────────────────────────────────────
 const PRIMARY = '#00529B';
@@ -31,6 +32,7 @@ const PRIMARY_DARK = '#003a6d';
 const PRIMARY_LIGHT = '#e8f0fb';
 const SURFACE = '#f7f9fc';
 const BORDER = 'rgba(0,82,155,0.15)';
+const INVOICE_COLOR = '#E65100'; // orange accent for invoice verifier
 
 const style = {
   modal: {
@@ -292,7 +294,8 @@ function UpdateUserModel({
     is_pettycash_initiator: false,
     is_custodian: false,
     is_expense_creator: false,
-    is_verifier: false, // ← added
+    is_verifier: false,
+    is_invoice_verifier: false,
     is_approver: false,
     is_first_approver: false,
     is_second_approver: false,
@@ -336,7 +339,8 @@ function UpdateUserModel({
         is_pettycash_initiator: defaultValues.is_pettycash_initiator ?? false,
         is_custodian: defaultValues.is_custodian ?? false,
         is_expense_creator: defaultValues.is_expense_creator ?? false,
-        is_verifier: defaultValues.is_verifier ?? false, // ← added
+        is_verifier: defaultValues.is_verifier ?? false,
+        is_invoice_verifier: defaultValues.is_invoice_verifier ?? false,
         is_approver: defaultValues.is_approver ?? false,
         is_first_approver: defaultValues.is_first_approver ?? false,
         is_second_approver: defaultValues.is_second_approver ?? false,
@@ -395,13 +399,13 @@ function UpdateUserModel({
     setUpdateTrigger((prev) => !prev);
   };
 
-  // active badge counts — is_verifier included in petty cash group
+  // active badge counts
   const pettyCashActiveCount = [
     formData.is_petty_cash_user,
     formData.is_pettycash_initiator,
     formData.is_custodian,
     formData.is_expense_creator,
-    formData.is_verifier, // ← added
+    formData.is_verifier,
   ].filter(Boolean).length;
 
   const approvalActiveCount = [
@@ -410,6 +414,13 @@ function UpdateUserModel({
     formData.is_second_approver,
     formData.is_last_approver,
   ].filter(Boolean).length;
+
+  const invoiceActiveCount = [formData.is_invoice_verifier].filter(
+    Boolean,
+  ).length;
+
+  const totalActiveCount =
+    pettyCashActiveCount + approvalActiveCount + invoiceActiveCount;
 
   return (
     <Modal
@@ -591,9 +602,8 @@ function UpdateUserModel({
                 </FormControl>
               </Grid>
 
-              {/* ── Petty Cash Permissions subsection ── */}
+              {/* ── Permissions subsection ── */}
               <Grid item xs={12}>
-                {/* Subsection container */}
                 <Box
                   sx={{
                     border: `1px solid ${BORDER}`,
@@ -624,7 +634,7 @@ function UpdateUserModel({
                         justifyContent: 'center',
                       }}
                     >
-                      <AccountBalanceWalletOutlinedIcon
+                      <AdminPanelSettingsOutlinedIcon
                         sx={{ fontSize: 16, color: PRIMARY }}
                       />
                     </Box>
@@ -633,39 +643,33 @@ function UpdateUserModel({
                       fontWeight={700}
                       color={PRIMARY}
                     >
-                      Petty Cash Permissions
+                      Module Permissions
                     </Typography>
                     <Chip
-                      label={`${pettyCashActiveCount + approvalActiveCount} active`}
+                      label={`${totalActiveCount} active`}
                       size="small"
                       sx={{
                         ml: 'auto',
                         height: 20,
                         fontSize: '0.65rem',
                         fontWeight: 700,
-                        bgcolor:
-                          pettyCashActiveCount + approvalActiveCount > 0
-                            ? PRIMARY
-                            : 'transparent',
-                        color:
-                          pettyCashActiveCount + approvalActiveCount > 0
-                            ? 'white'
-                            : 'text.disabled',
+                        bgcolor: totalActiveCount > 0 ? PRIMARY : 'transparent',
+                        color: totalActiveCount > 0 ? 'white' : 'text.disabled',
                         border:
-                          pettyCashActiveCount + approvalActiveCount > 0
+                          totalActiveCount > 0
                             ? 'none'
                             : `1px solid rgba(0,0,0,0.15)`,
                       }}
                     />
                   </Box>
 
-                  {/* Two groups side by side inside the subsection */}
+                  {/* Three groups in a responsive grid */}
                   <Box
                     sx={{
                       p: 2,
                       bgcolor: '#fafcff',
                       display: 'grid',
-                      gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+                      gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' },
                       gap: 2,
                     }}
                   >
@@ -713,7 +717,7 @@ function UpdateUserModel({
                         accentColor={PRIMARY}
                       />
                       <ToggleRow
-                        label="Verifier"
+                        label="Petty Cash Verifier"
                         description="Can verify petty cash transactions"
                         name="is_verifier"
                         value={formData.is_verifier}
@@ -764,6 +768,27 @@ function UpdateUserModel({
                         value={formData.is_last_approver}
                         onChange={handleToggle}
                         accentColor="#2e7d32"
+                      />
+                    </PermissionGroup>
+
+                    {/* Invoice Permissions */}
+                    <PermissionGroup
+                      icon={
+                        <ReceiptOutlinedIcon
+                          sx={{ fontSize: 13, color: INVOICE_COLOR }}
+                        />
+                      }
+                      title="Invoice Permissions"
+                      badge={invoiceActiveCount}
+                      accentColor={INVOICE_COLOR}
+                    >
+                      <ToggleRow
+                        label="Invoice Verifier"
+                        description="Can verify invoice submissions"
+                        name="is_invoice_verifier"
+                        value={formData.is_invoice_verifier}
+                        onChange={handleToggle}
+                        accentColor={INVOICE_COLOR}
                       />
                     </PermissionGroup>
                   </Box>
