@@ -30,6 +30,7 @@ import {
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import AssignmentTurnedInOutlinedIcon from '@mui/icons-material/AssignmentTurnedInOutlined';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
+import SupervisorAccountIcon from '@mui/icons-material/SupervisorAccount';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -43,6 +44,7 @@ import UpdateSigningFlow from '../components/UpdateSigningFlow';
 import FilterPanel from '../components/global/FilterPanel';
 import CostCenterSigningFlow from '../components/CostCenterSigningFlow';
 import LocationSigningFlow from '../components/LocationSigningFlow';
+import SupervisorSigningFlow from '../components/SupervisorSigningFlow';
 
 import {
   addSigningFlow,
@@ -111,17 +113,15 @@ function AddDeptSigningFlowDialog({ open, onClose }) {
     label: d.name,
   }));
 
-  const sectionOptions = (Array.isArray(sections) ? sections : []).map((s) => ({
-    id: s.id,
-    label: s.name,
-  }));
+  const sectionOptions = (
+    Array.isArray(sections) ? sections : sections?.results || []
+  ).map((s) => ({ id: s.id, label: s.name }));
 
   const signerOptions = signersList.map((s) => ({
     id: s.id,
     label: `${s.firstname} ${s.lastname}`,
   }));
 
-  // Reset on open
   useEffect(() => {
     if (open) {
       setDepartment(null);
@@ -133,36 +133,28 @@ function AddDeptSigningFlowDialog({ open, onClose }) {
   const handleDepartmentChange = (newValue) => {
     setDepartment(newValue);
     setSection(null);
-    if (newValue?.id) {
+    if (newValue) {
       dispatch(getAllSectionByDepartmentId(newValue.id));
     }
   };
 
   const addRow = () =>
-    setRows((prev) => [...prev, { signer: null, order: prev.length + 1 }]);
-
-  const removeRow = (i) =>
-    setRows((prev) => prev.filter((_, idx) => idx !== i));
-
-  const updateRow = (i, field, value) =>
-    setRows((prev) => {
-      const updated = [...prev];
-      updated[i] = { ...updated[i], [field]: value };
-      return updated;
-    });
+    setRows([...rows, { signer: null, order: rows.length + 1 }]);
+  const removeRow = (i) => setRows(rows.filter((_, idx) => idx !== i));
+  const updateRow = (i, field, value) => {
+    const updated = [...rows];
+    updated[i] = { ...updated[i], [field]: value };
+    setRows(updated);
+  };
 
   const handleSubmit = async () => {
-    if (!department) {
-      toast.error('Please select a Department');
-      return;
-    }
-    if (!section) {
-      toast.error('Please select a Section');
+    if (!department || !section) {
+      toast.error('Please select both a department and a section');
       return;
     }
     for (const r of rows) {
       if (!r.signer || !r.order) {
-        toast.error('All signer rows must have a signer and level');
+        toast.error('All signer rows must have a signer and order');
         return;
       }
     }
@@ -170,21 +162,21 @@ function AddDeptSigningFlowDialog({ open, onClose }) {
     const payload = {
       department: department.id,
       section: section.id,
+      created_by: loginUser?.id,
       levels: rows.map((r) => ({
-        level: Number(r.order),
-        approver: r.signer.id,
+        signer: r.signer.id,
+        order: Number(r.order),
       })),
     };
 
-    try {
-      await dispatch(addSigningFlow(payload)).unwrap();
-      toast.success('Signing Flow added successfully');
-      onClose();
+    const res = await dispatch(addSigningFlow(payload));
+    if (res.meta.requestStatus === 'fulfilled') {
+      toast.success('Signing flow created successfully');
       loginUser?.role === 'signer_admin'
         ? dispatch(getAllSigningFlowByDepartment())
         : dispatch(getAllSigningFlows());
-    } catch (error) {
-      toast.error(error || 'Failed to create signing flow');
+    } else {
+      toast.error(res.payload || 'Failed to create signing flow');
     }
   };
 
@@ -243,14 +235,13 @@ function AddDeptSigningFlowDialog({ open, onClose }) {
                 }
               />
             )}
-            noOptionsText="No sections found for this department"
+            noOptionsText="No sections found"
           />
 
           <Typography variant="subtitle2" color="text.secondary">
             Signers (in order)
           </Typography>
 
-          {/* Dynamic signer rows */}
           {rows.map((row, i) => (
             <Box key={i} sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
               <Autocomplete
@@ -270,15 +261,14 @@ function AddDeptSigningFlowDialog({ open, onClose }) {
                     placeholder="Search signer..."
                   />
                 )}
-                noOptionsText="No signers found"
               />
               <TextField
-                size="small"
-                label="Level"
+                label="Order"
                 type="number"
+                size="small"
+                sx={{ flex: 1 }}
                 value={row.order}
                 onChange={(e) => updateRow(i, 'order', e.target.value)}
-                sx={{ flex: 1 }}
                 inputProps={{ min: 1 }}
               />
               {rows.length > 1 && (
@@ -294,13 +284,12 @@ function AddDeptSigningFlowDialog({ open, onClose }) {
           ))}
 
           <Button
-            variant="outlined"
             size="small"
-            onClick={addRow}
             startIcon={<AddIcon />}
-            sx={{ alignSelf: 'flex-start' }}
+            onClick={addRow}
+            sx={{ alignSelf: 'flex-start', color: '#00529B' }}
           >
-            Add another signer
+            Add Signer
           </Button>
         </Stack>
       </DialogContent>
@@ -418,7 +407,7 @@ function DepartmentSigningFlowTab() {
 
   return (
     <Box sx={{ p: 3 }}>
-      {/* Header — matches CC & Location pattern */}
+      {/* Header */}
       <Box
         sx={{
           display: 'flex',
@@ -492,51 +481,54 @@ function DepartmentSigningFlowTab() {
                       sx={{
                         cursor: 'pointer',
                         backgroundColor: expandedFlow[rowKey]
-                          ? 'rgba(0,82,155,0.04)'
+                          ? '#f0f4ff'
                           : 'inherit',
                       }}
-                      onClick={() => toggleFlow(rowKey)}
                     >
                       <TableCell>{index + 1}</TableCell>
                       <TableCell>
-                        <Typography fontWeight={500}>
-                          {flow?.department_detail?.name || '—'}
-                        </Typography>
+                        {flow?.department_name || flow?.department || '—'}
                       </TableCell>
-                      <TableCell>{flow?.section_detail?.name || '—'}</TableCell>
+                      <TableCell>
+                        {flow?.section_name || flow?.section || '—'}
+                      </TableCell>
                       <TableCell>
                         <Chip
-                          label={`${levels.length} signer${levels.length !== 1 ? 's' : ''}`}
+                          label={levels.length}
                           size="small"
-                          color="primary"
-                          variant="outlined"
+                          sx={{ backgroundColor: '#00529B', color: '#fff' }}
                         />
                       </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <Button
+                      <TableCell>
+                        <IconButton
+                          size="small"
                           sx={tableStyles.rowButton}
-                          startIcon={<VisibilityOutlinedIcon />}
                           onClick={() => handleViewClick(flow)}
-                        />
-                        <Button
+                        >
+                          <VisibilityOutlinedIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
                           sx={tableStyles.rowButton}
-                          startIcon={<EditOutlinedIcon />}
                           onClick={() => handleUpdate(flow)}
-                        />
+                        >
+                          <EditOutlinedIcon fontSize="small" />
+                        </IconButton>
                         <IconButton
                           size="small"
                           onClick={() => toggleFlow(rowKey)}
+                          sx={tableStyles.rowButton}
                         >
                           {expandedFlow[rowKey] ? (
-                            <ExpandLessIcon />
+                            <ExpandLessIcon fontSize="small" />
                           ) : (
-                            <ExpandMoreIcon />
+                            <ExpandMoreIcon fontSize="small" />
                           )}
                         </IconButton>
                       </TableCell>
                     </TableRow>
 
-                    {/* Expanded signer rows */}
+                    {/* Expanded signers row */}
                     <TableRow>
                       <TableCell colSpan={5} sx={{ p: 0, border: 0 }}>
                         <Collapse
@@ -554,7 +546,7 @@ function DepartmentSigningFlowTab() {
                                       color: '#00529B',
                                     }}
                                   >
-                                    LEVEL
+                                    ORDER
                                   </TableCell>
                                   <TableCell
                                     sx={{
@@ -570,14 +562,6 @@ function DepartmentSigningFlowTab() {
                                       color: '#00529B',
                                     }}
                                   >
-                                    POSITION
-                                  </TableCell>
-                                  <TableCell
-                                    sx={{
-                                      fontWeight: 'bold',
-                                      color: '#00529B',
-                                    }}
-                                  >
                                     STATUS
                                   </TableCell>
                                 </TableRow>
@@ -585,50 +569,52 @@ function DepartmentSigningFlowTab() {
                               <TableBody>
                                 {levels.length === 0 ? (
                                   <TableRow>
-                                    <TableCell
-                                      colSpan={4}
-                                      align="center"
-                                      sx={{ py: 2 }}
-                                    >
+                                    <TableCell colSpan={3}>
                                       <Typography
                                         variant="body2"
                                         color="text.secondary"
                                       >
-                                        No signers configured
+                                        No signers assigned
                                       </Typography>
                                     </TableCell>
                                   </TableRow>
                                 ) : (
-                                  levels.map((level, i) => (
-                                    <TableRow key={i} hover>
-                                      <TableCell>
-                                        <Chip
-                                          label={`#${level?.level || i + 1}`}
-                                          size="small"
-                                        />
-                                      </TableCell>
-                                      <TableCell>
-                                        {level?.approver_detail?.firstname}{' '}
-                                        {level?.approver_detail?.lastname}
-                                      </TableCell>
-                                      <TableCell>
-                                        {level?.approver_detail?.position ||
-                                          '—'}
-                                      </TableCell>
-                                      <TableCell>
-                                        <Chip
-                                          label={level?.status || 'active'}
-                                          size="small"
-                                          color={
-                                            level?.status === 'active'
-                                              ? 'success'
-                                              : 'default'
-                                          }
-                                          variant="outlined"
-                                        />
-                                      </TableCell>
-                                    </TableRow>
-                                  ))
+                                  levels
+                                    .slice()
+                                    .sort((a, b) => a.order - b.order)
+                                    .map((level) => (
+                                      <TableRow key={level.id} hover>
+                                        <TableCell>
+                                          <Chip
+                                            label={`#${level.order}`}
+                                            size="small"
+                                          />
+                                        </TableCell>
+                                        <TableCell>
+                                          {level.signer_name ||
+                                            `${level.signer?.firstname || ''} ${
+                                              level.signer?.lastname || ''
+                                            }`.trim() ||
+                                            '—'}
+                                        </TableCell>
+                                        <TableCell>
+                                          <Chip
+                                            label={
+                                              level.is_active
+                                                ? 'active'
+                                                : 'inactive'
+                                            }
+                                            size="small"
+                                            color={
+                                              level.is_active
+                                                ? 'success'
+                                                : 'default'
+                                            }
+                                            variant="outlined"
+                                          />
+                                        </TableCell>
+                                      </TableRow>
+                                    ))
                                 )}
                               </TableBody>
                             </Table>
@@ -691,8 +677,8 @@ export const SigningFlow = ({ defaultTab = 0 }) => {
           Signing Flow
         </Typography>
         <Typography variant="body2" color="text.secondary" mb={3}>
-          Manage approval signing flows for departments, cost centers and
-          locations
+          Manage approval signing flows for departments, cost centers, locations
+          and supervisors
         </Typography>
 
         {/* Tab bar */}
@@ -736,6 +722,11 @@ export const SigningFlow = ({ defaultTab = 0 }) => {
               icon={<LocationOnIcon fontSize="small" />}
               iconPosition="start"
             />
+            <Tab
+              label="Supervisor"
+              icon={<SupervisorAccountIcon fontSize="small" />}
+              iconPosition="start"
+            />
           </Tabs>
 
           {/* Tab 0 — Department / Section */}
@@ -754,6 +745,13 @@ export const SigningFlow = ({ defaultTab = 0 }) => {
           <TabPanel value={activeTab} index={2}>
             <Box sx={{ p: 3 }}>
               <LocationSigningFlow />
+            </Box>
+          </TabPanel>
+
+          {/* Tab 3 — Supervisor */}
+          <TabPanel value={activeTab} index={3}>
+            <Box sx={{ p: 3 }}>
+              <SupervisorSigningFlow />
             </Box>
           </TabPanel>
         </Paper>

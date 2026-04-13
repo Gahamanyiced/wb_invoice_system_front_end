@@ -12,6 +12,9 @@ const initialState = {
   // Location
   locationSigners: [],
   locationSigner: null,
+  // Supervisor
+  supervisors: [],
+  supervisor: null,
   // Shared
   isLoading: false,
   error: null,
@@ -104,8 +107,6 @@ export const updateCostCenterSigner = createAsyncThunk(
 
 export const deleteCostCenterSigner = createAsyncThunk(
   'signingFlow/deleteCostCenterSigner',
-  // id  = signing flow record id
-  // data = { order: <signer's level> }
   async ({ id, data }, thunkAPI) => {
     try {
       return await signingFlowService.deleteCostCenterSigner(id, data);
@@ -152,11 +153,55 @@ export const updateLocationSigner = createAsyncThunk(
 
 export const deleteLocationSigner = createAsyncThunk(
   'signingFlow/deleteLocationSigner',
-  // id  = signing flow record id
-  // data = { order: <signer's level> }
   async ({ id, data }, thunkAPI) => {
     try {
       return await signingFlowService.deleteLocationSigner(id, data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+// ==================== Supervisor Signers ====================
+
+export const getAllSupervisors = createAsyncThunk(
+  'signingFlow/getAllSupervisors',
+  async (_, thunkAPI) => {
+    try {
+      return await signingFlowService.getAllSupervisors();
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+export const createSupervisor = createAsyncThunk(
+  'signingFlow/createSupervisor',
+  async (data, thunkAPI) => {
+    try {
+      return await signingFlowService.createSupervisor(data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+export const updateSupervisor = createAsyncThunk(
+  'signingFlow/updateSupervisor',
+  async ({ id, data }, thunkAPI) => {
+    try {
+      return await signingFlowService.updateSupervisor(id, data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+export const deleteSupervisor = createAsyncThunk(
+  'signingFlow/deleteSupervisor',
+  async (id, thunkAPI) => {
+    try {
+      return await signingFlowService.deleteSupervisor(id);
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
@@ -362,6 +407,68 @@ export const signingFlowSlice = createSlice({
         state.error = null;
       })
       .addCase(deleteLocationSigner.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // ---- getAllSupervisors ----
+      .addCase(getAllSupervisors.pending, (state) => {
+        state.isLoading = true;
+        state.supervisors = [];
+        state.error = null;
+      })
+      .addCase(getAllSupervisors.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.supervisors = action.payload;
+        state.error = null;
+      })
+      .addCase(getAllSupervisors.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+        state.supervisors = [];
+      })
+
+      // ---- createSupervisor ----
+      .addCase(createSupervisor.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(createSupervisor.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.supervisor = action.payload;
+        state.error = null;
+      })
+      .addCase(createSupervisor.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // ---- updateSupervisor ----
+      .addCase(updateSupervisor.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(updateSupervisor.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.supervisor = action.payload;
+        state.error = null;
+      })
+      .addCase(updateSupervisor.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // ---- deleteSupervisor ----
+      .addCase(deleteSupervisor.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(deleteSupervisor.fulfilled, (state) => {
+        state.isLoading = false;
+        state.supervisor = null;
+        state.error = null;
+      })
+      .addCase(deleteSupervisor.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       });

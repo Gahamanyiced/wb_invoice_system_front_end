@@ -51,6 +51,7 @@ function App() {
             <Route path="/user" element={<User />} />
             <Route path="/department" element={<Department />} />
             <Route path="/section" element={<Section />} />
+
             {/* Signing Flow Routes — tab index matches SigningFlow tab order */}
             <Route
               path="/signing-flow/department"
@@ -64,11 +65,16 @@ function App() {
               path="/signing-flow/location"
               element={<SigningFlow defaultTab={2} />}
             />
+            <Route
+              path="/signing-flow/supervisor"
+              element={<SigningFlow defaultTab={3} />}
+            />
             {/* Fallback: keep old route pointing to tab 0 */}
             <Route
               path="/signing-flow"
               element={<SigningFlow defaultTab={0} />}
             />
+
             <Route path="/petty-cash" element={<PettyCash />} />
             <Route
               path="/manage-expenses/:transactionId"

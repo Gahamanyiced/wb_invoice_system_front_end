@@ -201,16 +201,20 @@ export default function Sidebar() {
   // ── Permission flags ──────────────────────────────────────────────────────
   const isAdmin = user?.role === 'admin';
   const isSignerAdmin = user?.role === 'signer_admin';
+  const isSigner = user?.role === 'signer';
 
-  // signer_admin + is_invoice_verifier → Signing Flow, Delegation, COA
+  // admin OR (signer_admin + is_invoice_verifier) → Signing Flow, COA
   const canSeeAdminTools =
     isAdmin || (isSignerAdmin && !!user?.is_invoice_verifier);
+
+  // admin, signer_admin, or signer → Delegation
+  const canSeeDelegation = isAdmin || isSignerAdmin || isSigner;
 
   // admin OR (signer_admin + is_verifier) → Reports
   const canSeeReports = isAdmin || (isSignerAdmin && !!user?.is_verifier);
 
   // Show Administration heading if the user can see at least one admin item
-  const showAdminSection = isAdmin || canSeeAdminTools;
+  const showAdminSection = isAdmin || canSeeAdminTools || canSeeDelegation;
 
   useEffect(() => {
     const path = location.pathname;
@@ -563,12 +567,24 @@ export default function Sidebar() {
                       >
                         Location
                       </SubMenuItem>
+                      <SubMenuItem
+                        className={
+                          activeSigningFlowOption === '/signing-flow/supervisor'
+                            ? 'active'
+                            : ''
+                        }
+                        onClick={() =>
+                          handleSigningFlowOption('/signing-flow/supervisor')
+                        }
+                      >
+                        Supervisor
+                      </SubMenuItem>
                     </Collapse>
                   </Box>
                 )}
 
-                {/* Delegation — admin OR (signer_admin + is_invoice_verifier) */}
-                {canSeeAdminTools && (
+                {/* Delegation — admin, signer_admin, or signer */}
+                {canSeeDelegation && (
                   <StyledNavLink to="/delegation">
                     <MenuIcon>
                       <SwapHorizIcon fontSize="small" />
@@ -613,7 +629,7 @@ export default function Sidebar() {
                         }
                         onClick={() => handleCoaOption('/coa/cost-centers')}
                       >
-                        Cost Center
+                        Cost Centers
                       </SubMenuItem>
                       <SubMenuItem
                         className={
@@ -621,7 +637,7 @@ export default function Sidebar() {
                         }
                         onClick={() => handleCoaOption('/coa/gl-accounts')}
                       >
-                        GL Account
+                        GL Accounts
                       </SubMenuItem>
                       <SubMenuItem
                         className={
@@ -629,7 +645,7 @@ export default function Sidebar() {
                         }
                         onClick={() => handleCoaOption('/coa/locations')}
                       >
-                        Location
+                        Locations
                       </SubMenuItem>
                       <SubMenuItem
                         className={

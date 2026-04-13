@@ -116,6 +116,42 @@ const deleteLocationSigner = async (id, data) => {
   return response.data;
 };
 
+// ==================== Supervisor Signing Flow ====================
+// POST   /invoice/invoice-supervisors/              — create supervisor
+// GET    /invoice/invoice-supervisors/               — list all supervisors
+// PUT    /invoice/invoice-supervisor-detail/{id}/   — update (is_active, signer)
+// DELETE /invoice/invoice-supervisor-detail/{id}/   — delete supervisor
+
+const getAllSupervisors = async () => {
+  const response = await http.get('/invoice/invoice-supervisors/');
+  return response.data;
+};
+
+const createSupervisor = async (data) => {
+  // payload: { signer: <user_id>, is_active: true }
+  const response = await http.post('/invoice/invoice-supervisors/', data);
+  return response.data;
+};
+
+const updateSupervisor = async (id, data) => {
+  // payload examples:
+  //   deactivate:  { is_active: false }
+  //   reactivate:  { is_active: true }
+  //   replace:     { signer: 99 }
+  const response = await http.put(
+    `/invoice/invoice-supervisor-detail/${id}/`,
+    data,
+  );
+  return response.data;
+};
+
+const deleteSupervisor = async (id) => {
+  const response = await http.delete(
+    `/invoice/invoice-supervisor-detail/${id}/`,
+  );
+  return response.data;
+};
+
 const signingFlowService = {
   // Department / Section
   getAllSigningFlow,
@@ -132,6 +168,11 @@ const signingFlowService = {
   createLocationSigner,
   updateLocationSigner,
   deleteLocationSigner,
+  // Supervisor
+  getAllSupervisors,
+  createSupervisor,
+  updateSupervisor,
+  deleteSupervisor,
 };
 
 export default signingFlowService;
