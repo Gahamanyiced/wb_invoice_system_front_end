@@ -1,3 +1,4 @@
+import { formatCurrencyAmount as _fca } from '../utils/formatAmount';
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
@@ -192,15 +193,7 @@ const formatDateNoSlash = (dateString) => {
 
 const formatCurrency = (amount, currency) => {
   if (!amount) return '-';
-  try {
-    const numAmount = parseFloat(amount);
-    if (isNaN(numAmount)) return '-';
-    return currency
-      ? `${currency} ${numAmount.toFixed(2)}`
-      : numAmount.toFixed(2);
-  } catch (error) {
-    return '-';
-  }
+  return _fca(amount, currency) === '-' ? '-' : _fca(amount, currency);
 };
 
 // ── GL line _detail resolvers (used inside MyDocument) ───────────────────────

@@ -54,7 +54,10 @@ import FilterPanel from '../components/global/FilterPanel';
 import { setFilters } from '../features/invoice/invoiceSlice';
 import DownloadInvoiceComponent from '../components/DownloadInvoiceComponent';
 import { getAllUsersWithNoPagination } from '../features/user/userSlice';
-
+import {
+  formatAmount,
+  formatCurrencyAmount as _formatCurrencyAmount,
+} from '../utils/formatAmount';
 
 const styles = {
   table: {
@@ -453,7 +456,7 @@ export default function Invoice() {
       code: `${glLines.length} lines`,
       description: 'Multiple GL accounts',
       costCenter: 'Multiple centers',
-      amount: totalAmount.toFixed(2),
+      amount: formatAmount(totalAmount),
       location: 'Multiple',
       aircraftType: 'Multiple',
       route: 'Multiple',
@@ -464,24 +467,20 @@ export default function Invoice() {
   const getTotalAmount = (invoice) => {
     const normalized = normalizeInvoiceData(invoice);
     const amount = normalized?.amount;
-    if (amount) {
-      return parseFloat(amount).toFixed(2);
-    }
+    if (amount) return formatAmount(amount);
     const glLines = getGLLines(invoice);
     if (glLines.length > 0) {
       const total = glLines.reduce(
         (sum, line) => sum + parseFloat(line?.gl_amount || 0),
         0,
       );
-      return total.toFixed(2);
+      return formatAmount(total);
     }
     return '-';
   };
 
-  const formatCurrencyAmount = (amount, currency) => {
-    if (amount === '-' || !amount) return '-';
-    return `${currency || ''} ${amount}`;
-  };
+  const formatCurrencyAmount = (amount, currency) =>
+    _formatCurrencyAmount(amount, currency);
 
   // Generate dynamic options from allUsers
   const userOptions =

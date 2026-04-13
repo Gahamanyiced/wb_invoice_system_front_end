@@ -1,3 +1,4 @@
+import { formatCurrencyAmount as _fca } from '../utils/formatAmount';
 import { useState, useEffect } from 'react';
 import {
   Box,
@@ -119,7 +120,7 @@ const getStatusColor = (status) => {
 
 const formatCurrency = (amount, currency) => {
   if (!amount) return 'N/A';
-  return `${currency || ''} ${parseFloat(amount).toLocaleString()}`;
+  return _fca(amount, currency);
 };
 
 function ViewInvoiceModal({ defaultValues, open, handleClose }) {

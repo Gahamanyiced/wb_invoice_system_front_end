@@ -1,4 +1,5 @@
 // src/components/EnhancedDownloadComponent.jsx
+import { formatCurrencyAmount as _fca } from '../utils/formatAmount';
 import React, { useState } from 'react';
 import {
   Button,
@@ -123,7 +124,7 @@ const EnhancedInvoicePDF = ({
 
   const formatCurrency = (amount, currency = '') => {
     if (!amount || amount === '-') return '-';
-    return `${currency} ${parseFloat(amount).toFixed(2)}`;
+    return _fca(amount, currency);
   };
 
   // Flatten invoices with GL lines if option is enabled
@@ -405,7 +406,7 @@ const EnhancedDownloadComponent = ({ invoices, title = 'Invoice Report' }) => {
           'GL Code',
           'GL Description',
           'Cost Center',
-          'GL Amount'
+          'GL Amount',
         );
       }
 
@@ -457,14 +458,14 @@ const EnhancedDownloadComponent = ({ invoices, title = 'Invoice Report' }) => {
                 index === 0
                   ? `${owner?.firstname || ''} ${owner?.lastname || ''}`.trim()
                   : '',
-                index === 0 ? owner?.email || '' : ''
+                index === 0 ? owner?.email || '' : '',
               );
             }
 
             if (downloadOptions.includeTimestamps) {
               row.push(
                 index === 0 ? baseData.created_at : '',
-                index === 0 ? baseData.updated_at : ''
+                index === 0 ? baseData.updated_at : '',
               );
             }
 
@@ -487,7 +488,7 @@ const EnhancedDownloadComponent = ({ invoices, title = 'Invoice Report' }) => {
               3,
               0,
               `${owner?.firstname || ''} ${owner?.lastname || ''}`.trim(),
-              owner?.email || ''
+              owner?.email || '',
             );
           }
 
@@ -511,7 +512,7 @@ const EnhancedDownloadComponent = ({ invoices, title = 'Invoice Report' }) => {
         'download',
         `${title.replace(/\s+/g, '_')}_${
           new Date().toISOString().split('T')[0]
-        }.csv`
+        }.csv`,
       );
       document.body.appendChild(link);
       link.click();
