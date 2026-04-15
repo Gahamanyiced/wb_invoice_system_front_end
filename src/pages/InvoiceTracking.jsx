@@ -148,6 +148,9 @@ const formatCurrency = (amount, currency) => {
   return _fca(amount, currency);
 };
 
+// ── Helper: matches both 'to_sign' (API) and 'to sign' (legacy) ──────────────
+const isToSign = (status) => status === 'to_sign' || status === 'to sign';
+
 function InvoiceTracking({ openModal, handleCloseModal, selected }) {
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -237,26 +240,25 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
     : 'N/A';
   const isRollBack = invoice?.invoice?.is_roll_back || invoice?.is_roll_back;
 
-  // ── FIX: use 'to_sign' (underscore) to match API response ────────────────
+  // ── Allow both 'to_sign' (underscore) and 'to sign' (space) ─────────────
   const handleStepClick = (invoiceItem) => {
     const currentUser = JSON.parse(localStorage.getItem('user'));
 
-    // Determine if the logged-in user is allowed to act on this invoice.
-    // FIX: API returns 'to_sign' with underscore, not 'to sign' with space.
     const myHistoryEntry = invoice?.invoice_histories?.find(
       (item) => item?.signer?.email === currentUser?.email,
     );
+
     const allowed =
       (currentUser?.role === 'signer' ||
         currentUser?.role === 'signer_admin') &&
-      myHistoryEntry?.status === 'to_sign'; // ← FIXED
+      isToSign(myHistoryEntry?.status);
 
     setIsAllowed(allowed);
 
     // Open the stepper for any actionable step, or when the step belongs to
     // the current user. isAllowed gates the action buttons inside StepperModal.
     if (
-      invoiceItem?.status === 'to_sign' || // ← FIXED
+      isToSign(invoiceItem?.status) ||
       invoiceItem?.signer?.email === currentUser?.email
     ) {
       setStepperOpen(true);
@@ -734,7 +736,7 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                           <Typography variant="body2" fontWeight="500">
                             {invoiceItem?.status === 'pending'
                               ? 'To be signed by: '
-                              : invoiceItem?.status === 'to_sign' // ← FIXED
+                              : isToSign(invoiceItem?.status)
                                 ? 'Next to sign: '
                                 : invoiceItem?.status === 'denied'
                                   ? 'Denied by: '
