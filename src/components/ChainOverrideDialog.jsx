@@ -82,11 +82,11 @@ const signerLabel = (item) =>
 // invoice.invoice.id (e.g. 200588) is the tracking object ID — NOT what the
 // chain endpoints expect.
 const resolveChainInvoiceId = (invoice) => {
+  if (invoice?.invoice?.invoice_id) return invoice.invoice.invoice_id; // ← PRIMARY
   const fromHistory = invoice?.invoice_histories?.[0]?.invoice;
-  if (fromHistory) return fromHistory;
-  return invoice?.invoice?.id || invoice?.id;
+  if (fromHistory) return fromHistory; // ← FALLBACK 1
+  return invoice?.invoice?.id || invoice?.id; // ← FALLBACK 2
 };
-
 // ═════════════════════════════════════════════════════════════════════════════
 // Tab panels
 // ═════════════════════════════════════════════════════════════════════════════
@@ -217,8 +217,10 @@ function ChangeStatusTab({ invoice, invoiceId, onSuccess }) {
   const { isLoading } = useSelector((s) => s.invoice);
 
   const histories = invoice?.invoice_histories || [];
+  const loggedInUser = JSON.parse(localStorage.getItem('user'));
+  const isAdmin = loggedInUser?.role === 'admin';
 
-  const [target, setTarget] = useState('invoice');
+  const [target, setTarget] = useState(isAdmin ? 'invoice' : 'history');
   const [historyId, setHistoryId] = useState('');
   const [newStatus, setNewStatus] = useState('');
   const [reason, setReason] = useState('');
@@ -275,7 +277,7 @@ function ChangeStatusTab({ invoice, invoiceId, onSuccess }) {
         size="small"
         fullWidth
       >
-        <MenuItem value="invoice">Invoice</MenuItem>
+        {isAdmin && <MenuItem value="invoice">Invoice</MenuItem>}
         <MenuItem value="history">Signer History Entry</MenuItem>
       </TextField>
 

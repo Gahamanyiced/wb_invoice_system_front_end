@@ -29,6 +29,7 @@ import { updateInvoice } from '../features/invoice/invoiceSlice';
 import useCOAData from '../hooks/useCOAData';
 import useInvoiceNumberCheck from '../hooks/useInvoiceNumberCheck';
 import currencies from '../utils/currencies';
+import ServicePeriodPicker from './ServicePeriodPicker';
 
 const paymentTermsOptions = [
   { value: 'net_30', label: 'Net 30 - Payment due within 30 days' },
@@ -109,7 +110,7 @@ const style = {
   },
 };
 
-// ─── COA Autocomplete — matches InvoiceModal exactly ─────────────────────────
+// ─── COA Autocomplete ─────────────────────────────────────────────────────────
 function COAAutocomplete({
   options = [],
   value,
@@ -279,13 +280,16 @@ function UpdateInvoiceModal({
   const [customTermsInput, setCustomTermsInput] = useState('');
   const [selectedSupplier, setSelectedSupplier] = useState(null);
 
+  // ── Service period — single combined string driven by ServicePeriodPicker ──
+  const [servicePeriod, setServicePeriod] = useState('');
+  const [servicePeriodError, setServicePeriodError] = useState(false);
+
   const [formData, setFormData] = useState({
     supplier_number: getInvoiceData('supplier_number') || '',
     supplier_name: getInvoiceData('supplier_name') || '',
     invoice_number: getInvoiceData('invoice_number') || '',
     reference: getInvoiceData('reference') || '',
     invoice_date: getInvoiceData('invoice_date') || '',
-    service_period: getInvoiceData('service_period') || '',
     currency: getInvoiceData('currency') || '',
     amount: getInvoiceData('amount') || '',
     quantity: getInvoiceData('quantity') || '',
@@ -303,16 +307,23 @@ function UpdateInvoiceModal({
   const [selectedDocumentIndices, setSelectedDocumentIndices] = useState([]);
   const [docMode, setDocMode] = useState('new');
 
-  // ── Pre-populate GL entries and supplier from _detail once excelData loads
+  // ── Pre-populate on open ──────────────────────────────────────────────────
   useEffect(() => {
     if (!open) return;
     setGLEntries(buildInitialGLEntries());
+
     if (excelData.suppliers.length > 0 && getInvoiceData('supplier_number')) {
       const match = excelData.suppliers.find(
         (s) => s.value === getInvoiceData('supplier_number'),
       );
       if (match) setSelectedSupplier(match);
     }
+
+    // Restore stored service_period string directly into state — the picker
+    // will parse it back into start/end internally when it opens
+    setServicePeriod(getInvoiceData('service_period') || '');
+    setServicePeriodError(false);
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, excelData.suppliers.length]);
 
@@ -445,7 +456,6 @@ function UpdateInvoiceModal({
       invoice_number: getInvoiceData('invoice_number') || '',
       reference: getInvoiceData('reference') || '',
       invoice_date: getInvoiceData('invoice_date') || '',
-      service_period: getInvoiceData('service_period') || '',
       currency: getInvoiceData('currency') || '',
       amount: getInvoiceData('amount') || '',
       quantity: getInvoiceData('quantity') || '',
@@ -454,6 +464,8 @@ function UpdateInvoiceModal({
     });
     setGLEntries(buildInitialGLEntries());
     setSelectedSupplier(null);
+    setServicePeriod('');
+    setServicePeriodError(false);
     setDocuments(getDocuments());
     setAnotherDocuments([]);
     setUploadedFileNames([]);
@@ -483,10 +495,17 @@ function UpdateInvoiceModal({
         return;
       }
 
+      // ── Service period validation ─────────────────────────────────────────
+      if (!servicePeriod || !servicePeriod.includes(' to ')) {
+        setServicePeriodError(true);
+        toast.error('Please select a service period date range');
+        return;
+      }
+      setServicePeriodError(false);
+
       if (isSupplier) {
         if (
           !formData.invoice_number ||
-          !formData.service_period ||
           !formData.currency ||
           !formData.amount
         ) {
@@ -496,7 +515,6 @@ function UpdateInvoiceModal({
       } else {
         if (
           !formData.invoice_number ||
-          !formData.service_period ||
           !formData.currency ||
           !formData.amount
         ) {
@@ -522,7 +540,7 @@ function UpdateInvoiceModal({
 
       if (isSupplier) {
         data.append('invoice_number', formData.invoice_number);
-        data.append('service_period', formData.service_period);
+        data.append('service_period', servicePeriod);
         data.append('currency', formData.currency);
         data.append('amount', formData.amount);
         if (formData.reference) data.append('reference', formData.reference);
@@ -538,7 +556,6 @@ function UpdateInvoiceModal({
           'invoice_number',
           'reference',
           'invoice_date',
-          'service_period',
           'currency',
           'amount',
           'payment_terms',
@@ -550,12 +567,13 @@ function UpdateInvoiceModal({
             data.append(key, formData[key]);
         });
 
-        // supplier_id — DB primary key of the selected supplier
+        // service_period comes from the picker, not formData
+        data.append('service_period', servicePeriod);
+
         if (selectedSupplier?.id) {
           data.append('supplier_id', selectedSupplier.id);
         }
 
-        // GL lines — send DB ids, matching InvoiceModal exactly
         data.append(
           'gl_lines',
           JSON.stringify(
@@ -576,7 +594,6 @@ function UpdateInvoiceModal({
 
       if (comment) data.append('comment', comment);
 
-      // Documents
       if (docMode === 'change' && !documentsInInvoice) {
         anotherSelectedDocumentIndices.forEach((docIndex, i) => {
           data.append('documents', documents[docIndex]);
@@ -590,16 +607,12 @@ function UpdateInvoiceModal({
 
       const invoiceId = defaultValues?.invoice?.id || defaultValues?.id;
 
-      // ── Use meta.requestStatus to surface the real backend error message ──
-      // updateInvoice thunk uses extractErrorMessage which reads
-      // error.response.data.message / error.response.data.error / error.message
       const result = await dispatch(updateInvoice({ id: invoiceId, data }));
       if (updateInvoice.fulfilled.match(result)) {
         toast.success('Invoice Updated Successfully');
         handleCloseUpdate();
         setUpdateTrigger((prev) => !prev);
       } else {
-        // result.payload = the string from extractErrorMessage in the thunk
         toast.error(result.payload || 'Failed to update invoice');
       }
     } catch (error) {
@@ -741,18 +754,25 @@ function UpdateInvoiceModal({
                   InputLabelProps={{ shrink: true }}
                 />
               </Grid>
+
+              {/* ── Service Period — booking.com-style range picker ────────── */}
               <Grid item xs={12} md={6}>
-                <TextField
-                  label="Service Period *"
-                  name="service_period"
-                  value={formData.service_period}
-                  onChange={handleFormChange}
-                  fullWidth
+                <ServicePeriodPicker
+                  value={servicePeriod}
+                  onChange={(val) => {
+                    setServicePeriod(val);
+                    setServicePeriodError(false);
+                  }}
                   required
-                  variant="outlined"
-                  size="small"
+                  error={servicePeriodError}
+                  helperText={
+                    servicePeriodError
+                      ? 'Please select a service period date range'
+                      : ''
+                  }
                 />
               </Grid>
+
               <Grid item xs={12} md={6}>
                 <TextField
                   label="Quantity"
@@ -876,7 +896,6 @@ function UpdateInvoiceModal({
                     </Box>
 
                     <Grid container spacing={2}>
-                      {/* Row 1: GL Code | GL Description | Amount */}
                       <Grid item xs={12} md={5}>
                         <COAAutocomplete
                           options={excelData.glCodes}
@@ -915,8 +934,6 @@ function UpdateInvoiceModal({
                           type="number"
                         />
                       </Grid>
-
-                      {/* Row 2: Cost Center | Location | Aircraft Type | Route */}
                       <Grid item xs={12} md={3}>
                         <COAAutocomplete
                           options={excelData.costCenters}
@@ -1049,7 +1066,6 @@ function UpdateInvoiceModal({
               Documents
             </Typography>
 
-            {/* Existing documents */}
             {documents
               .filter((doc) => doc && (doc.id || doc.file_data))
               .map((doc, index) => (
@@ -1093,7 +1109,6 @@ function UpdateInvoiceModal({
                 </Box>
               ))}
 
-            {/* New document uploads */}
             {[...Array(anotherDocuments.length || 1).keys()].map((index) => (
               <Box key={index} sx={style.uploadBox}>
                 <label

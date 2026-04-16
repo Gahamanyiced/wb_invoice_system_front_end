@@ -37,7 +37,6 @@ function ApproveDialog(props) {
   const handleGoBack = props.handleGoBack;
   const [panel, setPanel] = useState(0);
   const dispatch = useDispatch();
-  console.log('invoice_approve', props?.invoice?.invoice?.is_next_to_approve);
 
   useEffect(() => {
     if (index === 0) {
@@ -51,13 +50,13 @@ function ApproveDialog(props) {
       top: '50%',
       left: '50%',
       transform: 'translate(-50%, -50%)',
-      width: 600, // Increased from 500 to 600
+      width: 600,
       bgcolor: 'background.paper',
       boxShadow: 24,
-      p: 4, // Increased padding for better spacing
+      p: 4,
       display: 'flex',
       flexDirection: 'column',
-      gap: '20px', // Added gap for better spacing between elements
+      gap: '20px',
       alignItems: 'center',
     },
     cancel: {
@@ -85,29 +84,24 @@ function ApproveDialog(props) {
   const handleApprove = async () => {
     try {
       if (index === 0) {
-        if (
-          (isHeadDepartment?.is_head_of_department ||
-            user?.role === 'signer_admin') &&
-          !props.isRollBack
-        ) {
-          setPanel(1);
-        } else {
-          await dispatch(
-            signInvoice({
-              id: props.selectedId,
-              data: {
-                status: 'signed',
-              },
-            })
-          );
-          setPanel(2);
-        }
+        // All users — including signer_admin and is_head_of_department —
+        // follow the same normal sign flow. The ForwardingInvoiceDialog
+        // (next signer / final approval) is no longer shown.
+        await dispatch(
+          signInvoice({
+            id: props.selectedId,
+            data: {
+              status: 'signed',
+            },
+          }),
+        );
+        setPanel(2);
       } else if (index === 1) {
         await dispatch(
           denyInvoice({
             id: props.selectedId,
             data: {},
-          })
+          }),
         );
         setPanel(2);
       } else if (index === 2) {
@@ -115,7 +109,7 @@ function ApproveDialog(props) {
           rollbackInvoice({
             id: props.selectedId,
             data: {},
-          })
+          }),
         );
         setPanel(2);
       } else {
@@ -127,7 +121,7 @@ function ApproveDialog(props) {
   };
 
   const handleConfirmForwarding = async (final, selection) => {
-    // Perform an action based on selected forward users
+    // Kept for backward compatibility but no longer triggered via handleApprove
     const data = {
       id: props.selectedId,
       data: {
@@ -158,7 +152,7 @@ function ApproveDialog(props) {
               data: {
                 content: comment,
               },
-            })
+            }),
           );
           await dispatch(invoiceComment({ id: props.selectedId }));
         }
@@ -170,6 +164,7 @@ function ApproveDialog(props) {
         toast.error(error);
       }
     };
+
     return (
       <Box sx={styles.modal}>
         <AddCommentIcon fontSize="50" sx={styles.icon} />
@@ -183,7 +178,7 @@ function ApproveDialog(props) {
               alignItems: 'flex-start',
               flexDirection: 'column',
               gap: 2,
-              width: '100%', // Ensures the Box takes the full width of DialogContent
+              width: '100%',
             }}
           >
             {index === 1 || index === 2 ? (
@@ -191,13 +186,13 @@ function ApproveDialog(props) {
                 id="comment"
                 label="Type your comment"
                 multiline
-                rows={6} // Increased from 4 to 6
-                fullWidth // Makes the TextField span the full width
+                rows={6}
+                fullWidth
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 sx={{
                   resize: 'vertical',
-                  width: '100%', // Ensures the TextField takes the full width of the Box
+                  width: '100%',
                 }}
               />
             ) : (
@@ -221,13 +216,13 @@ function ApproveDialog(props) {
                     id="comment"
                     label="Type your comment"
                     multiline
-                    rows={6} // Increased from 4 to 6
-                    fullWidth // Makes the TextField span the full width
+                    rows={6}
+                    fullWidth
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                     sx={{
                       resize: 'vertical',
-                      width: '100%', // Ensures the TextField takes the full width of the Box
+                      width: '100%',
                     }}
                   />
                 )}

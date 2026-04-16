@@ -38,6 +38,7 @@ import { getInvoiceValidationSchema } from '../validations/invoice';
 import currencies from '../utils/currencies';
 import useCOAData from '../hooks/useCOAData';
 import useInvoiceNumberCheck from '../hooks/useInvoiceNumberCheck';
+import ServicePeriodPicker from './ServicePeriodPicker';
 
 const paymentTermsOptions = [
   { value: 'net_30', label: 'Net 30 - Payment due within 30 days' },
@@ -188,16 +189,9 @@ function COAAutocomplete({
 }
 
 // ─── Precision-safe addition helper ──────────────────────────────────────────
-// Converts each value to a fixed-decimal string first to avoid scientific
-// notation, then uses integer-scaled arithmetic to eliminate floating-point
-// drift (e.g. 548.5679 + 375.62389 → 924.19179, never 924.1917900000001).
-// toString() on the final result naturally drops trailing zeros so we never
-// show unnecessary decimals (e.g. 16.00 → 16, 300.30 → 300.3).
 function preciseSum(values) {
   const numbers = values.map((v) => parseFloat(v) || 0);
 
-  // toFixed(20) forces plain decimal notation (never "5.6789e-4"),
-  // then strip trailing zeros so the decimal-place count is accurate.
   const toDecimalStr = (n) => {
     const s = n.toFixed(20);
     return s.includes('.') ? s.replace(/\.?0+$/, '') : s;
@@ -213,8 +207,6 @@ function preciseSum(values) {
   const intSum = numbers.reduce((sum, n) => sum + Math.round(n * scale), 0);
   const result = intSum / scale;
 
-  // toString() drops trailing zeros naturally — no unnecessary padding.
-  // e.g. 924.19179 stays 924.19179, not 924.1917900000001 or 924.19179000
   return parseFloat(result.toString());
 }
 
@@ -235,6 +227,9 @@ export default function InvoiceModal() {
   const [customPaymentTerms, setCustomPaymentTerms] = useState(false);
   const [customTermsInput, setCustomTermsInput] = useState('');
   const [useMultipleGL, setUseMultipleGL] = useState(false);
+
+  // ── Service period — single string "YYYY-MM-DD to YYYY-MM-DD" ─────────────
+  const [servicePeriod, setServicePeriod] = useState('');
 
   const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [selectedGLCode, setSelectedGLCode] = useState(null);
@@ -295,7 +290,6 @@ export default function InvoiceModal() {
 
   const payment_terms = watch('payment_terms');
 
-  // ── Invoice number uniqueness check ──────────────────────────────────────
   const {
     invoiceNumStatus,
     invoiceNumMessage,
@@ -322,9 +316,20 @@ export default function InvoiceModal() {
     }
   }, [payment_terms]);
 
+  // Keep react-hook-form in sync with the picker value
+  useEffect(() => {
+    setValue('service_period', servicePeriod, {
+      shouldValidate: !!servicePeriod,
+    });
+  }, [servicePeriod, setValue]);
+
   const handleOpen = () => setOpen(true);
 
-  const handleClose = () => {
+  // Backdrop / ESC / header X — just hide, data stays intact
+  const handleDismiss = () => setOpen(false);
+
+  // Cancel button + submit success — hide AND wipe all form state
+  const handleReset = () => {
     setOpen(false);
     reset();
     setDocuments([{}]);
@@ -332,6 +337,7 @@ export default function InvoiceModal() {
     setCustomPaymentTerms(false);
     setCustomTermsInput('');
     setUseMultipleGL(false);
+    setServicePeriod('');
     setSelectedSupplier(null);
     setSelectedGLCode(null);
     setSelectedCostCenter(null);
@@ -437,7 +443,6 @@ export default function InvoiceModal() {
     const updated = [...glEntries];
     updated[index] = { ...updated[index], gl_amount: value };
     setGLEntries(updated);
-    // preciseSum returns a clean number — toString() has no trailing zeros
     const total = preciseSum(updated.map((e) => e.gl_amount));
     setValue('amount', total.toString());
   };
@@ -460,6 +465,12 @@ export default function InvoiceModal() {
 
       if (isSupplier && !selectedSupplier) {
         toast.error('Please select your supplier profile');
+        return;
+      }
+
+      // ── Service period validation ─────────────────────────────────────────
+      if (!servicePeriod || !servicePeriod.includes(' to ')) {
+        toast.error('Please select a service period date range');
         return;
       }
 
@@ -494,6 +505,10 @@ export default function InvoiceModal() {
 
       const formattedData = { ...data };
       delete formattedData.next_signers_validator;
+
+      // Use the picker value as service_period
+      formattedData.service_period = servicePeriod;
+
       if (formattedData.payment_due_date)
         formattedData.payment_due_date = new Date(
           formattedData.payment_due_date,
@@ -539,7 +554,6 @@ export default function InvoiceModal() {
               gl_code: e.gl_code?.id,
               gl_description: e.gl_description || '',
               cost_center: e.cost_center?.id,
-              // parseFloat preserves full precision without trailing zeros
               gl_amount: parseFloat(e.gl_amount),
               location: e.location?.id || null,
               aircraft_type: e.aircraft_type?.id || null,
@@ -573,7 +587,7 @@ export default function InvoiceModal() {
 
       await dispatch(addInvoice(formData)).unwrap();
       toast.success('Invoice Added Successfully');
-      handleClose();
+      handleReset();
       dispatch(getInvoiceByUser({ page: 1 }));
     } catch (err) {
       toast.error(err.toString());
@@ -591,13 +605,13 @@ export default function InvoiceModal() {
         Create Invoice
       </Button>
 
-      <Modal open={open} onClose={handleClose}>
+      <Modal open={open} onClose={handleDismiss}>
         <Paper sx={style.box}>
           <Box sx={style.header}>
             <Typography variant="h6">Create New Invoice</Typography>
             <IconButton
               size="small"
-              onClick={handleClose}
+              onClick={handleDismiss}
               sx={style.closeButton}
             >
               <CloseIcon />
@@ -865,7 +879,6 @@ export default function InvoiceModal() {
                                   InputLabelProps={{ shrink: true }}
                                 />
                               </Grid>
-
                               <Grid item xs={12} md={3}>
                                 <COAAutocomplete
                                   options={excelData.costCenters}
@@ -958,13 +971,6 @@ export default function InvoiceModal() {
                             variant="subtitle1"
                             sx={{ fontWeight: 500 }}
                           >
-                            {/*
-                              calculateTotalAmount uses preciseSum which returns
-                              a clean number via parseFloat(result.toString()).
-                              No trailing zeros, no floating-point drift.
-                              e.g. 548.5679 + 375.62389 → 924.19179 (not 924.1917900000001)
-                                   10.50 + 5.50          → 16        (not 16.00000)
-                            */}
                             Total Amount: {calculateTotalAmount(glEntries)}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
@@ -1089,27 +1095,18 @@ export default function InvoiceModal() {
                     />
                   </Grid>
 
+                  {/* ── Service Period — booking.com-style range picker ────── */}
                   <Grid item xs={12} md={6}>
-                    <Controller
-                      name="service_period"
-                      control={control}
-                      render={({ field }) => (
-                        <FormControl
-                          fullWidth
-                          variant="outlined"
-                          error={!!errors.service_period}
-                        >
-                          <InputLabel sx={style.inputLabel}>
-                            Service Period *
-                          </InputLabel>
-                          <Input {...field} type="text" required />
-                          {errors.service_period && (
-                            <FormHelperText error>
-                              {errors.service_period.message}
-                            </FormHelperText>
-                          )}
-                        </FormControl>
-                      )}
+                    <ServicePeriodPicker
+                      value={servicePeriod}
+                      onChange={setServicePeriod}
+                      required
+                      error={!!errors.service_period && !servicePeriod}
+                      helperText={
+                        !servicePeriod && errors.service_period
+                          ? errors.service_period.message
+                          : ''
+                      }
                     />
                   </Grid>
 
@@ -1364,7 +1361,7 @@ export default function InvoiceModal() {
 
               {/* ── Actions ──────────────────────────────────────────────────── */}
               <Box sx={style.actionButtons}>
-                <Button variant="outlined" onClick={handleClose}>
+                <Button variant="outlined" onClick={handleReset}>
                   Cancel
                 </Button>
                 {isLoading ? (
