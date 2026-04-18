@@ -46,8 +46,14 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password/:token" element={<ResetPassword />} />
           <Route element={<ProtectedRoute isLoggedIn={isAuthenticated} />}>
+            {/* Invoice.jsx handles all invoice views including Supplier Invoices
+                (index 4) — no separate route needed */}
             <Route path="/" element={<Invoice />} />
+
+            {/* Dashboard.jsx handles all dashboard views including Supplier
+                Dashboard (index 4) — no separate route needed */}
             <Route path="dashboard" element={<Dashboard />} />
+
             <Route path="/user" element={<User />} />
             <Route path="/department" element={<Department />} />
             <Route path="/section" element={<Section />} />

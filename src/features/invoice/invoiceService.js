@@ -322,6 +322,17 @@ const checkInvoiceNumber = async ({ invoice_number, supplier_id }) => {
   return response.data;
 };
 
+const getSupplierInvoices = async (data) => {
+  const filterEmpty = (obj) =>
+    Object.fromEntries(
+      Object.entries(obj).filter(([_, v]) => v !== '' && v != null),
+    );
+  const filteredData = filterEmpty(data);
+  const queryParams = new URLSearchParams(filteredData).toString();
+  const response = await http.get(`/invoice/supplier-invoices/?${queryParams}`);
+  return response.data;
+};
+
 const invoiceService = {
   getAllInvoice,
   getAllPendingInvoices,
@@ -365,6 +376,8 @@ const invoiceService = {
   chainRemoveSigner,
   // Invoice Number Validation
   checkInvoiceNumber,
+
+  getSupplierInvoices,
 };
 
 export default invoiceService;

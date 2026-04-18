@@ -44,6 +44,7 @@ import {
   getUserPendingInvoices,
   getUserProcessingInvoices,
   getUserRollBackedInvoices,
+  getSupplierInvoices,
 } from '../features/invoice/invoiceSlice';
 import ViewInvoiceModal from '../components/ViewInvoiceModal';
 import UpdateInvoiceModal from '../components/UpdateInvoiceModal';
@@ -193,12 +194,26 @@ export default function Invoice() {
     }
   };
 
+  // Mirrors canSeeSupplierInvoices from Sidebar:
+  // admin OR (supplier_admin + is_invoice_verifier)
+  const canSeeSupplierInvoices =
+    user?.role === 'admin' ||
+    (user?.role === 'supplier_admin' && !!user?.is_invoice_verifier);
+
   const dispatchInvoices = () => {
     const invoiceIndex = getInvoiceIndex();
     const params = { page, year, ...filters };
     setIndexInvoice(invoiceIndex);
 
     if (!user) return;
+
+    // ── Supplier Invoices (index 5) ──────────────────────────────────────────
+    // Available to admin OR supplier_admin with is_invoice_verifier.
+    // Uses the user id as the invoice id per the thunk signature.
+    if (invoiceIndex === 5 && canSeeSupplierInvoices) {
+      dispatch(getSupplierInvoices({ ...params, id: user?.id }));
+      return;
+    }
 
     if (user.role === 'admin' && invoiceIndex === 1) {
       switch (cardIndex) {
@@ -438,7 +453,10 @@ export default function Invoice() {
       const line = glLines[0];
       return {
         code: resolveGLCode(line),
-        description: line?.gl_description || '-',
+        description:
+          line?.gl_account_detail?.gl_description ||
+          line?.gl_description ||
+          '-',
         costCenter: resolveCostCenter(line),
         amount: line?.gl_amount || '-',
         location: resolveLocation(line),
@@ -548,6 +566,8 @@ export default function Invoice() {
       if (cardIndex === 4) title = 'Denied Invoices To Sign Report';
       if (cardIndex === 7) title = 'Invoices With To Sign Status Report';
       if (cardIndex === 8) title = 'Signed Invoices Report';
+    } else if (indexInvoice === 5 && canSeeSupplierInvoices) {
+      title = 'Supplier Invoices Report';
     } else {
       title = 'My Invoices Report';
       if (cardIndex === 2) title = 'My Pending Invoices Report';

@@ -19,12 +19,12 @@ export const getAllInvoiceDashboardByDepartmentAndYear = createAsyncThunk(
     try {
       return await dashboardService.getAllInvoiceByDepartmentAndYear(
         data.department,
-        data.year
+        data.year,
       );
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
 //get invoice owned by year
@@ -36,7 +36,7 @@ export const getInvoiceOwnedByYear = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
 //get invoice to sign by year
@@ -48,7 +48,19 @@ export const getInvoiceToSignByYear = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
+);
+
+//get supplier invoice stats
+export const getSupplierStats = createAsyncThunk(
+  'invoiceDashboard/getSupplierStats',
+  async (data, thunkAPI) => {
+    try {
+      return await dashboardService.getSupplierStats(data.year); // ✅ removed data.id
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
 );
 
 const invoiceDashboardSlice = createSlice({
@@ -71,17 +83,23 @@ const invoiceDashboardSlice = createSlice({
         state.error = null;
         state.invoiceDashboard = '';
       })
-      .addCase(getAllInvoiceDashboardByDepartmentAndYear.fulfilled, (state, { payload }) => {
-        state.invoiceDashboard = payload;
-        state.isLoading = false;
-        state.error = null;
-      })
-      .addCase(getAllInvoiceDashboardByDepartmentAndYear.rejected, (state, { payload }) => {
-        state.error = payload;
-        state.isLoading = false;
-        state.invoiceDashboard = '';
-      })
-      
+      .addCase(
+        getAllInvoiceDashboardByDepartmentAndYear.fulfilled,
+        (state, { payload }) => {
+          state.invoiceDashboard = payload;
+          state.isLoading = false;
+          state.error = null;
+        },
+      )
+      .addCase(
+        getAllInvoiceDashboardByDepartmentAndYear.rejected,
+        (state, { payload }) => {
+          state.error = payload;
+          state.isLoading = false;
+          state.invoiceDashboard = '';
+        },
+      )
+
       // getInvoiceOwnedByYear
       .addCase(getInvoiceOwnedByYear.pending, (state) => {
         state.isLoading = true;
@@ -98,7 +116,7 @@ const invoiceDashboardSlice = createSlice({
         state.isLoading = false;
         state.invoiceDashboard = '';
       })
-      
+
       // getInvoiceToSignByYear
       .addCase(getInvoiceToSignByYear.pending, (state) => {
         state.isLoading = true;
@@ -114,9 +132,26 @@ const invoiceDashboardSlice = createSlice({
         state.error = payload;
         state.isLoading = false;
         state.invoiceDashboard = '';
+      })
+      // getSupplierStats
+      .addCase(getSupplierStats.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+        state.invoiceDashboard = '';
+      })
+      .addCase(getSupplierStats.fulfilled, (state, { payload }) => {
+        state.invoiceDashboard = payload;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(getSupplierStats.rejected, (state, { payload }) => {
+        state.error = payload;
+        state.isLoading = false;
+        state.invoiceDashboard = '';
       });
   },
 });
 
-export const { setDashboardIndex, setCardIndex } = invoiceDashboardSlice.actions;
+export const { setDashboardIndex, setCardIndex } =
+  invoiceDashboardSlice.actions;
 export default invoiceDashboardSlice.reducer;

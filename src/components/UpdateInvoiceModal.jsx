@@ -580,8 +580,7 @@ function UpdateInvoiceModal({
             glEntries
               .filter((e) => e.gl_code && e.gl_amount && e.cost_center)
               .map((e) => ({
-                gl_code: e.gl_code?.id,
-                gl_description: e.gl_description || '',
+                gl_account: e.gl_code?.id,
                 cost_center: e.cost_center?.id,
                 gl_amount: parseFloat(e.gl_amount).toFixed(2),
                 location: e.location?.id || null,

@@ -45,16 +45,16 @@ import { getAllSigners } from '../features/user/userSlice';
 const INVOICE_STATUSES = [
   { value: 'pending', label: 'Pending' },
   { value: 'processing', label: 'Processing' },
-  { value: 'approved', label: 'Approved' },
+  // { value: 'approved', label: 'Approved' },
   { value: 'rollback', label: 'Rollback' },
   { value: 'forwarded', label: 'Forwarded' },
 ];
 
 const HISTORY_STATUSES = [
   { value: 'to_sign', label: 'To Sign' },
-  { value: 'signed', label: 'Signed' },
+  // { value: 'signed', label: 'Signed' },
   { value: 'pending', label: 'Pending' },
-  { value: 'denied', label: 'Denied' },
+  // { value: 'denied', label: 'Denied' },
 ];
 
 // ── Shared styles ──────────────────────────────────────────────────────────────

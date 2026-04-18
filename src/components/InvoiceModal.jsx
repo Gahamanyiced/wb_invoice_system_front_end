@@ -551,8 +551,7 @@ export default function InvoiceModal() {
           'gl_lines',
           JSON.stringify(
             validEntries.map((e) => ({
-              gl_code: e.gl_code?.id,
-              gl_description: e.gl_description || '',
+              gl_account: e.gl_code?.id,
               cost_center: e.cost_center?.id,
               gl_amount: parseFloat(e.gl_amount),
               location: e.location?.id || null,
@@ -566,8 +565,7 @@ export default function InvoiceModal() {
           'gl_lines',
           JSON.stringify([
             {
-              gl_code: selectedGLCode?.id,
-              gl_description: selectedGLCode?.description || '',
+              gl_account: selectedGLCode?.id,
               cost_center: selectedCostCenter?.id,
               gl_amount: parseFloat(formattedData.amount),
               location: selectedLocation?.id || null,

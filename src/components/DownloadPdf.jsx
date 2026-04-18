@@ -197,12 +197,20 @@ const formatCurrency = (amount, currency) => {
 };
 
 // ── GL line _detail resolvers (used inside MyDocument) ───────────────────────
-// API now returns _detail nested objects alongside raw IDs.
+// API returns _detail nested objects alongside raw IDs.
 // Always prefer _detail; fall back to raw value if detail is absent.
 
 const resolveGLCode = (line) => {
   if (line?.gl_account_detail)
     return `${line.gl_account_detail.gl_code} - ${line.gl_account_detail.gl_description}`;
+  return line?.gl_description || '-';
+};
+
+// GL Description: prefer gl_account_detail.gl_description (gl_description on
+// the line itself is now null for new invoices — it was the old free-text field)
+const resolveGLDescription = (line) => {
+  if (line?.gl_account_detail?.gl_description)
+    return line.gl_account_detail.gl_description;
   return line?.gl_description || '-';
 };
 
@@ -421,11 +429,11 @@ const MyDocument = ({ invoice, user, excelData }) => {
                     </Text>
                   </View>
 
-                  {/* GL Description */}
+                  {/* GL Description — from gl_account_detail, fallback to legacy gl_description */}
                   <View style={styles.glLineRow}>
                     <Text style={styles.glLineLabel}>Description:</Text>
                     <Text style={styles.glLineValue}>
-                      {line?.gl_description || '-'}
+                      {resolveGLDescription(line)}
                     </Text>
                   </View>
 

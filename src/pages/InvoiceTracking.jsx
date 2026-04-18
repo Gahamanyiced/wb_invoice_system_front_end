@@ -207,6 +207,14 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
     return line?.gl_description || 'N/A';
   };
 
+  // GL Description: prefer gl_account_detail.gl_description (gl_description on
+  // the line itself is now null for new invoices — it was the old free-text field)
+  const resolveGLDescription = (line) => {
+    if (line?.gl_account_detail?.gl_description)
+      return line.gl_account_detail.gl_description;
+    return line?.gl_description || 'N/A';
+  };
+
   const resolveCostCenter = (line) => {
     if (line?.cost_center_detail)
       return `${line.cost_center_detail.cc_code} - ${line.cost_center_detail.cc_description}`;
@@ -595,7 +603,7 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
                                 GL Description
                               </Typography>
                               <Typography sx={style.fieldValue}>
-                                {line.gl_description || 'N/A'}
+                                {resolveGLDescription(line)}
                               </Typography>
                             </Box>
                           </Grid>

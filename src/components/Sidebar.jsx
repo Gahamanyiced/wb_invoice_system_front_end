@@ -201,11 +201,17 @@ export default function Sidebar() {
   // ── Permission flags ──────────────────────────────────────────────────────
   const isAdmin = user?.role === 'admin';
   const isSignerAdmin = user?.role === 'signer_admin';
+  const isSupplierAdmin = user?.role === 'supplier_admin';
   const isSigner = user?.role === 'signer';
 
-  // admin OR (signer_admin + is_invoice_verifier) → Signing Flow, COA
+  // admin OR (signer_admin + is_invoice_verifier) → Signing Flow, COA,
+  // and Supplier Dashboard submenus
   const canSeeAdminTools =
     isAdmin || (isSignerAdmin && !!user?.is_invoice_verifier);
+
+  // admin OR (supplier_admin + is_invoice_verifier) → Invoices Supplier submenu
+  const canSeeSupplierInvoices =
+    isAdmin || (isSupplierAdmin && !!user?.is_invoice_verifier);
 
   // admin, signer_admin, or signer → Delegation
   const canSeeDelegation = isAdmin || isSignerAdmin || isSigner;
@@ -353,7 +359,7 @@ export default function Sidebar() {
           <MenuHeading>Main</MenuHeading>
 
           <List sx={{ p: 0 }}>
-            {/* Dashboard Menu */}
+            {/* ── Dashboard Menu ─────────────────────────────────────────── */}
             <Box>
               <StyledNavLink to="/dashboard" onClick={toggleDashboardMenu}>
                 <MenuIcon>
@@ -370,6 +376,7 @@ export default function Sidebar() {
               </StyledNavLink>
 
               <Collapse in={dashboardMenuOpen} timeout="auto" unmountOnExit>
+                {/* All Invoices — admin only */}
                 {isAdmin && (
                   <SubMenuItem
                     className={activeDashboardOption === 1 ? 'active' : ''}
@@ -378,6 +385,8 @@ export default function Sidebar() {
                     All Invoices
                   </SubMenuItem>
                 )}
+
+                {/* Invoices Upload — supplier or signer_admin */}
                 {(user?.role === 'supplier' || isSignerAdmin) && (
                   <SubMenuItem
                     className={activeDashboardOption === 2 ? 'active' : ''}
@@ -386,6 +395,8 @@ export default function Sidebar() {
                     Invoices Upload
                   </SubMenuItem>
                 )}
+
+                {/* Invoice Approval — signer or signer_admin */}
                 {(user?.role === 'signer' || isSignerAdmin) && (
                   <SubMenuItem
                     className={activeDashboardOption === 3 ? 'active' : ''}
@@ -394,10 +405,20 @@ export default function Sidebar() {
                     Invoice Approval
                   </SubMenuItem>
                 )}
+
+                {/* Invoices Supplier — admin OR supplier_admin with is_invoice_verifier */}
+                {canSeeSupplierInvoices && (
+                  <SubMenuItem
+                    className={activeDashboardOption === 5 ? 'active' : ''}
+                    onClick={() => handleDashboardOption(5)}
+                  >
+                    Invoices Supplier
+                  </SubMenuItem>
+                )}
               </Collapse>
             </Box>
 
-            {/* Invoice Menu */}
+            {/* ── Invoice Menu ───────────────────────────────────────────── */}
             <Box>
               <StyledNavLink to="/" onClick={toggleInvoiceMenu}>
                 <MenuIcon>
@@ -414,6 +435,7 @@ export default function Sidebar() {
               </StyledNavLink>
 
               <Collapse in={invoiceMenuOpen} timeout="auto" unmountOnExit>
+                {/* All Invoices — admin only */}
                 {isAdmin && (
                   <SubMenuItem
                     className={activeInvoiceOption === 1 ? 'active' : ''}
@@ -422,6 +444,8 @@ export default function Sidebar() {
                     All Invoices
                   </SubMenuItem>
                 )}
+
+                {/* Invoices Upload — supplier or signer_admin */}
                 {(user?.role === 'supplier' || isSignerAdmin) && (
                   <SubMenuItem
                     className={activeInvoiceOption === 2 ? 'active' : ''}
@@ -430,12 +454,24 @@ export default function Sidebar() {
                     Invoices Upload
                   </SubMenuItem>
                 )}
+
+                {/* Invoice Approval — signer or signer_admin */}
                 {(user?.role === 'signer' || isSignerAdmin) && (
                   <SubMenuItem
                     className={activeInvoiceOption === 3 ? 'active' : ''}
                     onClick={() => handleInvoiceOption(3)}
                   >
                     Invoice Approval
+                  </SubMenuItem>
+                )}
+
+                {/* Invoices Supplier — admin OR supplier_admin with is_invoice_verifier */}
+                {canSeeSupplierInvoices && (
+                  <SubMenuItem
+                    className={activeInvoiceOption === 5 ? 'active' : ''}
+                    onClick={() => handleInvoiceOption(5)}
+                  >
+                    Invoices Supplier
                   </SubMenuItem>
                 )}
               </Collapse>
@@ -471,7 +507,7 @@ export default function Sidebar() {
               </StyledNavLink>
             )}
 
-            {/* Administration */}
+            {/* ── Administration ─────────────────────────────────────────── */}
             {showAdminSection && (
               <>
                 <MenuHeading>Administration</MenuHeading>
@@ -485,28 +521,6 @@ export default function Sidebar() {
                     <Typography sx={{ fontSize: '15px' }}>Users</Typography>
                   </StyledNavLink>
                 )}
-
-                {/* Departments — commented out */}
-                {/* {isAdmin && (
-                  <StyledNavLink to="/department">
-                    <MenuIcon>
-                      <CorporateFareOutlinedIcon fontSize="small" />
-                    </MenuIcon>
-                    <Typography sx={{ fontSize: '15px' }}>
-                      Departments
-                    </Typography>
-                  </StyledNavLink>
-                )} */}
-
-                {/* Sections — commented out */}
-                {/* {isAdmin && (
-                  <StyledNavLink to="/section">
-                    <MenuIcon>
-                      <MenuBookOutlinedIcon fontSize="small" />
-                    </MenuIcon>
-                    <Typography sx={{ fontSize: '15px' }}>Sections</Typography>
-                  </StyledNavLink>
-                )} */}
 
                 {/* Signing Flow — admin OR (signer_admin + is_invoice_verifier) */}
                 {canSeeAdminTools && (

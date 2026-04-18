@@ -492,6 +492,17 @@ export const checkInvoiceNumber = createAsyncThunk(
   },
 );
 
+export const getSupplierInvoices = createAsyncThunk(
+  'invoice/getSupplierInvoices',
+  async (data, thunkAPI) => {
+    try {
+      return await invoiceService.getSupplierInvoices(data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
 // ── Slice ─────────────────────────────────────────────────────────────────────
 
 const invoiceSlice = createSlice({
@@ -1181,6 +1192,23 @@ const invoiceSlice = createSlice({
       })
       .addCase(checkInvoiceNumber.rejected, (state, action) => {
         state.error = action.payload;
+      })
+
+      // -Get all supplier invoices
+      .addCase(getSupplierInvoices.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+        state.invoices = [];
+      })
+      .addCase(getSupplierInvoices.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.invoices = action.payload;
+        state.error = null;
+      })
+      .addCase(getSupplierInvoices.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+        state.invoices = [];
       });
   },
 });

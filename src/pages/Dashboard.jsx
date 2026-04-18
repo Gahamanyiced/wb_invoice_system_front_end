@@ -23,6 +23,7 @@ import {
   getAllInvoiceDashboardByDepartmentAndYear,
   getInvoiceOwnedByYear,
   getInvoiceToSignByYear,
+  getSupplierStats,
 } from '../features/dashboard/dashboardSlice';
 import { getDepartmentByErp } from '../features/department/departmentSlice';
 
@@ -38,7 +39,9 @@ function Dashboard() {
   const navigate = useNavigate();
   const [anotherDashboardIndex, setAnotherDashboardIndex] = useState();
   const [user, setUser] = useState(JSON?.parse(localStorage?.getItem('user')));
-  const { invoiceDashboard } = useSelector((state) => state.invoiceDashboard);
+  const { invoiceDashboard, index: dashboardIndex } = useSelector(
+    (state) => state.invoiceDashboard,
+  );
   const { index } = useSelector((state) => state.invoice);
   const { allDepartments } = useSelector((state) => state.department);
   const currentYear = new Date().getFullYear();
@@ -47,14 +50,18 @@ function Dashboard() {
   const [year, setYear] = useState('');
 
   const getInvoiceIndex = () => {
-    if (user?.role === 'admin') {
-      return index || 1;
-    } else if (user?.role === 'signer') {
-      return index || 3;
-    } else {
-      return index || 2;
-    }
+    const activeIndex = dashboardIndex || index;
+    if (user?.role === 'admin') return activeIndex || 1;
+    else if (user?.role === 'signer') return activeIndex || 3;
+    else return activeIndex || 2;
   };
+
+  // Determine if the current user can see supplier invoices
+  // Mirrors canSeeSupplierInvoices from Sidebar:
+  // admin OR (supplier_admin + is_invoice_verifier)
+  const canSeeSupplierInvoices =
+    user?.role === 'admin' ||
+    (user?.role === 'supplier_admin' && !!user?.is_invoice_verifier);
 
   useEffect(() => {
     const dashboardIndex = getInvoiceIndex();
@@ -65,7 +72,7 @@ function Dashboard() {
           getAllInvoiceDashboardByDepartmentAndYear({
             department,
             year,
-          })
+          }),
         );
         dispatch(getDepartmentByErp());
       } else if (
@@ -73,11 +80,14 @@ function Dashboard() {
         dashboardIndex === 3
       ) {
         dispatch(getInvoiceToSignByYear({ id: user?.id, year }));
+      } else if (dashboardIndex === 5 && canSeeSupplierInvoices) {
+        // Invoices Supplier dashboard — pass  year
+        dispatch(getSupplierStats({ year }));
       } else if (dashboardIndex === 2) {
         dispatch(getInvoiceOwnedByYear({ id: user?.id, year }));
       }
     }
-  }, [dispatch, index, department, year, user]);
+  }, [dispatch, index, dashboardIndex, department, year, user]);
 
   const data = [
     {
