@@ -56,12 +56,11 @@ function Dashboard() {
     else return activeIndex || 2;
   };
 
-  // Determine if the current user can see supplier invoices
   // Mirrors canSeeSupplierInvoices from Sidebar:
-  // admin OR (supplier_admin + is_invoice_verifier)
+  // admin OR (signer_admin + is_invoice_verifier)
   const canSeeSupplierInvoices =
     user?.role === 'admin' ||
-    (user?.role === 'supplier_admin' && !!user?.is_invoice_verifier);
+    (user?.role === 'signer_admin' && !!user?.is_invoice_verifier);
 
   useEffect(() => {
     const dashboardIndex = getInvoiceIndex();
@@ -80,8 +79,8 @@ function Dashboard() {
         dashboardIndex === 3
       ) {
         dispatch(getInvoiceToSignByYear({ id: user?.id, year }));
-      } else if (dashboardIndex === 5 && canSeeSupplierInvoices) {
-        // Invoices Supplier dashboard — pass  year
+      } else if (dashboardIndex === 4 && canSeeSupplierInvoices) {
+        // Supplier Invoices dashboard — pass year
         dispatch(getSupplierStats({ year }));
       } else if (dashboardIndex === 2) {
         dispatch(getInvoiceOwnedByYear({ id: user?.id, year }));
@@ -146,26 +145,32 @@ function Dashboard() {
           </Typography>
           <Box sx={{ display: 'flex', flexDirection: 'row' }}>
             {[
-              {
-                number: invoiceDashboard?.total_invoices,
-                status: 'Total Invoices',
-                icon: <DoneIcon />,
-                bgcolor: '#1e88e5',
-                cardIndex: 1,
-              },
-              {
-                number: invoiceDashboard?.total_pending_invoices,
-                status: 'Pending Invoices',
-                icon: <PendingIcon />,
-                bgcolor: '#5e35b1',
-                cardIndex: 2,
-              },
+              // Total Invoices & Pending — hidden for Supplier Invoices (index 4) to avoid duplication
+              ...(anotherDashboardIndex !== 4
+                ? [
+                    {
+                      number: invoiceDashboard?.total_invoices,
+                      status: 'Total Invoices',
+                      icon: <DoneIcon />,
+                      bgcolor: '#1e88e5',
+                      cardIndex: 1,
+                    },
+                    {
+                      number: invoiceDashboard?.total_pending_invoices,
+                      status: 'Pending Invoices',
+                      icon: <PendingIcon />,
+                      bgcolor: '#5e35b1',
+                      cardIndex: 2,
+                    },
+                  ]
+                : []),
 
-              ...(((user?.role === 'signer' || user?.role === 'signer_admin') &&
+              ...(anotherDashboardIndex !== 4 &&
+              (((user?.role === 'signer' || user?.role === 'signer_admin') &&
                 anotherDashboardIndex === 2) ||
-              user.role === 'admin' ||
-              user.role === 'staff' ||
-              user.role === 'supplier'
+                user.role === 'admin' ||
+                user.role === 'staff' ||
+                user.role === 'supplier')
                 ? [
                     {
                       number: invoiceDashboard?.total_approved_invoices,
@@ -177,19 +182,25 @@ function Dashboard() {
                   ]
                 : []),
 
-              {
-                number: invoiceDashboard?.total_denied_invoices,
-                status: 'Denied Invoices',
-                icon: <CancelIcon />,
-                bgcolor: '#a10000',
-                cardIndex: 4,
-              },
+              // Denied Invoices — hidden for Supplier Invoices (index 4) to avoid duplication
+              ...(anotherDashboardIndex !== 4
+                ? [
+                    {
+                      number: invoiceDashboard?.total_denied_invoices,
+                      status: 'Denied Invoices',
+                      icon: <CancelIcon />,
+                      bgcolor: '#a10000',
+                      cardIndex: 4,
+                    },
+                  ]
+                : []),
 
-              ...(((user?.role === 'signer' || user?.role === 'signer_admin') &&
+              ...(anotherDashboardIndex !== 4 &&
+              (((user?.role === 'signer' || user?.role === 'signer_admin') &&
                 anotherDashboardIndex === 2) ||
-              user.role === 'admin' ||
-              user.role === 'staff' ||
-              user.role === 'supplier'
+                user.role === 'admin' ||
+                user.role === 'staff' ||
+                user.role === 'supplier')
                 ? [
                     {
                       number: invoiceDashboard?.total_rollback_invoices,
@@ -201,11 +212,12 @@ function Dashboard() {
                   ]
                 : []),
 
-              ...(((user?.role === 'signer' || user?.role === 'signer_admin') &&
+              ...(anotherDashboardIndex !== 4 &&
+              (((user?.role === 'signer' || user?.role === 'signer_admin') &&
                 anotherDashboardIndex === 2) ||
-              user.role === 'admin' ||
-              user.role === 'staff' ||
-              user.role === 'supplier'
+                user.role === 'admin' ||
+                user.role === 'staff' ||
+                user.role === 'supplier')
                 ? [
                     {
                       number: invoiceDashboard?.total_processing_invoices,
@@ -241,12 +253,70 @@ function Dashboard() {
                     },
                   ]
                 : []),
-              ...(((user?.role === 'signer' || user?.role === 'signer_admin') &&
+              ...(anotherDashboardIndex !== 4 &&
+              (((user?.role === 'signer' || user?.role === 'signer_admin') &&
                 anotherDashboardIndex === 2) ||
-              user.role === 'admin' ||
-              user.role === 'staff' ||
-              user.role === 'supplier'
+                user.role === 'admin' ||
+                user.role === 'staff' ||
+                user.role === 'supplier')
                 ? [
+                    {
+                      number: invoiceDashboard?.total_forwarded_invoices,
+                      status: 'Forwarded Invoices',
+                      icon: <ForwardIcon />,
+                      bgcolor: '#008000',
+                      cardIndex: 9,
+                    },
+                  ]
+                : []),
+
+              // ── Supplier Invoices cards (index 4) ────────────────────────
+              // Same card set as All Invoices / Invoices Upload.
+              // Clicking a card navigates to Invoice page and filters by status.
+              ...(anotherDashboardIndex === 4 && canSeeSupplierInvoices
+                ? [
+                    {
+                      number: invoiceDashboard?.total_invoices,
+                      status: 'Total Invoices',
+                      icon: <DoneIcon />,
+                      bgcolor: '#1e88e5',
+                      cardIndex: 1,
+                    },
+                    {
+                      number: invoiceDashboard?.total_pending_invoices,
+                      status: 'Pending Invoices',
+                      icon: <PendingIcon />,
+                      bgcolor: '#5e35b1',
+                      cardIndex: 2,
+                    },
+                    {
+                      number: invoiceDashboard?.total_approved_invoices,
+                      status: 'Approved Invoices',
+                      icon: <CheckCircleIcon />,
+                      bgcolor: '#4b4a46',
+                      cardIndex: 3,
+                    },
+                    {
+                      number: invoiceDashboard?.total_denied_invoices,
+                      status: 'Denied Invoices',
+                      icon: <CancelIcon />,
+                      bgcolor: '#a10000',
+                      cardIndex: 4,
+                    },
+                    {
+                      number: invoiceDashboard?.total_rollback_invoices,
+                      status: 'Rollback Invoices',
+                      icon: <CancelIcon />,
+                      bgcolor: '#008000',
+                      cardIndex: 5,
+                    },
+                    {
+                      number: invoiceDashboard?.total_processing_invoices,
+                      status: 'Processing Invoices',
+                      icon: <CancelIcon />,
+                      bgcolor: '#000080',
+                      cardIndex: 6,
+                    },
                     {
                       number: invoiceDashboard?.total_forwarded_invoices,
                       status: 'Forwarded Invoices',

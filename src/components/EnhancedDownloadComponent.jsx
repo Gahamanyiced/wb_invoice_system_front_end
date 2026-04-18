@@ -17,6 +17,7 @@ import {
   Checkbox,
   Box,
   Typography,
+  Divider,
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
@@ -103,8 +104,6 @@ const styles = StyleSheet.create({
 });
 
 // ── GL line _detail resolvers ─────────────────────────────────────────────────
-// Always prefer _detail objects; fall back gracefully for legacy records.
-
 const resolveGLCode = (glLine) => {
   if (glLine?.gl_account_detail)
     return `${glLine.gl_account_detail.gl_code} - ${glLine.gl_account_detail.gl_description}`;
@@ -136,102 +135,29 @@ const resolveRoute = (glLine) => {
 };
 
 // ── Enhanced PDF Document ─────────────────────────────────────────────────────
-// GL-specific fields print on every GL line row.
-// Invoice-level fields (supplier, invoice#, owner, service period, currency,
-// total amount, status) print only on the FIRST GL line row (is_gl_line: false).
+// Mirrors DownloadInvoiceComponent column layout exactly.
+// showGLAmount: true  → Full report  — ORIGINAL GL AMOUNT column included
+// showGLAmount: false → Without GL Amount — ORIGINAL GL AMOUNT column omitted
+// invoice-level fields shown ONLY on the LAST GL line row to avoid duplication.
 const EnhancedInvoicePDF = ({
   invoices,
   title = 'Invoice Report',
   options = {},
+  showGLAmount = true,
 }) => {
-  const getInvoiceValue = (invoice, directPath, nestedPath = null) => {
-    const path = nestedPath || directPath;
-    return invoice?.[directPath] || invoice?.invoice?.[path] || '';
-  };
-
-  const getInvoiceOwner = (invoice) => {
-    return invoice?.invoice_owner || invoice?.invoice?.invoice_owner || {};
-  };
-
-  const getGLLines = (invoice) => {
-    return invoice?.gl_lines || invoice?.invoice?.gl_lines || [];
-  };
-
-  const formatCurrency = (amount, currency = '') => {
-    if (!amount || amount === '-') return '-';
-    return _fca(amount, currency);
-  };
-
-  // Flatten invoices — each GL line becomes its own row.
-  // is_gl_line = true means it is NOT the first GL line of an invoice
-  // (invoice-level fields are suppressed on these rows).
-  const prepareDataForExport = () => {
-    if (!options.expandGLLines) {
-      return invoices?.results || [];
-    }
-
-    const flattenedData = [];
-    (invoices?.results || []).forEach((invoice) => {
-      const glLines = getGLLines(invoice);
-      const owner = getInvoiceOwner(invoice);
-      const lastIdx = glLines.length - 1;
-
-      if (glLines.length === 0) {
-        flattenedData.push({
-          ...invoice,
-          // resolved GL fields
-          _gl_account: '-',
-          _cost_center: '-',
-          _location: '-',
-          _aircraft_type: '-',
-          _route: '-',
-          _gl_amount: '-',
-          _gl_amount_in_usd: '-',
-          owner_name:
-            `${owner?.firstname || ''} ${owner?.lastname || ''}`.trim(),
-          is_gl_line: false,
-          is_last_gl: true,
-        });
-      } else {
-        glLines.forEach((glLine, index) => {
-          flattenedData.push({
-            ...invoice,
-            // resolved GL fields from _detail objects
-            _gl_account: resolveGLCode(glLine),
-            _cost_center: resolveCostCenter(glLine),
-            _location: resolveLocation(glLine),
-            _aircraft_type: resolveAircraftType(glLine),
-            _route: resolveRoute(glLine),
-            _gl_amount: glLine?.gl_amount || '-',
-            _gl_amount_in_usd: glLine?.gl_amount_in_usd ?? '-',
-            owner_name:
-              `${owner?.firstname || ''} ${owner?.lastname || ''}`.trim(),
-            is_gl_line: index > 0, // suppress invoice-level fields on non-first rows
-            is_last_gl: index === lastIdx, // show total amount only on last GL line
-          });
-        });
-      }
-    });
-
-    return flattenedData;
-  };
-
-  const exportData = prepareDataForExport();
-  const totalRecords = exportData.length;
-  const uniqueInvoices = invoices?.results?.length || 0;
-
   return (
     <Document>
       <Page size="A4" orientation="landscape" style={styles.page}>
-        {/* Header */}
         <Text style={styles.header}>{title}</Text>
         <Text style={styles.subheader}>
-          Generated: {new Date().toLocaleString()} | Invoices: {uniqueInvoices}{' '}
-          | Records: {totalRecords}
+          {'Generated on: '}
+          {new Date().toLocaleString()}
+          {'   |   Report type: '}
+          {showGLAmount ? 'Full Report' : 'Without GL Amount'}
         </Text>
 
-        {/* Table Header */}
         <View style={styles.table}>
+          {/* Table Header — identical to DownloadInvoiceComponent */}
           <View style={styles.tableRow}>
             <View style={styles.tableColHeader}>
               <Text>SUPPLIER NO.</Text>
@@ -243,7 +169,10 @@ const EnhancedInvoicePDF = ({
               <Text>INVOICE NO.</Text>
             </View>
             <View style={styles.tableColHeader}>
-              <Text>OWNER</Text>
+              <Text>REFERENCE</Text>
+            </View>
+            <View style={styles.tableColHeader}>
+              <Text>INVOICE DATE</Text>
             </View>
             <View style={styles.tableColHeader}>
               <Text>SERVICE PERIOD</Text>
@@ -261,120 +190,247 @@ const EnhancedInvoicePDF = ({
               <Text>ORIGIN CURRENCY</Text>
             </View>
             <View style={styles.tableColHeader}>
-              <Text>ORIGINAL AMOUNT (GL)</Text>
+              <Text>ORIGINAL AMOUNT</Text>
+            </View>
+            {/* ORIGINAL GL AMOUNT — full report only */}
+            {showGLAmount && (
+              <View style={styles.tableColHeader}>
+                <Text>ORIGINAL GL AMOUNT</Text>
+              </View>
+            )}
+            <View style={styles.tableColHeader}>
+              <Text>EXCHANGE RATE</Text>
             </View>
             <View style={styles.tableColHeader}>
               <Text>GL AMOUNT IN USD</Text>
             </View>
             <View style={styles.tableColHeader}>
-              <Text>ORIGINAL AMOUNT</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>EXCHANGE RATE</Text>
-            </View>
-            <View style={styles.tableColHeader}>
               <Text>AMOUNT IN USD</Text>
+            </View>
+            <View style={styles.tableColHeader}>
+              <Text>PAY TERMS</Text>
+            </View>
+            <View style={styles.tableColHeader}>
+              <Text>PAY DUE DATE</Text>
+            </View>
+            <View style={styles.tableColHeader}>
+              <Text>QUANTITY</Text>
+            </View>
+            <View style={styles.tableColHeader}>
+              <Text>AIRCRAFT TYPE</Text>
+            </View>
+            <View style={styles.tableColHeader}>
+              <Text>ROUTE</Text>
             </View>
             <View style={styles.tableColHeader}>
               <Text>STATUS</Text>
             </View>
+            <View style={styles.tableColHeader}>
+              <Text>CREATED DATE</Text>
+            </View>
+            <View style={styles.tableColHeader}>
+              <Text>UPDATED DATE</Text>
+            </View>
           </View>
 
           {/* Table Data — limit to 100 records for PDF */}
-          {exportData.slice(0, 100).map((record, index) => (
-            <View key={index} style={styles.tableRow}>
-              {/* Invoice-level fields — blank on non-first GL line rows */}
-              <View style={styles.tableCol}>
-                <Text>
-                  {record.is_gl_line
-                    ? ''
-                    : getInvoiceValue(record, 'supplier_number')}
-                </Text>
-              </View>
-              <View style={styles.tableCol}>
-                <Text>
-                  {record.is_gl_line
-                    ? ''
-                    : getInvoiceValue(record, 'supplier_name')}
-                </Text>
-              </View>
-              <View style={styles.tableCol}>
-                <Text>
-                  {record.is_gl_line
-                    ? ''
-                    : getInvoiceValue(record, 'invoice_number')}
-                </Text>
-              </View>
-              <View style={styles.tableCol}>
-                <Text>{record.is_gl_line ? '' : record.owner_name}</Text>
-              </View>
-              <View style={styles.tableCol}>
-                <Text>
-                  {record.is_gl_line
-                    ? ''
-                    : getInvoiceValue(record, 'service_period')}
-                </Text>
-              </View>
-              {/* GL-specific fields — from _detail resolvers */}
-              <View style={styles.tableCol}>
-                <Text>{record._gl_account}</Text>
-              </View>
-              <View style={styles.tableCol}>
-                <Text>{record._location}</Text>
-              </View>
-              <View style={styles.tableCol}>
-                <Text>{record._cost_center}</Text>
-              </View>
-              {/* currency — first GL line only */}
-              <View style={styles.tableCol}>
-                <Text>
-                  {record.is_gl_line ? '' : getInvoiceValue(record, 'currency')}
-                </Text>
-              </View>
-              {/* GL amount — every row */}
-              <View style={styles.tableCol}>
-                <Text>{record._gl_amount}</Text>
-              </View>
-              {/* GL amount in USD — every row */}
-              <View style={styles.tableCol}>
-                <Text>{record._gl_amount_in_usd}</Text>
-              </View>
-              {/* Total amount — last GL line only to avoid duplication */}
-              <View style={styles.tableCol}>
-                <Text>
-                  {record.is_last_gl ? getInvoiceValue(record, 'amount') : ''}
-                </Text>
-              </View>
-              {/* Exchange rate — last GL line only */}
-              <View style={styles.tableCol}>
-                <Text>
-                  {record.is_last_gl ? (record.exchange_rate_to_usd ?? '') : ''}
-                </Text>
-              </View>
-              {/* Amount in USD — last GL line only */}
-              <View style={styles.tableCol}>
-                <Text>
-                  {record.is_last_gl ? (record.amount_in_usd ?? '') : ''}
-                </Text>
-              </View>
-              {/* Status — first GL line only */}
-              <View style={styles.tableCol}>
-                <Text>
-                  {record.is_gl_line ? '' : getInvoiceValue(record, 'status')}
-                </Text>
-              </View>
-            </View>
-          ))}
+          {(invoices?.results || [])
+            .slice(0, 100)
+            .map((invoice, invoiceIndex) => {
+              const baseData = {
+                supplier_number: invoice?.supplier_number || '-',
+                supplier_name: invoice?.supplier_name || '-',
+                invoice_number: invoice?.invoice_number || '-',
+                reference: invoice?.reference || '-',
+                invoice_date: invoice?.invoice_date || '-',
+                service_period: invoice?.service_period || '-',
+                currency: invoice?.currency || '-',
+                amount: invoice?.amount || '-',
+                exchange_rate: invoice?.exchange_rate_to_usd ?? '-',
+                amount_in_usd: invoice?.amount_in_usd ?? '-',
+                payment_terms: invoice?.payment_terms || '-',
+                payment_due_date: invoice?.payment_due_date || '-',
+                quantity: invoice?.quantity || '-',
+                status: invoice?.status || '-',
+                created_at: invoice?.created_at
+                  ? new Date(invoice.created_at).toLocaleDateString()
+                  : '-',
+                updated_at: invoice?.updated_at
+                  ? new Date(invoice.updated_at).toLocaleDateString()
+                  : '-',
+              };
+
+              if (invoice?.gl_lines && invoice.gl_lines.length > 0) {
+                const lastIdx = invoice.gl_lines.length - 1;
+                return invoice.gl_lines.map((glLine, glIndex) => {
+                  const isLast = glIndex === lastIdx;
+                  return (
+                    <View
+                      key={`${invoiceIndex}-${glIndex}`}
+                      style={styles.tableRow}
+                    >
+                      <View style={styles.tableCol}>
+                        <Text>{baseData.supplier_number}</Text>
+                      </View>
+                      <View style={styles.tableCol}>
+                        <Text>{baseData.supplier_name}</Text>
+                      </View>
+                      <View style={styles.tableCol}>
+                        <Text>{baseData.invoice_number}</Text>
+                      </View>
+                      <View style={styles.tableCol}>
+                        <Text>{baseData.reference}</Text>
+                      </View>
+                      <View style={styles.tableCol}>
+                        <Text>{baseData.invoice_date}</Text>
+                      </View>
+                      <View style={styles.tableCol}>
+                        <Text>{baseData.service_period}</Text>
+                      </View>
+                      <View style={styles.tableCol}>
+                        <Text>{resolveGLCode(glLine)}</Text>
+                      </View>
+                      <View style={styles.tableCol}>
+                        <Text>{resolveLocation(glLine)}</Text>
+                      </View>
+                      <View style={styles.tableCol}>
+                        <Text>{resolveCostCenter(glLine)}</Text>
+                      </View>
+                      {/* Invoice-level — last GL line only */}
+                      <View style={styles.tableCol}>
+                        <Text>{isLast ? baseData.currency : ''}</Text>
+                      </View>
+                      <View style={styles.tableCol}>
+                        <Text>{isLast ? baseData.amount : ''}</Text>
+                      </View>
+                      {showGLAmount && (
+                        <View style={styles.tableCol}>
+                          <Text>{glLine?.gl_amount || '-'}</Text>
+                        </View>
+                      )}
+                      <View style={styles.tableCol}>
+                        <Text>{isLast ? baseData.exchange_rate : ''}</Text>
+                      </View>
+                      <View style={styles.tableCol}>
+                        <Text>{glLine?.gl_amount_in_usd ?? '-'}</Text>
+                      </View>
+                      <View style={styles.tableCol}>
+                        <Text>{isLast ? baseData.amount_in_usd : ''}</Text>
+                      </View>
+                      <View style={styles.tableCol}>
+                        <Text>{isLast ? baseData.payment_terms : ''}</Text>
+                      </View>
+                      <View style={styles.tableCol}>
+                        <Text>{isLast ? baseData.payment_due_date : ''}</Text>
+                      </View>
+                      <View style={styles.tableCol}>
+                        <Text>{isLast ? baseData.quantity : ''}</Text>
+                      </View>
+                      <View style={styles.tableCol}>
+                        <Text>{resolveAircraftType(glLine)}</Text>
+                      </View>
+                      <View style={styles.tableCol}>
+                        <Text>{resolveRoute(glLine)}</Text>
+                      </View>
+                      <View style={styles.tableCol}>
+                        <Text>{isLast ? baseData.status : ''}</Text>
+                      </View>
+                      <View style={styles.tableCol}>
+                        <Text>{isLast ? baseData.created_at : ''}</Text>
+                      </View>
+                      <View style={styles.tableCol}>
+                        <Text>{isLast ? baseData.updated_at : ''}</Text>
+                      </View>
+                    </View>
+                  );
+                });
+              } else {
+                return (
+                  <View key={invoiceIndex} style={styles.tableRow}>
+                    <View style={styles.tableCol}>
+                      <Text>{baseData.supplier_number}</Text>
+                    </View>
+                    <View style={styles.tableCol}>
+                      <Text>{baseData.supplier_name}</Text>
+                    </View>
+                    <View style={styles.tableCol}>
+                      <Text>{baseData.invoice_number}</Text>
+                    </View>
+                    <View style={styles.tableCol}>
+                      <Text>{baseData.reference}</Text>
+                    </View>
+                    <View style={styles.tableCol}>
+                      <Text>{baseData.invoice_date}</Text>
+                    </View>
+                    <View style={styles.tableCol}>
+                      <Text>{baseData.service_period}</Text>
+                    </View>
+                    <View style={styles.tableCol}>
+                      <Text>-</Text>
+                    </View>
+                    <View style={styles.tableCol}>
+                      <Text>-</Text>
+                    </View>
+                    <View style={styles.tableCol}>
+                      <Text>-</Text>
+                    </View>
+                    <View style={styles.tableCol}>
+                      <Text>{baseData.currency}</Text>
+                    </View>
+                    <View style={styles.tableCol}>
+                      <Text>{baseData.amount}</Text>
+                    </View>
+                    {showGLAmount && (
+                      <View style={styles.tableCol}>
+                        <Text>-</Text>
+                      </View>
+                    )}
+                    <View style={styles.tableCol}>
+                      <Text>{baseData.exchange_rate}</Text>
+                    </View>
+                    <View style={styles.tableCol}>
+                      <Text>-</Text>
+                    </View>
+                    <View style={styles.tableCol}>
+                      <Text>{baseData.amount_in_usd}</Text>
+                    </View>
+                    <View style={styles.tableCol}>
+                      <Text>{baseData.payment_terms}</Text>
+                    </View>
+                    <View style={styles.tableCol}>
+                      <Text>{baseData.payment_due_date}</Text>
+                    </View>
+                    <View style={styles.tableCol}>
+                      <Text>{baseData.quantity}</Text>
+                    </View>
+                    <View style={styles.tableCol}>
+                      <Text>-</Text>
+                    </View>
+                    <View style={styles.tableCol}>
+                      <Text>-</Text>
+                    </View>
+                    <View style={styles.tableCol}>
+                      <Text>{baseData.status}</Text>
+                    </View>
+                    <View style={styles.tableCol}>
+                      <Text>{baseData.created_at}</Text>
+                    </View>
+                    <View style={styles.tableCol}>
+                      <Text>{baseData.updated_at}</Text>
+                    </View>
+                  </View>
+                );
+              }
+            })}
         </View>
 
-        {exportData.length > 100 && (
+        {(invoices?.results?.length || 0) > 100 && (
           <Text style={styles.subheader}>
             Note: Only first 100 records shown in PDF. Download CSV for complete
             data.
           </Text>
         )}
 
-        {/* Footer */}
         <Text style={styles.footer}>
           {title} • Generated by Invoice Management System
         </Text>
@@ -392,6 +448,8 @@ const EnhancedDownloadComponent = ({ invoices, title = 'Invoice Report' }) => {
     includeOwnerDetails: true,
     includeTimestamps: true,
   });
+
+  // downloadType: null | 'pdf_full' | 'pdf_without_gl' | 'csv_full' | 'csv_without_gl'
   const [downloadType, setDownloadType] = useState(null);
   const open = Boolean(anchorEl);
 
@@ -413,7 +471,15 @@ const EnhancedDownloadComponent = ({ invoices, title = 'Invoice Report' }) => {
     setDownloadOptions((prev) => ({ ...prev, [option]: value }));
   };
 
-  // Helper functions
+  // Derived flags
+  const isPdf = downloadType?.startsWith('pdf');
+  const showGLAmount =
+    downloadType === 'pdf_full' || downloadType === 'csv_full';
+  const dialogTitle = downloadType
+    ? `Download Options — ${isPdf ? 'PDF' : 'CSV'} (${showGLAmount ? 'Full Report' : 'Without GL Amount'})`
+    : 'Download Options';
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
   const getInvoiceValue = (invoice, directPath, nestedPath = null) => {
     const path = nestedPath || directPath;
     return invoice?.[directPath] || invoice?.invoice?.[path] || '';
@@ -427,170 +493,133 @@ const EnhancedDownloadComponent = ({ invoices, title = 'Invoice Report' }) => {
     return invoice?.gl_lines || invoice?.invoice?.gl_lines || [];
   };
 
-  // ── CSV export ──────────────────────────────────────────────────────────────
-  // GL-specific fields on every GL line row.
-  // Invoice-level fields on first GL line only; total amount on last GL line only.
-  const generateEnhancedCSV = () => {
+  // ── CSV export ────────────────────────────────────────────────────────────
+  // Mirrors DownloadInvoiceComponent column layout exactly.
+  // showGLAmount controls whether ORIGINAL GL AMOUNT column is included.
+  // invoice-level fields shown ONLY on the LAST GL line row.
+  const generateEnhancedCSV = (includeGLAmount) => {
     try {
       const currentDate = new Date().toLocaleString();
       let csvContent = 'data:text/csv;charset=utf-8,';
-
       csvContent += `"${title}"\n`;
       csvContent += `"Generated on: ${currentDate}"\n`;
-      csvContent += `"Total Invoices: ${invoices?.results?.length || 0}"\n\n`;
+      csvContent += `"Report type: ${includeGLAmount ? 'Full Report' : 'Without GL Amount'}"\n\n`;
 
       const q = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
 
-      // Build headers
-      let headers = [
+      // Headers — identical to DownloadInvoiceComponent, with conditional ORIGINAL GL AMOUNT
+      const headers = [
         'Supplier Number',
         'Supplier Name',
         'Invoice Number',
+        'Reference',
+        'Invoice Date',
         'Service Period',
+        'GL Account',
         'Location',
+        'Cost Center',
         'Origin Currency',
         'Original Amount',
+        ...(includeGLAmount ? ['Original GL Amount'] : []),
         'Exchange Rate',
+        'GL Amount in USD',
         'Amount in USD',
+        'Payment Terms',
+        'Payment Due Date',
         'Status',
+        'Quantity',
+        'Aircraft Type',
+        'Route',
+        'Created Date',
+        'Updated Date',
       ];
-
-      if (downloadOptions.includeOwnerDetails) {
-        headers.splice(3, 0, 'Owner Name', 'Owner Email');
-      }
-
-      if (downloadOptions.expandGLLines) {
-        // Insert GL columns before Currency
-        const currencyIdx = headers.indexOf('Currency');
-        headers.splice(
-          currencyIdx,
-          0,
-          'GL Account',
-          'Location (GL)',
-          'Cost Center',
-          'Aircraft Type',
-          'Route',
-          'GL Amount (Original)',
-          'GL Amount in USD',
-        );
-        // Remove the original 'Location' (invoice-level) since location now comes from GL detail
-        const locIdx = headers.indexOf('Location');
-        if (locIdx !== -1) headers.splice(locIdx, 1);
-      }
-
-      if (downloadOptions.includeTimestamps) {
-        headers.push('Created Date', 'Updated Date');
-      }
 
       csvContent += headers.map((h) => q(h)).join(',') + '\n';
 
-      // Process data
       (invoices?.results || []).forEach((invoice) => {
-        const owner = getInvoiceOwner(invoice);
-        const glLines = getGLLines(invoice);
-        const lastIdx = glLines.length - 1;
-
         const baseData = {
-          supplier_number: getInvoiceValue(invoice, 'supplier_number'),
-          supplier_name: getInvoiceValue(invoice, 'supplier_name'),
-          invoice_number: getInvoiceValue(invoice, 'invoice_number'),
-          service_period: getInvoiceValue(invoice, 'service_period'),
-          currency: getInvoiceValue(invoice, 'currency'),
-          total_amount: getInvoiceValue(invoice, 'amount'),
+          supplier_number: invoice?.supplier_number || '',
+          supplier_name: invoice?.supplier_name || '',
+          invoice_number: invoice?.invoice_number || '',
+          reference: invoice?.reference || '',
+          invoice_date: invoice?.invoice_date || '',
+          service_period: invoice?.service_period || '',
+          currency: invoice?.currency || '',
+          amount: invoice?.amount || '',
           exchange_rate: invoice?.exchange_rate_to_usd ?? '',
           amount_in_usd: invoice?.amount_in_usd ?? '',
-          status: getInvoiceValue(invoice, 'status'),
-          created_at: invoice?.created_at || invoice?.invoice?.created_at || '',
-          updated_at: invoice?.updated_at || invoice?.invoice?.updated_at || '',
-          owner_name:
-            `${owner?.firstname || ''} ${owner?.lastname || ''}`.trim(),
-          owner_email: owner?.email || '',
+          payment_terms: invoice?.payment_terms || '',
+          payment_due_date: invoice?.payment_due_date || '',
+          quantity: invoice?.quantity || '',
+          status: invoice?.status || '',
+          created_at: invoice?.created_at
+            ? new Date(invoice.created_at).toLocaleDateString()
+            : '',
+          updated_at: invoice?.updated_at
+            ? new Date(invoice.updated_at).toLocaleDateString()
+            : '',
         };
 
-        if (downloadOptions.expandGLLines && glLines.length > 0) {
-          glLines.forEach((glLine, index) => {
-            const isFirst = index === 0;
-            const isLast = index === lastIdx;
-
-            let row = [
-              q(isFirst ? baseData.supplier_number : ''),
-              q(isFirst ? baseData.supplier_name : ''),
-              q(isFirst ? baseData.invoice_number : ''),
-              q(isFirst ? baseData.service_period : ''),
-              // GL-specific fields — every row
+        if (invoice?.gl_lines && invoice.gl_lines.length > 0) {
+          const lastIdx = invoice.gl_lines.length - 1;
+          invoice.gl_lines.forEach((glLine, glIdx) => {
+            const isLast = glIdx === lastIdx;
+            const row = [
+              q(baseData.supplier_number),
+              q(baseData.supplier_name),
+              q(baseData.invoice_number),
+              q(baseData.reference),
+              q(baseData.invoice_date),
+              q(baseData.service_period),
               q(resolveGLCode(glLine)),
               q(resolveLocation(glLine)),
               q(resolveCostCenter(glLine)),
+              // Invoice-level fields — only on last GL line
+              q(isLast ? baseData.currency : ''),
+              q(isLast ? baseData.amount : ''),
+              ...(includeGLAmount ? [q(glLine?.gl_amount || '')] : []),
+              q(isLast ? baseData.exchange_rate : ''),
+              q(glLine?.gl_amount_in_usd ?? ''),
+              q(isLast ? baseData.amount_in_usd : ''),
+              q(isLast ? baseData.payment_terms : ''),
+              q(isLast ? baseData.payment_due_date : ''),
+              q(isLast ? baseData.status : ''),
+              q(isLast ? baseData.quantity : ''),
               q(resolveAircraftType(glLine)),
               q(resolveRoute(glLine)),
-              q(glLine?.gl_amount || ''),
-              q(glLine?.gl_amount_in_usd ?? ''),
-              // Invoice-level financial — first/last only
-              q(isFirst ? baseData.currency : ''),
-              q(isLast ? baseData.total_amount : ''),
-              q(isLast ? (invoice?.exchange_rate_to_usd ?? '') : ''),
-              q(isLast ? (invoice?.amount_in_usd ?? '') : ''),
-              q(isFirst ? baseData.status : ''),
-            ];
-
-            if (downloadOptions.includeOwnerDetails) {
-              row.splice(
-                3,
-                0,
-                q(isFirst ? baseData.owner_name : ''),
-                q(isFirst ? baseData.owner_email : ''),
-              );
-            }
-
-            if (downloadOptions.includeTimestamps) {
-              row.push(
-                q(isFirst ? baseData.created_at : ''),
-                q(isFirst ? baseData.updated_at : ''),
-              );
-            }
-
-            csvContent += row.join(',') + '\n';
+              q(isLast ? baseData.created_at : ''),
+              q(isLast ? baseData.updated_at : ''),
+            ].join(',');
+            csvContent += row + '\n';
           });
         } else {
-          // No GL lines or expandGLLines disabled — single row
-          let row = [
+          // No GL lines — single row
+          const row = [
             q(baseData.supplier_number),
             q(baseData.supplier_name),
             q(baseData.invoice_number),
+            q(baseData.reference),
+            q(baseData.invoice_date),
             q(baseData.service_period),
+            q(''), // GL Account
+            q(''), // Location
+            q(''), // Cost Center
             q(baseData.currency),
-            q(baseData.total_amount),
+            q(baseData.amount),
+            ...(includeGLAmount ? [q('')] : []), // Original GL Amount
             q(baseData.exchange_rate),
+            q(''), // GL Amount in USD
             q(baseData.amount_in_usd),
+            q(baseData.payment_terms),
+            q(baseData.payment_due_date),
             q(baseData.status),
-          ];
-
-          if (downloadOptions.includeOwnerDetails) {
-            row.splice(3, 0, q(baseData.owner_name), q(baseData.owner_email));
-          }
-
-          if (downloadOptions.expandGLLines) {
-            // Insert empty GL columns in same position (7 GL cols: account, location, cost center, aircraft, route, gl_amount, gl_amount_in_usd)
-            const currencyIdx =
-              row.length - (downloadOptions.includeOwnerDetails ? 1 : 5);
-            row.splice(
-              currencyIdx,
-              0,
-              q(''),
-              q(''),
-              q(''),
-              q(''),
-              q(''),
-              q(''),
-              q(''),
-            );
-          }
-
-          if (downloadOptions.includeTimestamps) {
-            row.push(q(baseData.created_at), q(baseData.updated_at));
-          }
-
-          csvContent += row.join(',') + '\n';
+            q(baseData.quantity),
+            q(''), // Aircraft Type
+            q(''), // Route
+            q(baseData.created_at),
+            q(baseData.updated_at),
+          ].join(',');
+          csvContent += row + '\n';
         }
       });
 
@@ -599,12 +628,13 @@ const EnhancedDownloadComponent = ({ invoices, title = 'Invoice Report' }) => {
       link.setAttribute('href', encodedUri);
       link.setAttribute(
         'download',
-        `${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`,
+        `${title.replace(/\s+/g, '_')}_${
+          includeGLAmount ? 'Full_Report' : 'Without_GL_Amount'
+        }_${new Date().toISOString().split('T')[0]}.csv`,
       );
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
       handleOptionsDialogClose();
     } catch (error) {
       console.error('Error generating CSV:', error);
@@ -613,7 +643,7 @@ const EnhancedDownloadComponent = ({ invoices, title = 'Invoice Report' }) => {
   };
 
   const handleConfirmDownload = () => {
-    if (downloadType === 'csv') generateEnhancedCSV();
+    if (!isPdf) generateEnhancedCSV(showGLAmount);
   };
 
   return (
@@ -626,7 +656,6 @@ const EnhancedDownloadComponent = ({ invoices, title = 'Invoice Report' }) => {
         aria-controls={open ? 'download-menu' : undefined}
         aria-haspopup="true"
         aria-expanded={open ? 'true' : undefined}
-        fullWidth
       >
         Download Report
       </Button>
@@ -638,21 +667,64 @@ const EnhancedDownloadComponent = ({ invoices, title = 'Invoice Report' }) => {
         onClose={handleClose}
         MenuListProps={{ 'aria-labelledby': 'download-button' }}
       >
-        <MenuItem onClick={() => handleDownloadOption('pdf')}>
+        {/* ── PDF ── */}
+        <MenuItem disabled sx={{ opacity: '1 !important' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={600}>
+            PDF
+          </Typography>
+        </MenuItem>
+
+        <MenuItem onClick={() => handleDownloadOption('pdf_full')}>
           <ListItemIcon>
             <PictureAsPdfIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Download as PDF</ListItemText>
+          <ListItemText
+            primary="Full Report"
+            secondary="Includes Original GL Amount"
+          />
         </MenuItem>
-        <MenuItem onClick={() => handleDownloadOption('csv')}>
+
+        <MenuItem onClick={() => handleDownloadOption('pdf_without_gl')}>
+          <ListItemIcon>
+            <PictureAsPdfIcon fontSize="small" sx={{ color: '#9e9e9e' }} />
+          </ListItemIcon>
+          <ListItemText
+            primary="Without GL Amount"
+            secondary="Excludes Original GL Amount column"
+          />
+        </MenuItem>
+
+        <Divider />
+
+        {/* ── CSV ── */}
+        <MenuItem disabled sx={{ opacity: '1 !important' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={600}>
+            CSV
+          </Typography>
+        </MenuItem>
+
+        <MenuItem onClick={() => handleDownloadOption('csv_full')}>
           <ListItemIcon>
             <TableChartIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Download as CSV</ListItemText>
+          <ListItemText
+            primary="Full Report"
+            secondary="Includes Original GL Amount"
+          />
+        </MenuItem>
+
+        <MenuItem onClick={() => handleDownloadOption('csv_without_gl')}>
+          <ListItemIcon>
+            <TableChartIcon fontSize="small" sx={{ color: '#9e9e9e' }} />
+          </ListItemIcon>
+          <ListItemText
+            primary="Without GL Amount"
+            secondary="Excludes Original GL Amount column"
+          />
         </MenuItem>
       </Menu>
 
-      {/* Download Options Dialog */}
+      {/* ── Download Options Dialog ── */}
       <Dialog
         open={showOptionsDialog}
         onClose={handleOptionsDialogClose}
@@ -660,7 +732,7 @@ const EnhancedDownloadComponent = ({ invoices, title = 'Invoice Report' }) => {
         maxWidth="sm"
       >
         <DialogTitle>
-          Download Options - {downloadType?.toUpperCase()}
+          {dialogTitle}
           <IconButton
             aria-label="close"
             onClick={handleOptionsDialogClose}
@@ -669,8 +741,26 @@ const EnhancedDownloadComponent = ({ invoices, title = 'Invoice Report' }) => {
             <CloseIcon />
           </IconButton>
         </DialogTitle>
+
         <DialogContent>
-          <Box sx={{ mt: 2 }}>
+          {/* Report type banner */}
+          <Box
+            sx={{
+              mb: 2,
+              p: 1.5,
+              bgcolor: showGLAmount ? '#f0f7ff' : '#fff8e1',
+              borderRadius: 1,
+              border: `1px solid ${showGLAmount ? '#90caf9' : '#ffe082'}`,
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              {showGLAmount
+                ? '✅ Full Report — all columns included, with the Original GL Amount column.'
+                : '⚠️ Without GL Amount — the Original GL Amount column will be excluded from this report.'}
+            </Typography>
+          </Box>
+
+          <Box sx={{ mt: 1 }}>
             <Typography variant="subtitle2" gutterBottom>
               Customize your download:
             </Typography>
@@ -725,20 +815,22 @@ const EnhancedDownloadComponent = ({ invoices, title = 'Invoice Report' }) => {
             </Box>
           </Box>
         </DialogContent>
+
         <DialogActions>
           <Button onClick={handleOptionsDialogClose}>Cancel</Button>
-          {downloadType === 'pdf' ? (
+          {isPdf ? (
             <PDFDownloadLink
               document={
                 <EnhancedInvoicePDF
                   invoices={invoices}
                   title={title}
                   options={downloadOptions}
+                  showGLAmount={showGLAmount}
                 />
               }
               fileName={`${title.replace(/\s+/g, '_')}_${
-                new Date().toISOString().split('T')[0]
-              }.pdf`}
+                showGLAmount ? 'Full_Report' : 'Without_GL_Amount'
+              }_${new Date().toISOString().split('T')[0]}.pdf`}
               style={{ textDecoration: 'none' }}
             >
               {({ loading }) => (

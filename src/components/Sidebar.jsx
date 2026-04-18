@@ -209,9 +209,9 @@ export default function Sidebar() {
   const canSeeAdminTools =
     isAdmin || (isSignerAdmin && !!user?.is_invoice_verifier);
 
-  // admin OR (supplier_admin + is_invoice_verifier) → Invoices Supplier submenu
+  // admin OR (signer_admin + is_invoice_verifier) → Supplier Invoices submenu
   const canSeeSupplierInvoices =
-    isAdmin || (isSupplierAdmin && !!user?.is_invoice_verifier);
+    isAdmin || (isSignerAdmin && !!user?.is_invoice_verifier);
 
   // admin, signer_admin, or signer → Delegation
   const canSeeDelegation = isAdmin || isSignerAdmin || isSigner;
@@ -406,13 +406,13 @@ export default function Sidebar() {
                   </SubMenuItem>
                 )}
 
-                {/* Invoices Supplier — admin OR supplier_admin with is_invoice_verifier */}
+                {/* Supplier Invoices — admin OR (signer_admin + is_invoice_supplier) */}
                 {canSeeSupplierInvoices && (
                   <SubMenuItem
-                    className={activeDashboardOption === 5 ? 'active' : ''}
-                    onClick={() => handleDashboardOption(5)}
+                    className={activeDashboardOption === 4 ? 'active' : ''}
+                    onClick={() => handleDashboardOption(4)}
                   >
-                    Invoices Supplier
+                    Supplier Invoices
                   </SubMenuItem>
                 )}
               </Collapse>
@@ -465,13 +465,13 @@ export default function Sidebar() {
                   </SubMenuItem>
                 )}
 
-                {/* Invoices Supplier — admin OR supplier_admin with is_invoice_verifier */}
+                {/* Supplier Invoices — admin OR (signer_admin + is_invoice_supplier) */}
                 {canSeeSupplierInvoices && (
                   <SubMenuItem
-                    className={activeInvoiceOption === 5 ? 'active' : ''}
-                    onClick={() => handleInvoiceOption(5)}
+                    className={activeInvoiceOption === 4 ? 'active' : ''}
+                    onClick={() => handleInvoiceOption(4)}
                   >
-                    Invoices Supplier
+                    Supplier Invoices
                   </SubMenuItem>
                 )}
               </Collapse>

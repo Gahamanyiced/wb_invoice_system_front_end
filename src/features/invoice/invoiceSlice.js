@@ -503,6 +503,32 @@ export const getSupplierInvoices = createAsyncThunk(
   },
 );
 
+// ── Address Invoice To thunk ──────────────────────────────────────────────────
+// dispatch(addressInvoiceTo({ invoiceId: 23, data: { verifier_id: 5, reason: '...' } }))
+export const addressInvoiceTo = createAsyncThunk(
+  'invoice/addressInvoiceTo',
+  async ({ invoiceId, data }, thunkAPI) => {
+    try {
+      return await invoiceService.addressInvoiceTo(invoiceId, data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+// ── Rollback Invoice To Supplier thunk ───────────────────────────────────────
+// dispatch(rollbackInvoiceToSupplier({ invoiceId: 23, data: { status: 'rollback', reason: '...' } }))
+export const rollbackInvoiceToSupplier = createAsyncThunk(
+  'invoice/rollbackInvoiceToSupplier',
+  async ({ invoiceId, data }, thunkAPI) => {
+    try {
+      return await invoiceService.rollbackInvoiceToSupplier(invoiceId, data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
 // ── Slice ─────────────────────────────────────────────────────────────────────
 
 const invoiceSlice = createSlice({
@@ -1183,7 +1209,6 @@ const invoiceSlice = createSlice({
       })
 
       // ── Invoice Number Check ── (lightweight — no state written, just fires the request)
-
       .addCase(checkInvoiceNumber.pending, (state) => {
         state.error = null;
       })
@@ -1194,7 +1219,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
       })
 
-      // -Get all supplier invoices
+      // Get all supplier invoices
       .addCase(getSupplierInvoices.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -1209,6 +1234,36 @@ const invoiceSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
         state.invoices = [];
+      })
+
+      // ── Address Invoice To ────────────────────────────────────────────────
+      // Lightweight — no dedicated state key; shares isLoading only.
+      .addCase(addressInvoiceTo.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(addressInvoiceTo.fulfilled, (state) => {
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(addressInvoiceTo.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // ── Rollback Invoice To Supplier ──────────────────────────────────────
+      // Lightweight — no dedicated state key; shares isLoading only.
+      .addCase(rollbackInvoiceToSupplier.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(rollbackInvoiceToSupplier.fulfilled, (state) => {
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(rollbackInvoiceToSupplier.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
       });
   },
 });

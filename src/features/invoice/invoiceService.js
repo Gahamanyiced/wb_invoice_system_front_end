@@ -333,6 +333,28 @@ const getSupplierInvoices = async (data) => {
   return response.data;
 };
 
+// ── Address Invoice To ────────────────────────────────────────────────────────
+// PUT /invoice/invoices/{invoiceId}/address-to/
+// payload: { verifier_id, reason }
+const addressInvoiceTo = async (invoiceId, data) => {
+  const response = await http.put(
+    `/invoice/invoices/${invoiceId}/address-to/`,
+    data,
+  );
+  return response.data;
+};
+
+// ── Rollback Invoice To Supplier ──────────────────────────────────────────────
+// PUT /invoice/invoices/{invoiceId}/rollback-to-supplier/
+// payload: { status: 'rollback', reason }
+const rollbackInvoiceToSupplier = async (invoiceId, data) => {
+  const response = await http.put(
+    `/invoice/invoices/${invoiceId}/rollback-to-supplier/`,
+    data,
+  );
+  return response.data;
+};
+
 const invoiceService = {
   getAllInvoice,
   getAllPendingInvoices,
@@ -376,8 +398,12 @@ const invoiceService = {
   chainRemoveSigner,
   // Invoice Number Validation
   checkInvoiceNumber,
-
+  // Supplier Invoices
   getSupplierInvoices,
+  // Address Invoice To
+  addressInvoiceTo,
+  // Rollback Invoice To Supplier
+  rollbackInvoiceToSupplier,
 };
 
 export default invoiceService;

@@ -573,6 +573,7 @@ const DownloadInvoiceComponent = ({
       <Button
         variant="contained"
         color="success"
+        size="small"
         startIcon={<DownloadIcon />}
         onClick={handleClick}
         aria-controls={open ? 'download-menu' : undefined}

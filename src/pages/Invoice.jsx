@@ -21,6 +21,10 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
+import PersonSearchIcon from '@mui/icons-material/PersonSearch';
+import ReplayIcon from '@mui/icons-material/Replay';
+import RollbackInvoiceToSupplierDialog from '../components/RollbackInvoiceToSupplierDialog';
+import AddressInvoiceDialog from '../components/AddressInvoiceDialog';
 import { useNavigate } from 'react-router-dom';
 import {
   getAllApprovedInvoices,
@@ -53,7 +57,7 @@ import InvoiceTracking from './InvoiceTracking';
 import { getInvoiceToSign } from '../features/invoice/invoiceSlice';
 import FilterPanel from '../components/global/FilterPanel';
 import { setFilters } from '../features/invoice/invoiceSlice';
-import DownloadInvoiceComponent from '../components/DownloadInvoiceComponent';
+import EnhancedDownloadComponent from '../components/EnhancedDownloadComponent';
 import { getAllUsersWithNoPagination } from '../features/user/userSlice';
 import {
   formatAmount,
@@ -124,6 +128,13 @@ export default function Invoice() {
   const [hoverDelete, setHoverDelete] = useState(false);
   const [hoverTrack, setHoverTrack] = useState(false);
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [openAddress, setOpenAddress] = useState(false);
+  const [selectedAddress, setSelectedAddress] = useState(null);
+  const [hoverAddress, setHoverAddress] = useState(false);
+  const [openRollbackSupplier, setOpenRollbackSupplier] = useState(false);
+  const [selectedRollbackSupplier, setSelectedRollbackSupplier] =
+    useState(null);
+  const [hoverRollbackSupplier, setHoverRollbackSupplier] = useState(false);
 
   // Helper function to normalize invoice data structure
   const normalizeInvoiceData = (item) => {
@@ -195,10 +206,10 @@ export default function Invoice() {
   };
 
   // Mirrors canSeeSupplierInvoices from Sidebar:
-  // admin OR (supplier_admin + is_invoice_verifier)
+  // admin OR (signer_admin + is_invoice_verifier)
   const canSeeSupplierInvoices =
     user?.role === 'admin' ||
-    (user?.role === 'supplier_admin' && !!user?.is_invoice_verifier);
+    (user?.role === 'signer_admin' && !!user?.is_invoice_verifier);
 
   const dispatchInvoices = () => {
     const invoiceIndex = getInvoiceIndex();
@@ -207,11 +218,29 @@ export default function Invoice() {
 
     if (!user) return;
 
-    // ── Supplier Invoices (index 5) ──────────────────────────────────────────
-    // Available to admin OR supplier_admin with is_invoice_verifier.
-    // Uses the user id as the invoice id per the thunk signature.
-    if (invoiceIndex === 5 && canSeeSupplierInvoices) {
-      dispatch(getSupplierInvoices({ ...params, id: user?.id }));
+    // ── Supplier Invoices (index 4) ──────────────────────────────────────────
+    // Available to admin OR signer_admin with is_invoice_verifier.
+    // cardIndex maps to a status filter matching the dashboard cards:
+    //   2=pending, 3=approved, 4=denied, 5=rollback, 6=processing, 9=forwarded
+    if (invoiceIndex === 4 && canSeeSupplierInvoices) {
+      const cardStatusMap = {
+        2: 'pending',
+        3: 'approved',
+        4: 'denied',
+        5: 'rollback',
+        6: 'processing',
+        9: 'forwarded',
+      };
+      const statusFromCard = cardIndex ? cardStatusMap[cardIndex] : undefined;
+      dispatch(
+        getSupplierInvoices({
+          ...params,
+          // Only inject cardIndex status if not already set by the filter panel
+          ...(statusFromCard && !filters.status
+            ? { status: statusFromCard }
+            : {}),
+        }),
+      );
       return;
     }
 
@@ -378,6 +407,45 @@ export default function Invoice() {
     setSelectedTracking();
   };
 
+  const handleAddress = (data) => {
+    const normalized = normalizeInvoiceData(data);
+    if (normalized?.status !== 'pending') {
+      toast.error('Only pending invoices can be addressed to a signer');
+      return;
+    }
+    setSelectedAddress(data);
+    setOpenAddress(true);
+  };
+
+  const handleCloseAddress = () => {
+    setOpenAddress(false);
+    setSelectedAddress(null);
+  };
+
+  const handleAddressSuccess = () => {
+    setUpdateTrigger((prev) => !prev);
+  };
+
+  const handleRollbackSupplier = (data) => {
+    const normalized = normalizeInvoiceData(data);
+    const status = normalized?.status;
+    if (status !== 'pending' && status !== 'rollback') {
+      toast.error('Only pending or rollback invoices can change the status');
+      return;
+    }
+    setSelectedRollbackSupplier(data);
+    setOpenRollbackSupplier(true);
+  };
+
+  const handleCloseRollbackSupplier = () => {
+    setOpenRollbackSupplier(false);
+    setSelectedRollbackSupplier(null);
+  };
+
+  const handleRollbackSupplierSuccess = () => {
+    setUpdateTrigger((prev) => !prev);
+  };
+
   const handleFilterChange = (field, value) => {
     dispatch(setFilters({ [field]: value }));
   };
@@ -407,7 +475,6 @@ export default function Invoice() {
   const resolveGLCode = (line) => {
     if (line?.gl_account_detail)
       return `${line.gl_account_detail.gl_code} - ${line.gl_account_detail.gl_description}`;
-    // No gl_account_detail → show gl_description as the label (it carries the name)
     return line?.gl_description || '-';
   };
 
@@ -566,7 +633,7 @@ export default function Invoice() {
       if (cardIndex === 4) title = 'Denied Invoices To Sign Report';
       if (cardIndex === 7) title = 'Invoices With To Sign Status Report';
       if (cardIndex === 8) title = 'Signed Invoices Report';
-    } else if (indexInvoice === 5 && canSeeSupplierInvoices) {
+    } else if (indexInvoice === 4 && canSeeSupplierInvoices) {
       title = 'Supplier Invoices Report';
     } else {
       title = 'My Invoices Report';
@@ -608,11 +675,11 @@ export default function Invoice() {
       />
       <Box
         display="flex"
-        justifyContent="end"
-        alignItems="stretch"
+        justifyContent="flex-end"
+        alignItems="center"
         sx={{ marginBottom: 2 }}
       >
-        <DownloadInvoiceComponent
+        <EnhancedDownloadComponent
           invoices={invoices}
           title={getReportTitle()}
         />
@@ -669,6 +736,12 @@ export default function Invoice() {
               <TableCell align="left" sx={styles.header}>
                 STATUS
               </TableCell>
+              {/* ADDRESSED TO — Supplier Invoices (index 4) only */}
+              {indexInvoice === 4 && canSeeSupplierInvoices && (
+                <TableCell align="left" sx={styles.header}>
+                  ADDRESSED TO
+                </TableCell>
+              )}
               <TableCell align="left" sx={styles.header}>
                 ACTION
               </TableCell>
@@ -754,6 +827,12 @@ export default function Invoice() {
                         }
                       />
                     </TableCell>
+                    {/* ADDRESSED TO cell — Supplier Invoices (index 4) only */}
+                    {indexInvoice === 4 && canSeeSupplierInvoices && (
+                      <TableCell align="left">
+                        {invoice?.is_addressed_to?.name || '-'}
+                      </TableCell>
+                    )}
                     <TableCell
                       align="left"
                       sx={{
@@ -834,6 +913,54 @@ export default function Invoice() {
                           color="primary"
                         />
                       </Tooltip>
+
+                      {/* Address action — only on Supplier Invoices (index 4) */}
+                      {indexInvoice === 4 && canSeeSupplierInvoices && (
+                        <Tooltip
+                          title={hoverAddress ? 'Address to Signer' : ''}
+                        >
+                          <Chip
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddress(invoice);
+                            }}
+                            icon={<PersonSearchIcon />}
+                            onMouseEnter={() => setHoverAddress(true)}
+                            onMouseLeave={() => setHoverAddress(false)}
+                            sx={{
+                              ...styles.rowChip,
+                              bgcolor: '#6a1b9a',
+                            }}
+                            label="Address"
+                            size="small"
+                            color="primary"
+                          />
+                        </Tooltip>
+                      )}
+
+                      {/* Change Status action — only on Supplier Invoices (index 4) */}
+                      {indexInvoice === 4 && canSeeSupplierInvoices && (
+                        <Tooltip
+                          title={hoverRollbackSupplier ? 'Change Status' : ''}
+                        >
+                          <Chip
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRollbackSupplier(invoice);
+                            }}
+                            icon={<ReplayIcon />}
+                            onMouseEnter={() => setHoverRollbackSupplier(true)}
+                            onMouseLeave={() => setHoverRollbackSupplier(false)}
+                            sx={{
+                              ...styles.rowChip,
+                              bgcolor: '#e65100',
+                            }}
+                            label="Change Status"
+                            size="small"
+                            color="primary"
+                          />
+                        </Tooltip>
+                      )}
                     </TableCell>
                   </TableRow>
 
@@ -879,6 +1006,24 @@ export default function Invoice() {
           handleClose={handleCloseDelete}
           defaultValues={selectedDelete}
           page={page}
+        />
+      )}
+
+      {selectedAddress && (
+        <AddressInvoiceDialog
+          open={openAddress}
+          handleClose={handleCloseAddress}
+          invoice={selectedAddress}
+          onSuccess={handleAddressSuccess}
+        />
+      )}
+
+      {selectedRollbackSupplier && (
+        <RollbackInvoiceToSupplierDialog
+          open={openRollbackSupplier}
+          handleClose={handleCloseRollbackSupplier}
+          invoice={selectedRollbackSupplier}
+          onSuccess={handleRollbackSupplierSuccess}
         />
       )}
 

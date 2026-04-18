@@ -40,7 +40,7 @@ import {
 import { useSelector } from 'react-redux';
 import invoiceService from '../features/invoice/invoiceService';
 import pettyCashService from '../features/pettyCash/pettyCashService';
-import DownloadInvoiceComponent from './DownloadInvoiceComponent';
+import EnhancedDownloadComponent from './EnhancedDownloadComponent';
 
 // ── Petty Cash CSV Download — Ledger Format ───────────────────────────────────
 const PettyCashReportDownload = ({ data, summary, title }) => {
@@ -755,13 +755,17 @@ const ReportingSidebar = ({ open, onClose }) => {
                   </Typography>
                 </Box>
 
-                <DownloadInvoiceComponent
-                  invoices={{
-                    results: reportData.results || reportData,
-                    count: reportData.results?.length || reportData.length || 0,
-                  }}
-                  title={getReportTitle(selectedReport)}
-                />
+                {/* ── Download button — right-aligned, same as Invoice page ── */}
+                <Box display="flex" justifyContent="flex-end">
+                  <EnhancedDownloadComponent
+                    invoices={{
+                      results: reportData.results || reportData,
+                      count:
+                        reportData.results?.length || reportData.length || 0,
+                    }}
+                    title={getReportTitle(selectedReport)}
+                  />
+                </Box>
               </Paper>
             )}
 
