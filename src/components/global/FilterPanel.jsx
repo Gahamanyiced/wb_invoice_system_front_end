@@ -1,238 +1,263 @@
 // src/components/global/FilterPanel.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  Paper,
+  Box,
   TextField,
   Typography,
   Button,
-  Box,
-  Divider,
-  Collapse,
-  IconButton,
+  Autocomplete,
+  InputAdornment,
   Chip,
-  Autocomplete
 } from '@mui/material';
-import {
-  FilterList,
-  Search,
-  RestartAlt,
-  ExpandMore,
-} from '@mui/icons-material';
+import SearchIcon from '@mui/icons-material/Search';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import TuneIcon from '@mui/icons-material/Tune';
 
 const FilterPanel = ({ filters, onFilterChange, config }) => {
   const [localFilters, setLocalFilters] = useState(filters || {});
-  const [isExpanded, setIsExpanded] = useState(false);
 
-  const handleLocalFilterChange = (field, value) => {
-    setLocalFilters((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+  // Keep local state in sync when filters reset externally
+  useEffect(() => {
+    setLocalFilters(filters || {});
+  }, [filters]);
+
+  const handleLocalChange = (field, value) => {
+    const updated = { ...localFilters, [field]: value };
+    setLocalFilters(updated);
+    // Apply immediately on each change (no separate Apply button needed)
+    onFilterChange?.(field, value);
   };
 
-  const handleApplyFilters = () => {
-    Object.entries(localFilters).forEach(([key, value]) => {
-      onFilterChange?.(key, value);
+  const handleReset = () => {
+    const reset = {};
+    config.fields.forEach((f) => {
+      reset[f.name] = '';
     });
-    setIsExpanded(false);
+    setLocalFilters(reset);
+    Object.entries(reset).forEach(([k, v]) => onFilterChange?.(k, v));
   };
 
-  const handleResetFilters = (e) => {
-    e.stopPropagation();
-    const resetFilters = {};
-    config.fields.forEach((field) => {
-      resetFilters[field.name] = '';
-    });
-    setLocalFilters(resetFilters);
-    Object.entries(resetFilters).forEach(([key, value]) => {
-      onFilterChange?.(key, value);
-    });
-  };
-
-  const getActiveFiltersCount = () => {
-    return Object.values(localFilters).filter((value) => value && value !== '')
-      .length;
-  };
-
-  // Calculate how many items should appear per row based on total number of fields
-  const calculateColumnWidth = () => {
-    const visibleFields = config.fields.filter((field) => !field.hidden);
-    const fieldsCount = visibleFields.length;
-    
-    // We'll use flex to handle the responsive layout
-    if (fieldsCount <= 2) return '100%';
-    if (fieldsCount <= 4) return '50%';
-    return '33.33%';
-  };
-
-  const renderFilterField = (field) => {
-    if (field.hidden) return null;
-
-    // Get number of visible fields for responsive calculations
-    const visibleFields = config.fields.filter(f => !f.hidden);
-    const fieldsCount = visibleFields.length;
-
-    return (
-      <Box 
-        key={field.name}
-        sx={{ 
-          p: 1,
-          flexGrow: 1,
-          flexShrink: 0,
-          flexBasis: { 
-            xs: '100%', 
-            sm: fieldsCount <= 1 ? '100%' : '50%',
-            md: fieldsCount <= 2 ? '50%' : '33.33%'
-          },
-          // Add max-width constraints to ensure consistency
-          maxWidth: { 
-            xs: '100%', 
-            sm: fieldsCount <= 1 ? '100%' : '50%',
-            md: fieldsCount <= 2 ? '50%' : '33.33%'
-          },
-        }}
-      >
-        {field.type === 'text' && (
-          <TextField
-            label={field.label}
-            fullWidth
-            value={localFilters?.[field.name] || ''}
-            onChange={(e) =>
-              handleLocalFilterChange(field.name, e.target.value)
-            }
-            InputProps={
-              field.showSearchIcon
-                ? {
-                    startAdornment: (
-                      <Search sx={{ mr: 1, color: 'text.secondary' }} />
-                    ),
-                  }
-                : undefined
-            }
-          />
-        )}
-
-        {field.type === 'select' && (
-          <Autocomplete
-            options={field.options}
-            getOptionLabel={(option) => option.label || ''}
-            value={
-              field.options.find(
-                (option) => option.value === localFilters?.[field.name]
-              ) || null
-            }
-            onChange={(event, newValue) =>
-              handleLocalFilterChange(
-                field.name,
-                newValue ? newValue.value : ''
-              )
-            }
-            renderInput={(params) => (
-              <TextField 
-                {...params} 
-                label={field.label} 
-                variant="outlined"
-                // Ensure the input field doesn't expand beyond its container
-                sx={{ width: '100%' }}
-              />
-            )}
-            // Force the Autocomplete to respect its container width
-            sx={{ width: '100%' }}
-          />
-        )}
-
-        {field.type === 'date' && (
-          <TextField
-            label={field.label}
-            type="date"
-            fullWidth
-            value={localFilters?.[field.name] || ''}
-            onChange={(e) =>
-              handleLocalFilterChange(field.name, e.target.value)
-            }
-            InputLabelProps={{ shrink: true }}
-          />
-        )}
-      </Box>
-    );
-  };
+  const activeCount = Object.values(localFilters).filter(
+    (v) => v && v !== '',
+  ).length;
+  const visibleFields = config.fields.filter((f) => !f.hidden);
 
   return (
-    <Paper elevation={1} sx={{ mb: 3 }}>
+    <Box
+      sx={{
+        mb: 2,
+        p: 1.5,
+        backgroundColor: '#fff',
+        border: '1px solid #e0e8f0',
+        borderRadius: '10px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.5,
+        flexWrap: 'wrap',
+      }}
+    >
+      {/* Label */}
       <Box
-        sx={{
-          p: 2,
-          display: 'flex',
-          alignItems: 'center',
-          cursor: 'pointer',
-          '&:hover': { bgcolor: 'action.hover' },
-        }}
-        onClick={() => setIsExpanded(!isExpanded)}
+        sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}
       >
-        <FilterList sx={{ mr: 1, color: 'primary.main' }} />
-        <Typography variant="h6" color="primary" sx={{ flexGrow: 1 }}>
-          {config.title || 'Filters'}
-          {getActiveFiltersCount() > 0 && (
-            <Chip
-              size="small"
-              label={getActiveFiltersCount()}
-              color="primary"
-              sx={{ ml: 1 }}
-            />
-          )}
-        </Typography>
-        <Button
-          startIcon={<RestartAlt />}
-          onClick={handleResetFilters}
-          color="inherit"
-          size="small"
-          sx={{ mr: 1 }}
-        >
-          Reset
-        </Button>
-        <IconButton
-          size="small"
+        <TuneIcon sx={{ fontSize: 16, color: '#00529B' }} />
+        <Typography
           sx={{
-            transform: isExpanded ? 'rotate(180deg)' : 'none',
-            transition: 'transform 0.3s',
+            fontSize: '12px',
+            fontWeight: 700,
+            color: '#00529B',
+            whiteSpace: 'nowrap',
           }}
         >
-          <ExpandMore />
-        </IconButton>
+          Filters
+        </Typography>
+        {activeCount > 0 && (
+          <Chip
+            label={activeCount}
+            size="small"
+            sx={{
+              height: '18px',
+              fontSize: '10px',
+              fontWeight: 700,
+              bgcolor: '#00529B',
+              color: '#fff',
+              '& .MuiChip-label': { px: 0.75 },
+            }}
+          />
+        )}
       </Box>
 
-      <Collapse in={isExpanded}>
-        <Divider />
-        <Box sx={{ p: 3 }}>
-          <Box 
-            sx={{ 
-              display: 'flex', 
-              flexWrap: 'wrap',
-              width: '100%',
-              margin: -1 // Negative margin to offset the padding in child elements
-            }}
-          >
-            {config.fields.map((field) => renderFilterField(field))}
-          </Box>
+      {/* Thin divider */}
+      <Box
+        sx={{
+          width: '1px',
+          height: '28px',
+          backgroundColor: '#e0e8f0',
+          flexShrink: 0,
+        }}
+      />
 
-          <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
-            <Button
-              variant="contained"
-              size="large"
-              onClick={handleApplyFilters}
-              sx={{
-                minWidth: 120,
-                borderRadius: 2,
-                textTransform: 'none',
-                fontSize: '1rem',
-              }}
-            >
-              Apply Filters
-            </Button>
-          </Box>
-        </Box>
-      </Collapse>
-    </Paper>
+      {/* Filter fields — each one inline */}
+      <Box
+        sx={{
+          display: 'flex',
+          gap: 1,
+          flexWrap: 'wrap',
+          flex: 1,
+          alignItems: 'center',
+        }}
+      >
+        {visibleFields.map((field) => {
+          if (field.type === 'text') {
+            return (
+              <TextField
+                key={field.name}
+                placeholder={field.label}
+                size="small"
+                value={localFilters?.[field.name] || ''}
+                onChange={(e) => handleLocalChange(field.name, e.target.value)}
+                InputProps={{
+                  startAdornment: field.showSearchIcon ? (
+                    <InputAdornment position="start">
+                      <SearchIcon sx={{ fontSize: 15, color: '#aaa' }} />
+                    </InputAdornment>
+                  ) : undefined,
+                  sx: {
+                    fontSize: '12.5px',
+                    height: '34px',
+                    borderRadius: '7px',
+                  },
+                }}
+                sx={{
+                  minWidth: 160,
+                  maxWidth: 220,
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': { borderColor: '#e0e8f0' },
+                    '&:hover fieldset': { borderColor: '#90caf9' },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#00529B',
+                      borderWidth: '1.5px',
+                    },
+                  },
+                  '& input::placeholder': { fontSize: '12px', color: '#aaa' },
+                }}
+              />
+            );
+          }
+
+          if (field.type === 'select') {
+            return (
+              <Autocomplete
+                key={field.name}
+                options={field.options || []}
+                getOptionLabel={(opt) => opt.label || ''}
+                value={
+                  field.options?.find(
+                    (o) => o.value === localFilters?.[field.name],
+                  ) || null
+                }
+                onChange={(_, newVal) =>
+                  handleLocalChange(field.name, newVal ? newVal.value : '')
+                }
+                size="small"
+                sx={{ minWidth: 160, maxWidth: 200 }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    placeholder={field.label}
+                    InputProps={{
+                      ...params.InputProps,
+                      sx: {
+                        fontSize: '12.5px',
+                        height: '34px',
+                        borderRadius: '7px',
+                      },
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        '& fieldset': { borderColor: '#e0e8f0' },
+                        '&:hover fieldset': { borderColor: '#90caf9' },
+                        '&.Mui-focused fieldset': {
+                          borderColor: '#00529B',
+                          borderWidth: '1.5px',
+                        },
+                      },
+                      '& input::placeholder': {
+                        fontSize: '12px',
+                        color: '#aaa',
+                      },
+                    }}
+                  />
+                )}
+                slotProps={{
+                  popper: {
+                    sx: {
+                      '& .MuiAutocomplete-listbox': { fontSize: '12.5px' },
+                    },
+                  },
+                }}
+              />
+            );
+          }
+
+          if (field.type === 'date') {
+            return (
+              <TextField
+                key={field.name}
+                type="date"
+                size="small"
+                value={localFilters?.[field.name] || ''}
+                onChange={(e) => handleLocalChange(field.name, e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                InputProps={{
+                  sx: {
+                    fontSize: '12.5px',
+                    height: '34px',
+                    borderRadius: '7px',
+                  },
+                }}
+                sx={{
+                  minWidth: 150,
+                  maxWidth: 180,
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': { borderColor: '#e0e8f0' },
+                    '&:hover fieldset': { borderColor: '#90caf9' },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#00529B',
+                      borderWidth: '1.5px',
+                    },
+                  },
+                }}
+              />
+            );
+          }
+
+          return null;
+        })}
+      </Box>
+
+      {/* Reset button — only shown when filters are active */}
+      {activeCount > 0 && (
+        <Button
+          onClick={handleReset}
+          size="small"
+          startIcon={<RestartAltIcon sx={{ fontSize: 14 }} />}
+          sx={{
+            flexShrink: 0,
+            fontSize: '11.5px',
+            fontWeight: 600,
+            color: '#d32f2f',
+            textTransform: 'none',
+            px: 1.2,
+            height: '30px',
+            borderRadius: '7px',
+            '&:hover': { backgroundColor: '#ffebee' },
+          }}
+        >
+          Clear
+        </Button>
+      )}
+    </Box>
   );
 };
 

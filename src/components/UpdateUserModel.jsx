@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import Modal from '@mui/material/Modal';
 import { updateUser } from '../features/user/userSlice';
-
 import {
   Grid,
   FormControl,
@@ -26,13 +25,12 @@ import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettin
 import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined';
 import ReceiptOutlinedIcon from '@mui/icons-material/ReceiptOutlined';
 
-// ─── Theme tokens ─────────────────────────────────────────────────────────────
 const PRIMARY = '#00529B';
 const PRIMARY_DARK = '#003a6d';
 const PRIMARY_LIGHT = '#e8f0fb';
 const SURFACE = '#f7f9fc';
 const BORDER = 'rgba(0,82,155,0.15)';
-const INVOICE_COLOR = '#E65100'; // orange accent for invoice verifier
+const INVOICE_COLOR = '#E65100';
 
 const style = {
   modal: {
@@ -96,12 +94,7 @@ const style = {
     borderTop: `1px solid ${BORDER}`,
     bgcolor: 'white',
   },
-  sectionLabel: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 1,
-    mb: 2.5,
-  },
+  sectionLabel: { display: 'flex', alignItems: 'center', gap: 1, mb: 2.5 },
   sectionIcon: {
     width: 32,
     height: 32,
@@ -135,7 +128,6 @@ const style = {
   },
 };
 
-// ─── Reusable toggle row ──────────────────────────────────────────────────────
 function ToggleRow({ label, description, name, value, onChange, accentColor }) {
   const color = accentColor || PRIMARY;
   return (
@@ -192,7 +184,6 @@ function ToggleRow({ label, description, name, value, onChange, accentColor }) {
   );
 }
 
-// ─── Section heading ──────────────────────────────────────────────────────────
 function SectionHeading({ icon, title }) {
   return (
     <Box sx={style.sectionLabel}>
@@ -204,7 +195,6 @@ function SectionHeading({ icon, title }) {
   );
 }
 
-// ─── Permission group card ────────────────────────────────────────────────────
 function PermissionGroup({ icon, title, badge, accentColor, children }) {
   const color = accentColor || PRIMARY;
   return (
@@ -271,7 +261,6 @@ function PermissionGroup({ icon, title, badge, accentColor, children }) {
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
 function UpdateUserModel({
   defaultValues,
   open,
@@ -296,6 +285,7 @@ function UpdateUserModel({
     is_expense_creator: false,
     is_verifier: false,
     is_invoice_verifier: false,
+    is_invoice_user: false,
     is_approver: false,
     is_first_approver: false,
     is_second_approver: false,
@@ -341,12 +331,12 @@ function UpdateUserModel({
         is_expense_creator: defaultValues.is_expense_creator ?? false,
         is_verifier: defaultValues.is_verifier ?? false,
         is_invoice_verifier: defaultValues.is_invoice_verifier ?? false,
+        is_invoice_user: defaultValues.is_invoice_user ?? false,
         is_approver: defaultValues.is_approver ?? false,
         is_first_approver: defaultValues.is_first_approver ?? false,
         is_second_approver: defaultValues.is_second_approver ?? false,
         is_last_approver: defaultValues.is_last_approver ?? false,
       });
-
       if (defaultValues.supplier_profile) {
         setSupplierData({
           company_name: defaultValues.supplier_profile.company_name || '',
@@ -376,11 +366,9 @@ function UpdateUserModel({
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
-
   const handleToggle = (name, checked) => {
     setFormData((prev) => ({ ...prev, [name]: checked }));
   };
-
   const handleSupplierChange = (e) => {
     const { name, value } = e.target;
     setSupplierData((prev) => ({ ...prev, [name]: value }));
@@ -399,7 +387,6 @@ function UpdateUserModel({
     setUpdateTrigger((prev) => !prev);
   };
 
-  // active badge counts
   const pettyCashActiveCount = [
     formData.is_petty_cash_user,
     formData.is_pettycash_initiator,
@@ -407,18 +394,16 @@ function UpdateUserModel({
     formData.is_expense_creator,
     formData.is_verifier,
   ].filter(Boolean).length;
-
   const approvalActiveCount = [
     formData.is_approver,
     formData.is_first_approver,
     formData.is_second_approver,
     formData.is_last_approver,
   ].filter(Boolean).length;
-
-  const invoiceActiveCount = [formData.is_invoice_verifier].filter(
-    Boolean,
-  ).length;
-
+  const invoiceActiveCount = [
+    formData.is_invoice_verifier,
+    formData.is_invoice_user,
+  ].filter(Boolean).length;
   const totalActiveCount =
     pettyCashActiveCount + approvalActiveCount + invoiceActiveCount;
 
@@ -429,7 +414,7 @@ function UpdateUserModel({
       aria-labelledby="update-user-modal-title"
     >
       <Box sx={style.modal}>
-        {/* ── Header ── */}
+        {/* Header */}
         <Box sx={style.header}>
           <Box>
             <Typography
@@ -456,9 +441,9 @@ function UpdateUserModel({
           </IconButton>
         </Box>
 
-        {/* ── Scrollable content ── */}
+        {/* Content */}
         <Box sx={style.content}>
-          {/* ── Personal Information ── */}
+          {/* Personal */}
           <Paper elevation={0} sx={style.section}>
             <SectionHeading
               icon={<span style={{ fontSize: 16 }}>👤</span>}
@@ -524,7 +509,7 @@ function UpdateUserModel({
             </Grid>
           </Paper>
 
-          {/* ── Work Information ── */}
+          {/* Work */}
           <Paper elevation={0} sx={style.section}>
             <SectionHeading
               icon={<span style={{ fontSize: 16 }}>🏢</span>}
@@ -556,7 +541,7 @@ function UpdateUserModel({
             </Grid>
           </Paper>
 
-          {/* ── System Access & Permissions ── */}
+          {/* Permissions */}
           <Paper elevation={0} sx={style.section}>
             <SectionHeading
               icon={
@@ -566,9 +551,7 @@ function UpdateUserModel({
               }
               title="System Access & Permissions"
             />
-
             <Grid container spacing={2.5}>
-              {/* ── Role & Approval Status ── */}
               <Grid item xs={12} md={6}>
                 <FormControl fullWidth variant="outlined" size="small">
                   <InputLabel>Role</InputLabel>
@@ -586,7 +569,6 @@ function UpdateUserModel({
                   </Select>
                 </FormControl>
               </Grid>
-
               <Grid item xs={12} md={6}>
                 <FormControl fullWidth variant="outlined" size="small">
                   <InputLabel>Approval Status</InputLabel>
@@ -602,7 +584,6 @@ function UpdateUserModel({
                 </FormControl>
               </Grid>
 
-              {/* ── Permissions subsection ── */}
               <Grid item xs={12}>
                 <Box
                   sx={{
@@ -611,7 +592,6 @@ function UpdateUserModel({
                     overflow: 'hidden',
                   }}
                 >
-                  {/* Subsection header */}
                   <Box
                     sx={{
                       px: 2.5,
@@ -662,8 +642,6 @@ function UpdateUserModel({
                       }}
                     />
                   </Box>
-
-                  {/* Three groups in a responsive grid */}
                   <Box
                     sx={{
                       p: 2,
@@ -673,7 +651,7 @@ function UpdateUserModel({
                       gap: 2,
                     }}
                   >
-                    {/* Petty Cash Roles */}
+                    {/* Petty Cash */}
                     <PermissionGroup
                       icon={
                         <AccountBalanceWalletOutlinedIcon
@@ -725,8 +703,7 @@ function UpdateUserModel({
                         accentColor={PRIMARY}
                       />
                     </PermissionGroup>
-
-                    {/* Approval Levels */}
+                    {/* Approval */}
                     <PermissionGroup
                       icon={
                         <VerifiedUserOutlinedIcon
@@ -770,8 +747,7 @@ function UpdateUserModel({
                         accentColor="#2e7d32"
                       />
                     </PermissionGroup>
-
-                    {/* Invoice Permissions */}
+                    {/* Invoice — now includes is_invoice_user */}
                     <PermissionGroup
                       icon={
                         <ReceiptOutlinedIcon
@@ -782,6 +758,14 @@ function UpdateUserModel({
                       badge={invoiceActiveCount}
                       accentColor={INVOICE_COLOR}
                     >
+                      <ToggleRow
+                        label="Invoice User"
+                        description="Can access the invoice module"
+                        name="is_invoice_user"
+                        value={formData.is_invoice_user}
+                        onChange={handleToggle}
+                        accentColor={INVOICE_COLOR}
+                      />
                       <ToggleRow
                         label="Invoice Verifier"
                         description="Can verify invoice submissions"
@@ -797,7 +781,7 @@ function UpdateUserModel({
             </Grid>
           </Paper>
 
-          {/* ── Supplier Profile ── */}
+          {/* Supplier Profile */}
           {hasSupplierProfile && (
             <Paper elevation={0} sx={style.lastSection}>
               <SectionHeading
@@ -904,8 +888,6 @@ function UpdateUserModel({
                     size="small"
                   />
                 </Grid>
-
-                {/* Banking Information */}
                 <Grid item xs={12}>
                   <Divider sx={{ my: 1, borderColor: BORDER }} />
                   <Box sx={style.bankingHeader}>
@@ -930,7 +912,6 @@ function UpdateUserModel({
                     />
                   </Box>
                 </Grid>
-
                 <Grid item xs={12} md={6}>
                   <TextField
                     label="Bank Name"
@@ -1011,11 +992,10 @@ function UpdateUserModel({
               </Grid>
             </Paper>
           )}
-
           {!hasSupplierProfile && <Box sx={{ pb: 2 }} />}
         </Box>
 
-        {/* ── Footer ── */}
+        {/* Footer */}
         <Box sx={style.footer}>
           <Button
             variant="outlined"

@@ -59,10 +59,10 @@ function App() {
             <Route path="/section" element={<Section />} />
 
             {/* Signing Flow Routes — tab index matches SigningFlow tab order */}
-            <Route
+            {/* <Route
               path="/signing-flow/department"
               element={<SigningFlow defaultTab={0} />}
-            />
+            /> */}
             <Route
               path="/signing-flow/cost-center"
               element={<SigningFlow defaultTab={1} />}

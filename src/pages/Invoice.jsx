@@ -6,11 +6,13 @@ import {
   Paper,
   TableContainer,
   TableCell,
-  Stack,
   Pagination,
   Box,
   Tooltip,
   Chip,
+  Typography,
+  Divider,
+  IconButton,
 } from '@mui/material';
 import { toast } from 'react-toastify';
 import InvoiceModal from '../components/InvoiceModal';
@@ -66,37 +68,40 @@ import {
 
 const styles = {
   table: {
-    minWidth: 650,
-    maxWidth: '90vw',
-    margin: 'auto',
+    minWidth: 800,
   },
   header: {
     color: '#00529B',
-    fontSize: '14px',
-    textAlign: 'left',
+    fontSize: '11px',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    whiteSpace: 'nowrap',
+    py: 1.5,
+    backgroundColor: '#f0f4f8',
+    borderBottom: '2px solid #e0e8f0',
   },
   rowChip: {
-    width: '100px',
-    color: 'rgba(0, 0, 0, 0.87)',
-    padding: '0 8px',
-    fontSize: '12px',
+    fontSize: '11px',
     bgcolor: '#00529B',
     color: 'white',
+    height: '26px',
+    '& .MuiChip-icon': { fontSize: '14px' },
   },
   rowChipDelete: {
-    width: '100px',
-    color: 'rgba(0, 0, 0, 0.87)',
-    padding: '0 8px',
-    fontSize: '12px',
-    bgcolor: '#FF5733',
+    fontSize: '11px',
+    bgcolor: '#d32f2f',
     color: 'white',
+    height: '26px',
+    '& .MuiChip-icon': { fontSize: '14px' },
   },
   expandedRow: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f8fafc',
   },
   totalAmountCell: {
-    fontWeight: 'bold',
+    fontWeight: 700,
     color: '#00529B',
+    fontSize: '13px',
   },
 };
 
@@ -649,332 +654,555 @@ export default function Invoice() {
 
   // Render expanded GL lines — read from _detail objects
   const renderExpandedGLLines = (glLines) => {
-    return glLines.map((line, index) => (
-      <TableRow key={`gl-${index}`} sx={styles.expandedRow}>
+    return glLines.map((line, idx) => (
+      <TableRow
+        key={`gl-${idx}`}
+        sx={{ backgroundColor: '#f8fafc', borderLeft: '3px solid #00529B' }}
+      >
         <TableCell colSpan={4} />
-        <TableCell align="left">{resolveGLCode(line)}</TableCell>
-        <TableCell align="left">{line?.gl_description || '-'}</TableCell>
-        <TableCell align="left">{resolveLocation(line)}</TableCell>
-        <TableCell align="left">{resolveCostCenter(line)}</TableCell>
-        <TableCell align="left">{resolveAircraftType(line)}</TableCell>
-        <TableCell align="left">{resolveRoute(line)}</TableCell>
-        <TableCell colSpan={1} />
-        <TableCell align="left">{line?.gl_amount || '-'}</TableCell>
-        <TableCell colSpan={2} />
+        <TableCell sx={{ fontSize: '11.5px', color: '#444', py: 1 }}>
+          {resolveGLCode(line)}
+        </TableCell>
+        <TableCell sx={{ fontSize: '11.5px', color: '#555', py: 1 }}>
+          {line?.gl_description || '-'}
+        </TableCell>
+        <TableCell sx={{ fontSize: '11.5px', color: '#555', py: 1 }}>
+          {resolveLocation(line)}
+        </TableCell>
+        <TableCell sx={{ fontSize: '11.5px', color: '#555', py: 1 }}>
+          {resolveCostCenter(line)}
+        </TableCell>
+        <TableCell sx={{ fontSize: '11.5px', color: '#555', py: 1 }}>
+          {resolveAircraftType(line)}
+        </TableCell>
+        <TableCell sx={{ fontSize: '11.5px', color: '#555', py: 1 }}>
+          {resolveRoute(line)}
+        </TableCell>
+        <TableCell />
+        <TableCell
+          sx={{ fontSize: '12px', fontWeight: 600, color: '#333', py: 1 }}
+        >
+          {line?.gl_amount || '-'}
+        </TableCell>
+        <TableCell colSpan={4} />
       </TableRow>
     ));
+  };
+
+  // ── Status chip color map ─────────────────────────────────────────────────
+  const statusColor = (s) => {
+    if (s === 'pending')
+      return { bg: '#fff3e0', color: '#e65100', border: '#ffcc80' };
+    if (s === 'approved')
+      return { bg: '#e8f5e9', color: '#2e7d32', border: '#a5d6a7' };
+    if (s === 'denied')
+      return { bg: '#ffebee', color: '#c62828', border: '#ef9a9a' };
+    if (s === 'processing')
+      return { bg: '#e3f2fd', color: '#1565c0', border: '#90caf9' };
+    if (s === 'rollback')
+      return { bg: '#f3e5f5', color: '#6a1b9a', border: '#ce93d8' };
+    if (s === 'to sign')
+      return { bg: '#e0f7fa', color: '#006064', border: '#80deea' };
+    if (s === 'signed')
+      return { bg: '#e8eaf6', color: '#283593', border: '#9fa8da' };
+    if (s === 'forwarded')
+      return { bg: '#fce4ec', color: '#880e4f', border: '#f48fb1' };
+    return { bg: '#f5f5f5', color: '#616161', border: '#e0e0e0' };
   };
 
   return (
     <RootLayout>
       <InvoiceModal />
+
+      {/* ── Page header ──────────────────────────────────────────────────── */}
+      <Box sx={{ mb: 2 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            mb: 0.5,
+          }}
+        >
+          <Box>
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 700,
+                color: '#00529B',
+                fontSize: '18px',
+                lineHeight: 1.2,
+              }}
+            >
+              {getReportTitle()}
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{ color: '#888', fontSize: '12px' }}
+            >
+              {invoices?.count ?? 0} invoice{invoices?.count !== 1 ? 's' : ''}{' '}
+              found
+            </Typography>
+          </Box>
+          <EnhancedDownloadComponent
+            invoices={invoices}
+            title={getReportTitle()}
+          />
+        </Box>
+        <Divider sx={{ mt: 1.5 }} />
+      </Box>
+
+      {/* ── Filters ──────────────────────────────────────────────────────── */}
       <FilterPanel
         filters={filters}
         onFilterChange={handleFilterChange}
         config={filterConfig}
       />
-      <Box
-        display="flex"
-        justifyContent="flex-end"
-        alignItems="center"
-        sx={{ marginBottom: 2 }}
-      >
-        <EnhancedDownloadComponent
-          invoices={invoices}
-          title={getReportTitle()}
-        />
-      </Box>
-      <TableContainer
-        component={Paper}
+
+      {/* ── Table ────────────────────────────────────────────────────────── */}
+      <Paper
+        elevation={0}
         sx={{
-          maxHeight: '100%',
-          overflow: 'scroll',
+          border: '1px solid #e0e8f0',
+          borderRadius: '10px',
+          overflow: 'hidden',
+          mt: 1.5,
         }}
       >
-        <Table sx={styles.table} aria-label="invoice table">
-          <TableHead>
-            <TableRow>
-              <TableCell align="left" sx={styles.header}>
-                SUPPLIER NUMBER
-              </TableCell>
-              <TableCell align="left" sx={styles.header}>
-                SUPPLIER NAME
-              </TableCell>
-              <TableCell align="left" sx={styles.header}>
-                INVOICE NUMBER
-              </TableCell>
-              <TableCell align="left" sx={styles.header}>
-                SERVICE PERIOD
-              </TableCell>
-              <TableCell align="left" sx={styles.header}>
-                GL CODE
-              </TableCell>
-              <TableCell align="left" sx={styles.header}>
-                GL DESCRIPTION
-              </TableCell>
-              <TableCell align="left" sx={styles.header}>
-                LOCATION
-              </TableCell>
-              <TableCell align="left" sx={styles.header}>
-                COST CENTER
-              </TableCell>
-              <TableCell align="left" sx={styles.header}>
-                AIRCRAFT TYPE
-              </TableCell>
-              <TableCell align="left" sx={styles.header}>
-                ROUTE
-              </TableCell>
-              <TableCell align="left" sx={styles.header}>
-                CURRENCY
-              </TableCell>
-              <TableCell align="left" sx={styles.header}>
-                GL AMOUNT
-              </TableCell>
-              <TableCell align="left" sx={styles.header}>
-                TOTAL AMOUNT
-              </TableCell>
-              <TableCell align="left" sx={styles.header}>
-                STATUS
-              </TableCell>
-              {/* ADDRESSED TO — Supplier Invoices (index 4) only */}
-              {indexInvoice === 4 && canSeeSupplierInvoices && (
-                <TableCell align="left" sx={styles.header}>
-                  ADDRESSED TO
-                </TableCell>
-              )}
-              <TableCell align="left" sx={styles.header}>
-                ACTION
-              </TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {invoices?.results?.map((item, index) => {
-              const invoice = normalizeInvoiceData(item);
-              const glDisplay = getGLLinesDisplay(invoice, false);
-              const glLines = getGLLines(invoice);
-              const hasMultipleGLLines = glLines.length > 1;
-              const isExpanded = expandedRows.has(invoice.id);
-              const totalAmount = getTotalAmount(invoice);
-              const status = invoice?.status;
-              const currency = invoice?.currency;
-
-              return (
-                <>
-                  <TableRow
-                    key={invoice.id}
-                    sx={{
-                      cursor: hasMultipleGLLines ? 'pointer' : 'default',
-                      '&:hover': hasMultipleGLLines
-                        ? { backgroundColor: '#f5f5f5' }
-                        : {},
-                    }}
-                    onClick={() =>
-                      hasMultipleGLLines && toggleRowExpansion(invoice.id)
-                    }
+        <TableContainer
+          sx={{ maxHeight: 'calc(100vh - 280px)', overflow: 'auto' }}
+        >
+          <Table sx={styles.table} stickyHeader aria-label="invoice table">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={styles.header}>Supplier No.</TableCell>
+                <TableCell sx={styles.header}>Supplier Name</TableCell>
+                <TableCell sx={styles.header}>Invoice No.</TableCell>
+                <TableCell sx={styles.header}>Service Period</TableCell>
+                <TableCell sx={styles.header}>GL Code</TableCell>
+                <TableCell sx={styles.header}>GL Description</TableCell>
+                <TableCell sx={styles.header}>Location</TableCell>
+                <TableCell sx={styles.header}>Cost Center</TableCell>
+                <TableCell sx={styles.header}>Aircraft Type</TableCell>
+                <TableCell sx={styles.header}>Route</TableCell>
+                <TableCell sx={styles.header}>Currency</TableCell>
+                <TableCell sx={styles.header}>GL Amount</TableCell>
+                <TableCell sx={styles.header}>Total Amount</TableCell>
+                <TableCell sx={styles.header}>Status</TableCell>
+                {indexInvoice === 4 && canSeeSupplierInvoices && (
+                  <TableCell sx={styles.header}>Addressed To</TableCell>
+                )}
+                <TableCell sx={styles.header}>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {invoices?.results?.length === 0 && (
+                <TableRow>
+                  <TableCell
+                    colSpan={20}
+                    align="center"
+                    sx={{ py: 6, color: '#999' }}
                   >
-                    <TableCell align="left">
-                      {invoice?.supplier_number || '-'}
-                    </TableCell>
-                    <TableCell align="left">
-                      {invoice?.supplier_name || '-'}
-                    </TableCell>
-                    <TableCell align="left">
-                      {invoice?.invoice_number || '-'}
-                    </TableCell>
-                    <TableCell align="left">
-                      {invoice?.service_period || '-'}
-                    </TableCell>
-                    <TableCell align="left">
-                      {glDisplay.code}
-                      {hasMultipleGLLines && (
-                        <span
-                          style={{
-                            marginLeft: '8px',
-                            fontSize: '12px',
-                            color: '#666',
-                          }}
-                        >
-                          {isExpanded ? '▼' : '▶'}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell align="left">{glDisplay.description}</TableCell>
-                    <TableCell align="left">{glDisplay.location}</TableCell>
-                    <TableCell align="left">{glDisplay.costCenter}</TableCell>
-                    <TableCell align="left">{glDisplay.aircraftType}</TableCell>
-                    <TableCell align="left">{glDisplay.route}</TableCell>
-                    <TableCell align="left">{currency || '-'}</TableCell>
-                    <TableCell align="left">{glDisplay.amount}</TableCell>
-                    <TableCell align="left" sx={styles.totalAmountCell}>
-                      {formatCurrencyAmount(totalAmount, currency)}
-                    </TableCell>
-                    <TableCell align="left">
-                      <Chip
-                        label={status || '-'}
-                        size="small"
-                        color={
-                          status === 'pending'
-                            ? 'warning'
-                            : status === 'approved'
-                              ? 'success'
-                              : status === 'denied'
-                                ? 'error'
-                                : status === 'to sign'
-                                  ? 'info'
-                                  : status === 'signed'
-                                    ? 'success'
-                                    : 'default'
-                        }
-                      />
-                    </TableCell>
-                    {/* ADDRESSED TO cell — Supplier Invoices (index 4) only */}
-                    {indexInvoice === 4 && canSeeSupplierInvoices && (
-                      <TableCell align="left">
-                        {invoice?.is_addressed_to?.name || '-'}
-                      </TableCell>
-                    )}
-                    <TableCell
-                      align="left"
+                    <Typography variant="body2">No invoices found.</Typography>
+                  </TableCell>
+                </TableRow>
+              )}
+              {invoices?.results?.map((item) => {
+                const invoice = normalizeInvoiceData(item);
+                const glDisplay = getGLLinesDisplay(invoice, false);
+                const glLines = getGLLines(invoice);
+                const hasMultipleGLLines = glLines.length > 1;
+                const isExpanded = expandedRows.has(invoice.id);
+                const totalAmount = getTotalAmount(invoice);
+                const status = invoice?.status;
+                const currency = invoice?.currency;
+                const sc = statusColor(status);
+
+                return (
+                  <>
+                    <TableRow
+                      key={invoice.id}
                       sx={{
-                        display: 'flex',
-                        gap: '8px',
-                        flexWrap: 'wrap',
-                        minWidth: '200px',
+                        cursor: hasMultipleGLLines ? 'pointer' : 'default',
+                        transition: 'background 0.15s',
+                        '&:hover': { backgroundColor: '#f5f9ff' },
+                        '&:last-child td': { borderBottom: 0 },
                       }}
+                      onClick={() =>
+                        hasMultipleGLLines && toggleRowExpansion(invoice.id)
+                      }
                     >
-                      <Tooltip title={hoverView ? 'View' : ''}>
-                        <Chip
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleView(invoice);
+                      {/* Supplier No */}
+                      <TableCell
+                        sx={{ fontSize: '12px', color: '#555', py: 1.2 }}
+                      >
+                        {invoice?.supplier_number || '-'}
+                      </TableCell>
+                      {/* Supplier Name */}
+                      <TableCell
+                        sx={{
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          color: '#222',
+                          py: 1.2,
+                          maxWidth: 160,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {invoice?.supplier_name || '-'}
+                      </TableCell>
+                      {/* Invoice No */}
+                      <TableCell sx={{ py: 1.2 }}>
+                        <Typography
+                          sx={{
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            color: '#00529B',
                           }}
-                          icon={<VisibilityOutlinedIcon />}
-                          onMouseEnter={() => setHoverView(true)}
-                          onMouseLeave={() => setHoverView(false)}
-                          label="View"
-                          sx={styles.rowChip}
-                          size="small"
-                          color="primary"
-                        />
-                      </Tooltip>
-
-                      {user?.role === 'staff' ||
-                      user?.role === 'supplier' ||
-                      user?.role === 'signer_admin' ||
-                      (user?.role === 'admin' && indexInvoice === 2) ||
-                      (user?.role === 'signer' && indexInvoice === 2) ? (
-                        <Tooltip title={hoverEdit ? 'Edit' : ''}>
-                          <Chip
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleUpdate(invoice);
+                        >
+                          {invoice?.invoice_number || '-'}
+                        </Typography>
+                      </TableCell>
+                      {/* Service Period */}
+                      <TableCell
+                        sx={{
+                          fontSize: '12px',
+                          color: '#555',
+                          py: 1.2,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {invoice?.service_period || '-'}
+                      </TableCell>
+                      {/* GL Code */}
+                      <TableCell
+                        sx={{ fontSize: '11.5px', color: '#444', py: 1.2 }}
+                      >
+                        {glDisplay.code}
+                        {hasMultipleGLLines && (
+                          <Box
+                            component="span"
+                            sx={{
+                              ml: 0.75,
+                              fontSize: '10px',
+                              color: '#00529B',
+                              fontWeight: 700,
                             }}
-                            icon={<EditOutlinedIcon />}
-                            onMouseEnter={() => setHoverEdit(true)}
-                            onMouseLeave={() => setHoverEdit(false)}
-                            sx={styles.rowChip}
-                            label="Edit"
-                            size="small"
-                            color="primary"
-                          />
-                        </Tooltip>
-                      ) : null}
-
-                      {indexInvoice === 2 ? (
-                        <Tooltip title={hoverDelete ? 'Delete' : ''}>
-                          <Chip
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDelete(invoice);
-                            }}
-                            icon={<DeleteOutlineIcon />}
-                            onMouseEnter={() => setHoverDelete(true)}
-                            onMouseLeave={() => setHoverDelete(false)}
-                            sx={styles.rowChipDelete}
-                            label="Delete"
-                            size="small"
-                            color="primary"
-                          />
-                        </Tooltip>
-                      ) : null}
-
-                      <Tooltip title={hoverTrack ? 'Track&Sign' : ''}>
-                        <Chip
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleInvoiceTracking(invoice);
+                          >
+                            {isExpanded ? '▼' : '▶'}
+                          </Box>
+                        )}
+                      </TableCell>
+                      {/* GL Description */}
+                      <TableCell
+                        sx={{
+                          fontSize: '11.5px',
+                          color: '#555',
+                          py: 1.2,
+                          maxWidth: 120,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {glDisplay.description}
+                      </TableCell>
+                      {/* Location */}
+                      <TableCell
+                        sx={{ fontSize: '11.5px', color: '#555', py: 1.2 }}
+                      >
+                        {glDisplay.location}
+                      </TableCell>
+                      {/* Cost Center */}
+                      <TableCell
+                        sx={{ fontSize: '11.5px', color: '#555', py: 1.2 }}
+                      >
+                        {glDisplay.costCenter}
+                      </TableCell>
+                      {/* Aircraft Type */}
+                      <TableCell
+                        sx={{ fontSize: '11.5px', color: '#555', py: 1.2 }}
+                      >
+                        {glDisplay.aircraftType}
+                      </TableCell>
+                      {/* Route */}
+                      <TableCell
+                        sx={{ fontSize: '11.5px', color: '#555', py: 1.2 }}
+                      >
+                        {glDisplay.route}
+                      </TableCell>
+                      {/* Currency */}
+                      <TableCell sx={{ py: 1.2 }}>
+                        <Box
+                          sx={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            color: '#666',
+                            bgcolor: '#f0f0f0',
+                            borderRadius: '4px',
+                            px: 0.75,
+                            py: 0.25,
+                            display: 'inline-block',
                           }}
-                          icon={<TrackChangesIcon />}
-                          onMouseEnter={() => setHoverTrack(true)}
-                          onMouseLeave={() => setHoverTrack(false)}
-                          sx={styles.rowChip}
-                          label="Track&Sign"
-                          size="small"
-                          color="primary"
-                        />
-                      </Tooltip>
-
-                      {/* Address action — only on Supplier Invoices (index 4) */}
-                      {indexInvoice === 4 && canSeeSupplierInvoices && (
-                        <Tooltip
-                          title={hoverAddress ? 'Address to Signer' : ''}
                         >
-                          <Chip
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleAddress(invoice);
-                            }}
-                            icon={<PersonSearchIcon />}
-                            onMouseEnter={() => setHoverAddress(true)}
-                            onMouseLeave={() => setHoverAddress(false)}
-                            sx={{
-                              ...styles.rowChip,
-                              bgcolor: '#6a1b9a',
-                            }}
-                            label="Address"
-                            size="small"
-                            color="primary"
-                          />
-                        </Tooltip>
-                      )}
-
-                      {/* Change Status action — only on Supplier Invoices (index 4) */}
-                      {indexInvoice === 4 && canSeeSupplierInvoices && (
-                        <Tooltip
-                          title={hoverRollbackSupplier ? 'Change Status' : ''}
+                          {currency || '-'}
+                        </Box>
+                      </TableCell>
+                      {/* GL Amount */}
+                      <TableCell
+                        sx={{
+                          fontSize: '12px',
+                          color: '#333',
+                          py: 1.2,
+                          fontVariantNumeric: 'tabular-nums',
+                        }}
+                      >
+                        {glDisplay.amount}
+                      </TableCell>
+                      {/* Total Amount */}
+                      <TableCell sx={{ py: 1.2 }}>
+                        <Typography
+                          sx={{
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            color: '#00529B',
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
                         >
-                          <Chip
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRollbackSupplier(invoice);
-                            }}
-                            icon={<ReplayIcon />}
-                            onMouseEnter={() => setHoverRollbackSupplier(true)}
-                            onMouseLeave={() => setHoverRollbackSupplier(false)}
+                          {formatCurrencyAmount(totalAmount, currency)}
+                        </Typography>
+                      </TableCell>
+                      {/* Status */}
+                      <TableCell sx={{ py: 1.2 }}>
+                        <Box
+                          sx={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            px: 1,
+                            py: 0.35,
+                            borderRadius: '20px',
+                            backgroundColor: sc.bg,
+                            border: `1px solid ${sc.border}`,
+                          }}
+                        >
+                          <Box
                             sx={{
-                              ...styles.rowChip,
-                              bgcolor: '#e65100',
+                              width: 6,
+                              height: 6,
+                              borderRadius: '50%',
+                              backgroundColor: sc.color,
+                              flexShrink: 0,
                             }}
-                            label="Change Status"
-                            size="small"
-                            color="primary"
                           />
-                        </Tooltip>
+                          <Typography
+                            sx={{
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              color: sc.color,
+                              textTransform: 'capitalize',
+                              lineHeight: 1,
+                            }}
+                          >
+                            {status || '-'}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      {/* Addressed To — Supplier Invoices only */}
+                      {indexInvoice === 4 && canSeeSupplierInvoices && (
+                        <TableCell
+                          sx={{ fontSize: '12px', color: '#444', py: 1.2 }}
+                        >
+                          {invoice?.is_addressed_to?.name ? (
+                            <Box
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 0.5,
+                              }}
+                            >
+                              <Box
+                                sx={{
+                                  width: 6,
+                                  height: 6,
+                                  borderRadius: '50%',
+                                  bgcolor: '#1565c0',
+                                  flexShrink: 0,
+                                }}
+                              />
+                              <Typography
+                                sx={{
+                                  fontSize: '11.5px',
+                                  color: '#1565c0',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {invoice.is_addressed_to.name}
+                              </Typography>
+                            </Box>
+                          ) : (
+                            <Typography
+                              sx={{ fontSize: '11px', color: '#bbb' }}
+                            >
+                              —
+                            </Typography>
+                          )}
+                        </TableCell>
                       )}
-                    </TableCell>
-                  </TableRow>
+                      {/* Actions */}
+                      <TableCell
+                        sx={{ py: 1, whiteSpace: 'nowrap' }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            gap: '4px',
+                            flexWrap: 'wrap',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <Tooltip title="View">
+                            <Chip
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleView(invoice);
+                              }}
+                              icon={<VisibilityOutlinedIcon />}
+                              label="View"
+                              sx={styles.rowChip}
+                              size="small"
+                            />
+                          </Tooltip>
 
-                  {/* Render expanded GL lines */}
-                  {isExpanded &&
-                    hasMultipleGLLines &&
-                    renderExpandedGLLines(glLines)}
-                </>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </TableContainer>
+                          {(user?.role === 'staff' ||
+                            user?.role === 'supplier' ||
+                            user?.role === 'signer_admin' ||
+                            (user?.role === 'admin' && indexInvoice === 2) ||
+                            (user?.role === 'signer' &&
+                              indexInvoice === 2)) && (
+                            <Tooltip title="Edit">
+                              <Chip
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUpdate(invoice);
+                                }}
+                                icon={<EditOutlinedIcon />}
+                                label="Edit"
+                                sx={styles.rowChip}
+                                size="small"
+                              />
+                            </Tooltip>
+                          )}
 
+                          {indexInvoice === 2 && (
+                            <Tooltip title="Delete">
+                              <Chip
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(invoice);
+                                }}
+                                icon={<DeleteOutlineIcon />}
+                                label="Delete"
+                                sx={styles.rowChipDelete}
+                                size="small"
+                              />
+                            </Tooltip>
+                          )}
+
+                          <Tooltip title="Track & Sign">
+                            <Chip
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleInvoiceTracking(invoice);
+                              }}
+                              icon={<TrackChangesIcon />}
+                              label="Track"
+                              sx={styles.rowChip}
+                              size="small"
+                            />
+                          </Tooltip>
+
+                          {indexInvoice === 4 && canSeeSupplierInvoices && (
+                            <Tooltip title="Address to Signer">
+                              <Chip
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAddress(invoice);
+                                }}
+                                icon={<PersonSearchIcon />}
+                                label="Address"
+                                sx={{ ...styles.rowChip, bgcolor: '#6a1b9a' }}
+                                size="small"
+                              />
+                            </Tooltip>
+                          )}
+
+                          {indexInvoice === 4 && canSeeSupplierInvoices && (
+                            <Tooltip title="Change Status">
+                              <Chip
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRollbackSupplier(invoice);
+                                }}
+                                icon={<ReplayIcon />}
+                                label="Change Status"
+                                sx={{ ...styles.rowChip, bgcolor: '#e65100' }}
+                                size="small"
+                              />
+                            </Tooltip>
+                          )}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+
+                    {/* Expanded GL lines */}
+                    {isExpanded &&
+                      hasMultipleGLLines &&
+                      renderExpandedGLLines(glLines)}
+                  </>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
+
+      {/* ── Pagination ───────────────────────────────────────────────────── */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          mt: 2,
+          px: 0.5,
+        }}
+      >
+        <Typography variant="caption" sx={{ color: '#888', fontSize: '12px' }}>
+          Page {page} of {Math.ceil((invoices?.count || 0) / 10) || 1}{' '}
+          &nbsp;·&nbsp; {invoices?.count ?? 0} total records
+        </Typography>
+        <Pagination
+          count={Math.ceil(invoices?.count / 10) || 1}
+          page={page}
+          onChange={handlePageChange}
+          showFirstButton
+          showLastButton
+          size="small"
+          sx={{
+            '& .MuiPaginationItem-root': { fontSize: '12px' },
+            '& .Mui-selected': {
+              backgroundColor: '#00529B',
+              color: '#fff',
+              '&:hover': { backgroundColor: '#003d75' },
+            },
+          }}
+        />
+      </Box>
+
+      {/* ── Modals ───────────────────────────────────────────────────────── */}
       {selectedView && (
         <ViewInvoiceModal
           defaultValues={selectedView}
@@ -982,7 +1210,6 @@ export default function Invoice() {
           handleClose={handleCloseView}
         />
       )}
-
       {selectedUpdate && (
         <UpdateInvoiceModal
           defaultValues={selectedUpdate}
@@ -991,7 +1218,6 @@ export default function Invoice() {
           setUpdateTrigger={setUpdateTrigger}
         />
       )}
-
       {selectedTracking && (
         <InvoiceTracking
           selected={selectedTracking}
@@ -999,7 +1225,6 @@ export default function Invoice() {
           handleCloseModal={handleCloseTracking}
         />
       )}
-
       {selectedDelete && (
         <DeleteInvoiceDialog
           open={openDelete}
@@ -1008,7 +1233,6 @@ export default function Invoice() {
           page={page}
         />
       )}
-
       {selectedAddress && (
         <AddressInvoiceDialog
           open={openAddress}
@@ -1017,7 +1241,6 @@ export default function Invoice() {
           onSuccess={handleAddressSuccess}
         />
       )}
-
       {selectedRollbackSupplier && (
         <RollbackInvoiceToSupplierDialog
           open={openRollbackSupplier}
@@ -1026,18 +1249,6 @@ export default function Invoice() {
           onSuccess={handleRollbackSupplierSuccess}
         />
       )}
-
-      <Box display="flex" justifyContent="flex-end" m={2}>
-        <Stack spacing={2}>
-          <Pagination
-            count={Math.ceil(invoices?.count / 10) || 1}
-            page={page}
-            onChange={handlePageChange}
-            showFirstButton
-            showLastButton
-          />
-        </Stack>
-      </Box>
     </RootLayout>
   );
 }

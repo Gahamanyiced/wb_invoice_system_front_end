@@ -1,19 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Drawer,
   Box,
   Typography,
   Button,
-  List,
-  ListItem,
   ListItemButton,
   ListItemIcon,
   ListItemText,
   Divider,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   TextField,
   Autocomplete,
   Paper,
@@ -22,14 +16,10 @@ import {
   Alert,
   IconButton,
   Collapse,
-  Tab,
-  Tabs,
 } from '@mui/material';
 import {
   Close as CloseIcon,
   Assessment as AssessmentIcon,
-  PictureAsPdf as PdfIcon,
-  TableChart as CsvIcon,
   ExpandLess,
   ExpandMore,
   Download as DownloadIcon,
@@ -205,9 +195,7 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
 };
 
 // ── Main Component ────────────────────────────────────────────────────────────
-const ReportingSidebar = ({ open, onClose }) => {
-  const [activeTab, setActiveTab] = useState(0);
-
+const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
   // ── Invoice state ──
   const [selectedReport, setSelectedReport] = useState('');
   const [reportData, setReportData] = useState(null);
@@ -237,7 +225,6 @@ const ReportingSidebar = ({ open, onClose }) => {
   });
 
   const { allUsers } = useSelector((state) => state.user);
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   const userOptions =
     allUsers?.map((u) => ({
@@ -406,33 +393,37 @@ const ReportingSidebar = ({ open, onClose }) => {
         </IconButton>
       </Box>
 
-      {/* Tabs */}
-      <Tabs
-        value={activeTab}
-        onChange={(_, v) => setActiveTab(v)}
-        sx={{
-          mb: 2,
-          '& .MuiTab-root': { textTransform: 'none', fontWeight: 600 },
-          '& .Mui-selected': { color: '#00529B' },
-          '& .MuiTabs-indicator': { backgroundColor: '#00529B' },
-        }}
-      >
-        <Tab
-          icon={<InvoiceIcon fontSize="small" />}
-          iconPosition="start"
-          label="Invoice"
-        />
-        <Tab
-          icon={<WalletIcon fontSize="small" />}
-          iconPosition="start"
-          label="Petty Cash"
-        />
-      </Tabs>
+      {/* Module context chip — shows which module's reports are open */}
+      <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.75,
+            px: 1.5,
+            py: 0.5,
+            borderRadius: '20px',
+            backgroundColor: '#e3f2fd',
+            border: '1px solid #90caf9',
+          }}
+        >
+          {defaultTab === 0 ? (
+            <InvoiceIcon sx={{ fontSize: 14, color: '#1565c0' }} />
+          ) : (
+            <WalletIcon sx={{ fontSize: 14, color: '#1565c0' }} />
+          )}
+          <Typography
+            sx={{ fontSize: '12px', fontWeight: 700, color: '#1565c0' }}
+          >
+            {defaultTab === 0 ? 'Invoice Reports' : 'Petty Cash Reports'}
+          </Typography>
+        </Box>
+      </Box>
 
       <Divider sx={{ mb: 3 }} />
 
       {/* ══════════════════════ INVOICE TAB ══════════════════════ */}
-      {activeTab === 0 && (
+      {defaultTab === 0 && (
         <Box>
           <Paper
             elevation={2}
@@ -784,7 +775,7 @@ const ReportingSidebar = ({ open, onClose }) => {
       )}
 
       {/* ══════════════════════ PETTY CASH TAB ══════════════════════ */}
-      {activeTab === 1 && (
+      {defaultTab === 1 && (
         <Box>
           <Paper
             elevation={2}

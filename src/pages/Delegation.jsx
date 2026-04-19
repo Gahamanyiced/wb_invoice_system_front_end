@@ -585,7 +585,7 @@ function Delegation() {
   // Filter state
   // true  → show active only   (is_active=true)
   // false → show inactive only (is_active=false)
-  const [showActiveOnly, setShowActiveOnly] = useState(false);
+  const [showActiveOnly, setShowActiveOnly] = useState(true);
 
   // Dialog states
   const [addOpen, setAddOpen] = useState(false);

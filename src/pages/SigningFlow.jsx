@@ -707,11 +707,11 @@ export const SigningFlow = ({ defaultTab = 0 }) => {
               },
             }}
           >
-            <Tab
+            {/* <Tab
               label="Department / Section"
               icon={<AssignmentTurnedInOutlinedIcon fontSize="small" />}
               iconPosition="start"
-            />
+            /> */}
             <Tab
               label="Cost Center"
               icon={<AccountTreeIcon fontSize="small" />}
@@ -730,9 +730,9 @@ export const SigningFlow = ({ defaultTab = 0 }) => {
           </Tabs>
 
           {/* Tab 0 — Department / Section */}
-          <TabPanel value={activeTab} index={0}>
+          {/* <TabPanel value={activeTab} index={0}>
             <DepartmentSigningFlowTab />
-          </TabPanel>
+          </TabPanel> */}
 
           {/* Tab 1 — Cost Center */}
           <TabPanel value={activeTab} index={1}>

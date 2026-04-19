@@ -204,7 +204,7 @@ function Login() {
                   mb: 1
                 }}
               >
-                Invoice Management System
+                Finance Management System
               </Typography>
               <Typography 
                 variant="body2" 
