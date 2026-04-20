@@ -227,6 +227,7 @@ export default function Sidebar() {
       p.startsWith('/petty-cash') ||
       p.startsWith('/manage-expenses') ||
       p.startsWith('/request-petty-cash');
+    // Note: /petty-cash/dashboard is already covered by p.startsWith('/petty-cash')
 
     const mod = isPCRoute ? 'petty_cash' : 'invoice';
     setActiveModule(mod);
@@ -687,8 +688,8 @@ export default function Sidebar() {
             <List sx={{ p: 0, pt: 0.5 }}>
               <MenuHeading>Main</MenuHeading>
 
-              {/* ── Dashboard — navigates to /dashboard in PC context ── */}
-              <StyledNavLink to="/dashboard">
+              {/* ── Petty Cash Dashboard — own dedicated route ── */}
+              <StyledNavLink to="/petty-cash/dashboard">
                 <MenuIcon>
                   <DashboardOutlinedIcon sx={{ fontSize: 17 }} />
                 </MenuIcon>

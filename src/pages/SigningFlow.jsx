@@ -28,7 +28,6 @@ import {
   Typography,
 } from '@mui/material';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
-import AssignmentTurnedInOutlinedIcon from '@mui/icons-material/AssignmentTurnedInOutlined';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import SupervisorAccountIcon from '@mui/icons-material/SupervisorAccount';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
@@ -107,7 +106,6 @@ function AddDeptSigningFlowDialog({ open, onClose }) {
   const [section, setSection] = useState(null);
   const [rows, setRows] = useState([{ signer: null, order: 1 }]);
 
-  // Build Autocomplete option arrays
   const departmentOptions = (departments?.results || []).map((d) => ({
     id: d.id,
     label: d.name,
@@ -199,7 +197,6 @@ function AddDeptSigningFlowDialog({ open, onClose }) {
 
       <DialogContent sx={{ mt: 2 }}>
         <Stack spacing={2} sx={{ mt: 1 }}>
-          {/* Department */}
           <Autocomplete
             options={departmentOptions}
             value={department}
@@ -217,7 +214,6 @@ function AddDeptSigningFlowDialog({ open, onClose }) {
             noOptionsText="No departments found"
           />
 
-          {/* Section — disabled until department chosen */}
           <Autocomplete
             options={sectionOptions}
             value={section}
@@ -328,7 +324,6 @@ function DepartmentSigningFlowTab() {
   const [expandedFlow, setExpandedFlow] = useState({});
   const [addOpen, setAddOpen] = useState(false);
 
-  // Dialog states
   const [selectedSigningFlow, setSelectedSigningFlow] = useState(null);
   const [openView, setOpenView] = useState(false);
   const [openUpdate, setOpenUpdate] = useState(false);
@@ -407,7 +402,6 @@ function DepartmentSigningFlowTab() {
 
   return (
     <Box sx={{ p: 3 }}>
-      {/* Header */}
       <Box
         sx={{
           display: 'flex',
@@ -434,14 +428,12 @@ function DepartmentSigningFlowTab() {
         </Button>
       </Box>
 
-      {/* Filters */}
       <FilterPanel
         filters={filters}
         onFilterChange={handleFilterChange}
         config={filterConfig}
       />
 
-      {/* Table */}
       <TableContainer component={Paper}>
         <Table size="small" stickyHeader>
           <TableHead>
@@ -472,10 +464,8 @@ function DepartmentSigningFlowTab() {
               rows.map((flow, index) => {
                 const rowKey = flow?.id || index;
                 const levels = flow?.levels || [];
-
                 return (
                   <React.Fragment key={rowKey}>
-                    {/* Main row */}
                     <TableRow
                       hover
                       sx={{
@@ -527,8 +517,6 @@ function DepartmentSigningFlowTab() {
                         </IconButton>
                       </TableCell>
                     </TableRow>
-
-                    {/* Expanded signers row */}
                     <TableRow>
                       <TableCell colSpan={5} sx={{ p: 0, border: 0 }}>
                         <Collapse
@@ -592,9 +580,7 @@ function DepartmentSigningFlowTab() {
                                         </TableCell>
                                         <TableCell>
                                           {level.signer_name ||
-                                            `${level.signer?.firstname || ''} ${
-                                              level.signer?.lastname || ''
-                                            }`.trim() ||
+                                            `${level.signer?.firstname || ''} ${level.signer?.lastname || ''}`.trim() ||
                                             '—'}
                                         </TableCell>
                                         <TableCell>
@@ -630,13 +616,11 @@ function DepartmentSigningFlowTab() {
         </Table>
       </TableContainer>
 
-      {/* Add Dialog */}
       <AddDeptSigningFlowDialog
         open={addOpen}
         onClose={() => setAddOpen(false)}
       />
 
-      {/* View / Edit / Delete Dialogs */}
       {selectedSigningFlow && (
         <ViewSigningFlowModal
           defaultValues={selectedSigningFlow}
@@ -661,10 +645,19 @@ function DepartmentSigningFlowTab() {
 }
 
 // ==================== Main Page ====================
+// ── Tab index map (Department/Section removed) ────────────────────────────────
+//   0 → Cost Center
+//   1 → Location
+//   2 → Supervisor
+//
+// App.js routes must pass:
+//   /signing-flow/cost-center → defaultTab={0}
+//   /signing-flow/location    → defaultTab={1}
+//   /signing-flow/supervisor  → defaultTab={2}
+// ─────────────────────────────────────────────────────────────────────────────
 export const SigningFlow = ({ defaultTab = 0 }) => {
   const [activeTab, setActiveTab] = useState(defaultTab);
 
-  // Sync when navigating between Signing Flow sidebar links
   useEffect(() => {
     setActiveTab(defaultTab);
   }, [defaultTab]);
@@ -672,16 +665,14 @@ export const SigningFlow = ({ defaultTab = 0 }) => {
   return (
     <RootLayout>
       <Box>
-        {/* Page header */}
         <Typography variant="h5" fontWeight="bold" color="#00529B" mb={1}>
           Signing Flow
         </Typography>
         <Typography variant="body2" color="text.secondary" mb={3}>
-          Manage approval signing flows for departments, cost centers, locations
-          and supervisors
+          Manage approval signing flows for cost centers, locations and
+          supervisors
         </Typography>
 
-        {/* Tab bar */}
         <Paper elevation={2} sx={{ borderRadius: 2, overflow: 'hidden' }}>
           <Tabs
             value={activeTab}
@@ -702,26 +693,22 @@ export const SigningFlow = ({ defaultTab = 0 }) => {
                 color: '#00529B !important',
                 fontWeight: 700,
               },
-              '& .MuiTabs-indicator': {
-                backgroundColor: '#00529B',
-              },
+              '& .MuiTabs-indicator': { backgroundColor: '#00529B' },
             }}
           >
-            {/* <Tab
-              label="Department / Section"
-              icon={<AssignmentTurnedInOutlinedIcon fontSize="small" />}
-              iconPosition="start"
-            /> */}
+            {/* index 0 — Cost Center */}
             <Tab
               label="Cost Center"
               icon={<AccountTreeIcon fontSize="small" />}
               iconPosition="start"
             />
+            {/* index 1 — Location */}
             <Tab
               label="Location"
               icon={<LocationOnIcon fontSize="small" />}
               iconPosition="start"
             />
+            {/* index 2 — Supervisor */}
             <Tab
               label="Supervisor"
               icon={<SupervisorAccountIcon fontSize="small" />}
@@ -729,27 +716,22 @@ export const SigningFlow = ({ defaultTab = 0 }) => {
             />
           </Tabs>
 
-          {/* Tab 0 — Department / Section */}
-          {/* <TabPanel value={activeTab} index={0}>
-            <DepartmentSigningFlowTab />
-          </TabPanel> */}
-
-          {/* Tab 1 — Cost Center */}
-          <TabPanel value={activeTab} index={1}>
+          {/* index 0 — Cost Center */}
+          <TabPanel value={activeTab} index={0}>
             <Box sx={{ p: 3 }}>
               <CostCenterSigningFlow />
             </Box>
           </TabPanel>
 
-          {/* Tab 2 — Location */}
-          <TabPanel value={activeTab} index={2}>
+          {/* index 1 — Location */}
+          <TabPanel value={activeTab} index={1}>
             <Box sx={{ p: 3 }}>
               <LocationSigningFlow />
             </Box>
           </TabPanel>
 
-          {/* Tab 3 — Supervisor */}
-          <TabPanel value={activeTab} index={3}>
+          {/* index 2 — Supervisor */}
+          <TabPanel value={activeTab} index={2}>
             <Box sx={{ p: 3 }}>
               <SupervisorSigningFlow />
             </Box>

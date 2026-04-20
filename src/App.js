@@ -20,6 +20,7 @@ import ManageExpenses from './pages/ManageExpenses';
 import RequestPettyCash from './pages/RequestPettyCash';
 import CoaPage from './pages/CoaPage';
 import Delegation from './pages/Delegation';
+import PettyCashDashboard from './pages/PettyCashDashboard';
 
 export const isAuthenticated = () => {
   try {
@@ -58,30 +59,34 @@ function App() {
             <Route path="/department" element={<Department />} />
             <Route path="/section" element={<Section />} />
 
-            {/* Signing Flow Routes — tab index matches SigningFlow tab order */}
-            {/* <Route
-              path="/signing-flow/department"
-              element={<SigningFlow defaultTab={0} />}
-            /> */}
+            {/* Signing Flow Routes
+                Department/Section tab removed — tab index now:
+                  0 = Cost Center
+                  1 = Location
+                  2 = Supervisor                                    */}
             <Route
               path="/signing-flow/cost-center"
-              element={<SigningFlow defaultTab={1} />}
+              element={<SigningFlow defaultTab={0} />}
             />
             <Route
               path="/signing-flow/location"
-              element={<SigningFlow defaultTab={2} />}
+              element={<SigningFlow defaultTab={1} />}
             />
             <Route
               path="/signing-flow/supervisor"
-              element={<SigningFlow defaultTab={3} />}
+              element={<SigningFlow defaultTab={2} />}
             />
-            {/* Fallback: keep old route pointing to tab 0 */}
+            {/* Fallback — default to Cost Center (tab 0) */}
             <Route
               path="/signing-flow"
               element={<SigningFlow defaultTab={0} />}
             />
 
             <Route path="/petty-cash" element={<PettyCash />} />
+            <Route
+              path="/petty-cash/dashboard"
+              element={<PettyCashDashboard />}
+            />
             <Route
               path="/manage-expenses/:transactionId"
               element={<ManageExpenses />}
