@@ -18,6 +18,14 @@ import AutorenewIcon from '@mui/icons-material/Autorenew';
 import ForwardToInboxIcon from '@mui/icons-material/ForwardToInbox';
 import DrawIcon from '@mui/icons-material/Draw';
 import HowToRegIcon from '@mui/icons-material/HowToReg';
+// ── Petty Cash dashboard icons ────────────────────────────────────────────────
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import MoneyOffIcon from '@mui/icons-material/MoneyOff';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import SavingsIcon from '@mui/icons-material/Savings';
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
+import ReceiptIcon from '@mui/icons-material/Receipt';
+import AssignmentIcon from '@mui/icons-material/Assignment';
 import {
   BarChart,
   Bar,
@@ -38,6 +46,7 @@ import {
 } from '../features/dashboard/dashboardSlice';
 import { getDepartmentByErp } from '../features/department/departmentSlice';
 import { setIndex } from '../features/invoice/invoiceSlice';
+import { getPettyCashDashboard } from '../features/pettyCash/pettyCashSlice';
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
 const StatCard = ({ number, label, icon, color, accent, onClick }) => (
@@ -51,14 +60,14 @@ const StatCard = ({ number, label, icon, color, accent, onClick }) => (
       borderRadius: '12px',
       border: `1px solid ${accent}33`,
       backgroundColor: '#fff',
-      cursor: 'pointer',
+      cursor: onClick ? 'pointer' : 'default',
       transition: 'all 0.18s',
       position: 'relative',
       overflow: 'hidden',
       '&:hover': {
-        transform: 'translateY(-2px)',
-        boxShadow: `0 6px 20px ${accent}22`,
-        borderColor: `${accent}66`,
+        transform: onClick ? 'translateY(-2px)' : 'none',
+        boxShadow: onClick ? `0 6px 20px ${accent}22` : 'none',
+        borderColor: onClick ? `${accent}66` : `${accent}33`,
       },
       '&:before': {
         content: '""',
@@ -160,11 +169,34 @@ function Dashboard() {
   const [department, setDepartment] = useState('All');
   const [year, setYear] = useState('');
 
+  // ── Active module — read from localStorage (set by Sidebar on every route change) ──
+  const [activeModule, setActiveModule] = useState(() => {
+    try {
+      return localStorage.getItem('activeModule') || 'invoice';
+    } catch {
+      return 'invoice';
+    }
+  });
+
+  // Re-sync when localStorage changes (e.g. Sidebar sets it on navigate)
+  useEffect(() => {
+    const sync = () => {
+      try {
+        setActiveModule(localStorage.getItem('activeModule') || 'invoice');
+      } catch {}
+    };
+    window.addEventListener('storage', sync);
+    // Also sync on mount in case Sidebar already set it
+    sync();
+    return () => window.removeEventListener('storage', sync);
+  }, []);
+
   const { invoiceDashboard, index: dashboardStateIndex } = useSelector(
     (state) => state.invoiceDashboard,
   );
   const { index } = useSelector((state) => state.invoice);
   const { allDepartments } = useSelector((state) => state.department);
+  const { pettyCashDashboard } = useSelector((state) => state.pettyCash);
 
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
@@ -180,7 +212,9 @@ function Dashboard() {
     return activeIndex || 2;
   };
 
+  // ── Invoice dashboard fetch ───────────────────────────────────────────────
   useEffect(() => {
+    if (activeModule === 'petty_cash') return; // skip invoice fetch in PC mode
     const dashboardIndex = getInvoiceIndex();
     setAnotherDashboardIndex(dashboardIndex);
     if (!user) return;
@@ -197,10 +231,15 @@ function Dashboard() {
     } else if (dashboardIndex === 2) {
       dispatch(getInvoiceOwnedByYear({ id: user?.id, year }));
     }
-  }, [dispatch, index, dashboardStateIndex, department, year]);
+  }, [dispatch, index, dashboardStateIndex, department, year, activeModule]);
 
-  // cardStatusMap for Supplier Invoices dashboard (index 4)
-  // matches the cardStatusMap used in Invoice.jsx dispatchInvoices()
+  // ── Petty Cash dashboard fetch ────────────────────────────────────────────
+  useEffect(() => {
+    if (activeModule === 'petty_cash') {
+      dispatch(getPettyCashDashboard());
+    }
+  }, [dispatch, activeModule]);
+
   const supplierCardStatusMap = {
     2: 'pending',
     3: 'approved',
@@ -211,11 +250,7 @@ function Dashboard() {
   };
 
   const handleCardClick = (cardIndex) => {
-    // For supplier invoices view (index 4), ensure invoice slice index is also set to 4
-    // so Invoice.jsx dispatches getSupplierInvoices with the correct status filter
-    if (isSupplierView) {
-      dispatch(setIndex(4));
-    }
+    if (isSupplierView) dispatch(setIndex(4));
     dispatch(setCardIndex({ cardIndex, year }));
     navigate('/');
   };
@@ -412,7 +447,62 @@ function Dashboard() {
           : []),
       ];
 
-  // ── Role label ──────────────────────────────────────────────────────────────
+  // ── Petty Cash stat cards — keyed by expected API field names ────────────
+  // Fields not present in the response will show '—' gracefully.
+  const pcCards = [
+    {
+      number: pettyCashDashboard?.total_issued,
+      label: 'Total Issued',
+      icon: (
+        <AccountBalanceWalletIcon sx={{ fontSize: 18, color: '#00529B' }} />
+      ),
+      color: '#00529B',
+      accent: '#00529B',
+    },
+    {
+      number: pettyCashDashboard?.total_active,
+      label: 'Active Issuances',
+      icon: <SavingsIcon sx={{ fontSize: 18, color: '#2e7d32' }} />,
+      color: '#2e7d32',
+      accent: '#2e7d32',
+    },
+    {
+      number: pettyCashDashboard?.total_spent,
+      label: 'Total Spent',
+      icon: <MoneyOffIcon sx={{ fontSize: 18, color: '#c62828' }} />,
+      color: '#c62828',
+      accent: '#c62828',
+    },
+    {
+      number: pettyCashDashboard?.total_remaining,
+      label: 'Total Remaining',
+      icon: <AccountBalanceIcon sx={{ fontSize: 18, color: '#1565c0' }} />,
+      color: '#1565c0',
+      accent: '#1565c0',
+    },
+    {
+      number: pettyCashDashboard?.pending_acknowledgment,
+      label: 'Pending Acknowledgment',
+      icon: <HourglassEmptyIcon sx={{ fontSize: 18, color: '#e65100' }} />,
+      color: '#e65100',
+      accent: '#e65100',
+    },
+    {
+      number: pettyCashDashboard?.pending_expenses,
+      label: 'Pending Expenses',
+      icon: <ReceiptIcon sx={{ fontSize: 18, color: '#6a1b9a' }} />,
+      color: '#6a1b9a',
+      accent: '#6a1b9a',
+    },
+    {
+      number: pettyCashDashboard?.pending_requests,
+      label: 'Pending Requests',
+      icon: <AssignmentIcon sx={{ fontSize: 18, color: '#00838f' }} />,
+      color: '#00838f',
+      accent: '#00838f',
+    },
+  ];
+
   const viewLabel = isSupplierView
     ? 'Supplier Invoices Overview'
     : isSignerView
@@ -444,134 +534,214 @@ function Dashboard() {
             Dashboard
           </Typography>
           <Typography sx={{ fontSize: '12px', color: '#888', mt: 0.25 }}>
-            {viewLabel}
+            {activeModule === 'petty_cash' ? 'Petty Cash Overview' : viewLabel}
           </Typography>
         </Box>
 
-        {/* Year + Department filters */}
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-          {user?.role === 'admin' && anotherDashboardIndex === 1 && (
+        {/* Year + Department filters — shown for invoice module only */}
+        {activeModule !== 'petty_cash' && (
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            {user?.role === 'admin' && anotherDashboardIndex === 1 && (
+              <Select
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                size="small"
+                sx={{
+                  fontSize: '12.5px',
+                  minWidth: 130,
+                  borderRadius: '8px',
+                  '& fieldset': { borderColor: '#e0e8f0' },
+                  '&:hover fieldset': { borderColor: '#90caf9' },
+                }}
+              >
+                <MenuItem value="All" sx={{ fontSize: '12.5px' }}>
+                  All Departments
+                </MenuItem>
+                {allDepartments?.Departments?.map((d, i) => (
+                  <MenuItem key={i} value={d} sx={{ fontSize: '12.5px' }}>
+                    {d}
+                  </MenuItem>
+                ))}
+              </Select>
+            )}
             <Select
-              value={department}
-              onChange={(e) => setDepartment(e.target.value)}
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
               size="small"
+              displayEmpty
               sx={{
                 fontSize: '12.5px',
-                minWidth: 130,
+                minWidth: 110,
                 borderRadius: '8px',
                 '& fieldset': { borderColor: '#e0e8f0' },
                 '&:hover fieldset': { borderColor: '#90caf9' },
               }}
             >
-              <MenuItem value="All" sx={{ fontSize: '12.5px' }}>
-                All Departments
+              <MenuItem value="" sx={{ fontSize: '12.5px' }}>
+                All Years
               </MenuItem>
-              {allDepartments?.Departments?.map((d, i) => (
-                <MenuItem key={i} value={d} sx={{ fontSize: '12.5px' }}>
-                  {d}
+              {years.map((y, i) => (
+                <MenuItem key={i} value={y} sx={{ fontSize: '12.5px' }}>
+                  {y}
                 </MenuItem>
               ))}
             </Select>
-          )}
-          <Select
-            value={year}
-            onChange={(e) => setYear(e.target.value)}
-            size="small"
-            displayEmpty
-            sx={{
-              fontSize: '12.5px',
-              minWidth: 110,
-              borderRadius: '8px',
-              '& fieldset': { borderColor: '#e0e8f0' },
-              '&:hover fieldset': { borderColor: '#90caf9' },
-            }}
-          >
-            <MenuItem value="" sx={{ fontSize: '12.5px' }}>
-              All Years
-            </MenuItem>
-            {years.map((y, i) => (
-              <MenuItem key={i} value={y} sx={{ fontSize: '12.5px' }}>
-                {y}
-              </MenuItem>
-            ))}
-          </Select>
-        </Box>
+          </Box>
+        )}
       </Box>
 
       <Divider sx={{ mb: 2.5 }} />
 
-      {/* ── Stat cards ───────────────────────────────────────────────── */}
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 3 }}>
-        {cards.map((card, i) => (
-          <StatCard
-            key={i}
-            number={card.number}
-            label={card.label}
-            icon={card.icon}
-            color={card.color}
-            accent={card.accent}
-            onClick={() => handleCardClick(card.cardIndex)}
-          />
-        ))}
-      </Box>
-
-      {/* ── Monthly bar chart ─────────────────────────────────────────── */}
-      <Paper
-        elevation={0}
-        sx={{ border: '1px solid #e0e8f0', borderRadius: '12px', p: 2.5 }}
-      >
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            mb: 2,
-          }}
-        >
-          <Box>
-            <Typography
-              sx={{ fontSize: '14px', fontWeight: 700, color: '#222' }}
-            >
-              Monthly Invoice Activity
-            </Typography>
-            <Typography sx={{ fontSize: '11.5px', color: '#888' }}>
-              {year || currentYear} — invoices per month
-            </Typography>
+      {/* ══════════════ PETTY CASH MODULE DASHBOARD ══════════════ */}
+      {activeModule === 'petty_cash' ? (
+        <>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 3 }}>
+            {pcCards.map((card, i) => (
+              <StatCard
+                key={i}
+                number={card.number}
+                label={card.label}
+                icon={card.icon}
+                color={card.color}
+                accent={card.accent}
+              />
+            ))}
           </Box>
-        </Box>
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart
-            data={chartData}
-            margin={{ top: 5, right: 10, left: -10, bottom: 0 }}
+
+          <Paper
+            elevation={0}
+            sx={{ border: '1px solid #e0e8f0', borderRadius: '12px', p: 2.5 }}
           >
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="#f0f4f8"
-              vertical={false}
-            />
-            <XAxis
-              dataKey="month"
-              tick={{ fontSize: 11, fill: '#999' }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              tick={{ fontSize: 11, fill: '#999' }}
-              axisLine={false}
-              tickLine={false}
-              allowDecimals={false}
-            />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f0f4f8' }} />
-            <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }} />
-            <Bar
-              dataKey="Invoices"
-              fill="#00529B"
-              radius={[5, 5, 0, 0]}
-              maxBarSize={40}
-            />
-          </BarChart>
-        </ResponsiveContainer>
-      </Paper>
+            <Typography
+              sx={{ fontSize: '14px', fontWeight: 700, color: '#222', mb: 0.5 }}
+            >
+              Petty Cash Summary
+            </Typography>
+            <Typography sx={{ fontSize: '11.5px', color: '#888', mb: 2 }}>
+              Generated: {new Date().toLocaleString()}
+            </Typography>
+            {pettyCashDashboard && (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+                {Object.entries(pettyCashDashboard)
+                  .filter(([, v]) => v != null && typeof v !== 'object')
+                  .map(([key, value]) => (
+                    <Box
+                      key={key}
+                      sx={{
+                        minWidth: 150,
+                        p: 1.5,
+                        bgcolor: '#f8fafc',
+                        borderRadius: '8px',
+                        border: '1px solid #e0e8f0',
+                      }}
+                    >
+                      <Typography
+                        sx={{
+                          fontSize: '11px',
+                          color: '#888',
+                          textTransform: 'capitalize',
+                          mb: 0.25,
+                        }}
+                      >
+                        {key.replace(/_/g, ' ')}
+                      </Typography>
+                      <Typography
+                        sx={{
+                          fontSize: '16px',
+                          fontWeight: 700,
+                          color: '#00529B',
+                        }}
+                      >
+                        {typeof value === 'number'
+                          ? value.toLocaleString()
+                          : String(value)}
+                      </Typography>
+                    </Box>
+                  ))}
+              </Box>
+            )}
+          </Paper>
+        </>
+      ) : (
+        <>
+          {/* ══════════════ INVOICE MODULE DASHBOARD ══════════════ */}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 3 }}>
+            {cards.map((card, i) => (
+              <StatCard
+                key={i}
+                number={card.number}
+                label={card.label}
+                icon={card.icon}
+                color={card.color}
+                accent={card.accent}
+                onClick={() => handleCardClick(card.cardIndex)}
+              />
+            ))}
+          </Box>
+
+          <Paper
+            elevation={0}
+            sx={{ border: '1px solid #e0e8f0', borderRadius: '12px', p: 2.5 }}
+          >
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                mb: 2,
+              }}
+            >
+              <Box>
+                <Typography
+                  sx={{ fontSize: '14px', fontWeight: 700, color: '#222' }}
+                >
+                  Monthly Invoice Activity
+                </Typography>
+                <Typography sx={{ fontSize: '11.5px', color: '#888' }}>
+                  {year || currentYear} — invoices per month
+                </Typography>
+              </Box>
+            </Box>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart
+                data={chartData}
+                margin={{ top: 5, right: 10, left: -10, bottom: 0 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="#f0f4f8"
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="month"
+                  tick={{ fontSize: 11, fill: '#999' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#999' }}
+                  axisLine={false}
+                  tickLine={false}
+                  allowDecimals={false}
+                />
+                <Tooltip
+                  content={<CustomTooltip />}
+                  cursor={{ fill: '#f0f4f8' }}
+                />
+                <Legend
+                  wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }}
+                />
+                <Bar
+                  dataKey="Invoices"
+                  fill="#00529B"
+                  radius={[5, 5, 0, 0]}
+                  maxBarSize={40}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </Paper>
+        </>
+      )}
     </RootLayout>
   );
 }

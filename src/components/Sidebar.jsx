@@ -47,7 +47,7 @@ const C = {
   hoverBg: 'rgba(255,255,255,0.1)',
   activeBg: 'rgba(255,255,255,0.18)',
   activeSubBg: 'rgba(255,255,255,0.15)',
-  activePill: '#1565c0', // same blue for all modules
+  activePill: '#1565c0',
   shadow: 'rgba(0,0,0,0.2)',
 };
 
@@ -67,7 +67,6 @@ const SidebarContainer = styled(Box)({
   flexShrink: 0,
 });
 
-// Stacked module pill
 const ModulePill = styled(Box)(({ active }) => ({
   display: 'flex',
   alignItems: 'center',
@@ -188,8 +187,6 @@ export default function Sidebar() {
   const isSigner = user?.role === 'signer';
   const isSupplier = user?.role === 'supplier';
 
-  // For non-admin, non-supplier users, module access is gated by flags.
-  // admin and supplier always have access to invoice module as before.
   const isInvoiceUser = isAdmin || isSupplier || !!user?.is_invoice_user;
   const isPettyCashUser = isAdmin || !!user?.is_petty_cash_user;
 
@@ -204,12 +201,7 @@ export default function Sidebar() {
     (isSigner && !!user?.is_invoice_verifier);
   const showInvoiceAdmin = isAdmin || canSeeAdminTools || canSeeDelegation;
 
-  // ── MODULES registry — add future modules here ────────────────────────────
-  // Each entry: { id, label, icon, visible }
-  // Just add a new row to support more modules — layout handles it automatically.
-  // Module pills are shown based on role flags.
-  // admin & supplier always see Invoice; others need is_invoice_user=true.
-  // Petty Cash shown to anyone with is_petty_cash_user=true (or admin).
+  // ── MODULES registry ──────────────────────────────────────────────────────
   const MODULES = [
     {
       id: 'invoice',
@@ -225,16 +217,22 @@ export default function Sidebar() {
       visible: isPettyCashUser || isAdmin,
       locked: !isPettyCashUser && !isAdmin,
     },
-    // ── Future modules — uncomment & set visible condition when ready:
-    // { id: 'procurement', label: 'Procurement', icon: <ShoppingCartOutlinedIcon sx={{ fontSize: 15 }} />, visible: isAdmin },
-    // { id: 'payroll',     label: 'Payroll',     icon: <PaidOutlinedIcon sx={{ fontSize: 15 }} />,        visible: isAdmin },
   ].filter((m) => m.visible || m.locked);
 
   // ── Route → module sync ───────────────────────────────────────────────────
+  // Also persists to localStorage so Dashboard.jsx knows which module is active.
   useEffect(() => {
     const p = location.pathname;
-    if (p.startsWith('/petty-cash')) setActiveModule('petty_cash');
-    else setActiveModule('invoice');
+    const isPCRoute =
+      p.startsWith('/petty-cash') ||
+      p.startsWith('/manage-expenses') ||
+      p.startsWith('/request-petty-cash');
+
+    const mod = isPCRoute ? 'petty_cash' : 'invoice';
+    setActiveModule(mod);
+    try {
+      localStorage.setItem('activeModule', mod);
+    } catch {}
 
     if (p === '/dashboard') setDashboardMenuOpen(true);
     else if (p === '/') setInvoiceMenuOpen(true);
@@ -325,16 +323,20 @@ export default function Sidebar() {
   };
 
   const handleLogout = () => {
-    ['token', 'user', 'username', 'index'].forEach((k) =>
+    ['token', 'user', 'username', 'index', 'activeModule'].forEach((k) =>
       localStorage.removeItem(k),
     );
     navigate('/login', { replace: true });
   };
 
+  // ── Module switch — persists so Dashboard.jsx can detect active module ────
   const switchModule = (id) => {
     const mod = MODULES.find((m) => m.id === id);
-    if (mod?.locked) return; // blocked — no access
+    if (mod?.locked) return;
     setActiveModule(id);
+    try {
+      localStorage.setItem('activeModule', id);
+    } catch {}
     closeAll();
     navigate(id === 'petty_cash' ? '/petty-cash' : '/');
   };
@@ -351,7 +353,6 @@ export default function Sidebar() {
       : s.charAt(0).toUpperCase() + s.slice(1);
 
   const signingItems = [
-    // { label: 'Department / Section', path: '/signing-flow/department' },
     { label: 'Cost Center', path: '/signing-flow/cost-center' },
     { label: 'Location', path: '/signing-flow/location' },
     { label: 'Supervisor', path: '/signing-flow/supervisor' },
@@ -400,7 +401,7 @@ export default function Sidebar() {
 
         <Divider sx={{ backgroundColor: C.divider }} />
 
-        {/* ── Module switcher — stacked pills ──────────────────────────── */}
+        {/* ── Module switcher ───────────────────────────────────────────── */}
         <Box sx={{ backgroundColor: C.moduleBg, px: 1, pt: 1, pb: 0.75 }}>
           <Typography
             sx={{
@@ -686,6 +687,14 @@ export default function Sidebar() {
             <List sx={{ p: 0, pt: 0.5 }}>
               <MenuHeading>Main</MenuHeading>
 
+              {/* ── Dashboard — navigates to /dashboard in PC context ── */}
+              <StyledNavLink to="/dashboard">
+                <MenuIcon>
+                  <DashboardOutlinedIcon sx={{ fontSize: 17 }} />
+                </MenuIcon>
+                <Typography sx={{ fontSize: '13px' }}>Dashboard</Typography>
+              </StyledNavLink>
+
               <StyledNavLink to="/petty-cash">
                 <MenuIcon>
                   <AccountBalanceWalletIcon sx={{ fontSize: 17 }} />
@@ -737,7 +746,6 @@ export default function Sidebar() {
               mb: 0.75,
             }}
           >
-            {/* Avatar with online dot */}
             <Box sx={{ position: 'relative', flexShrink: 0 }}>
               <Avatar
                 sx={{
@@ -751,7 +759,6 @@ export default function Sidebar() {
               >
                 {getInitials()}
               </Avatar>
-              {/* Online indicator */}
               <Box
                 sx={{
                   position: 'absolute',
@@ -766,7 +773,6 @@ export default function Sidebar() {
               />
             </Box>
 
-            {/* Name + role */}
             <Box sx={{ minWidth: 0, flex: 1 }}>
               <Typography
                 sx={{
@@ -810,7 +816,7 @@ export default function Sidebar() {
             </Box>
           </Box>
 
-          {/* Profile link — always visible, all modules */}
+          {/* Profile link */}
           <StyledNavLink
             to="/profile"
             style={{
@@ -825,7 +831,7 @@ export default function Sidebar() {
             <Typography sx={{ fontSize: '12.5px' }}>Profile</Typography>
           </StyledNavLink>
 
-          {/* Logout row */}
+          {/* Logout */}
           <MenuLink
             onClick={handleLogout}
             sx={{

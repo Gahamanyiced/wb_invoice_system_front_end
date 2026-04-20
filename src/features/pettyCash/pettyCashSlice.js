@@ -17,6 +17,7 @@ const initialState = {
   issuanceRequests: [],
   pettyCashLedger: null,
   pettyCashReport: null,
+  pettyCashDashboard: null,
   isLoading: false,
   isExporting: false,
   error: null,
@@ -423,6 +424,19 @@ export const getPettyCashReport = createAsyncThunk(
   },
 );
 
+// ==================== Petty Cash Dashboard ====================
+
+export const getPettyCashDashboard = createAsyncThunk(
+  'pettyCash/getPettyCashDashboard',
+  async (_, thunkAPI) => {
+    try {
+      return await pettyCashService.getPettyCashDashboard();
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
 // ==================== Slice ====================
 
 export const pettyCashSlice = createSlice({
@@ -459,6 +473,9 @@ export const pettyCashSlice = createSlice({
     },
     clearPettyCashReport: (state) => {
       state.pettyCashReport = null;
+    },
+    clearPettyCashDashboard: (state) => {
+      state.pettyCashDashboard = null;
     },
   },
   extraReducers: (builder) => {
@@ -918,6 +935,21 @@ export const pettyCashSlice = createSlice({
       .addCase(getPettyCashReport.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
+      })
+
+      // ==================== Dashboard ====================
+      .addCase(getPettyCashDashboard.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(getPettyCashDashboard.fulfilled, (state, action) => {
+        state.pettyCashDashboard = action.payload;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(getPettyCashDashboard.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
       });
   },
 });
@@ -933,6 +965,7 @@ export const {
   clearIssuanceRequests,
   clearPettyCashLedger,
   clearPettyCashReport,
+  clearPettyCashDashboard,
 } = pettyCashSlice.actions;
 
 export default pettyCashSlice.reducer;

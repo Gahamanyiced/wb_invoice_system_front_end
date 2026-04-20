@@ -278,6 +278,16 @@ const getPettyCashReport = async (params = {}) => {
   return response.data;
 };
 
+// ==================== 10. Petty Cash Dashboard ====================
+
+// GET /invoice/petty-cash/dashboard/
+// Returns summary stats: total_issued, total_active, total_spent, total_remaining,
+// pending_acknowledgment, pending_expenses, pending_requests, etc.
+const getPettyCashDashboard = async () => {
+  const response = await http.get('/invoice/petty-cash/dashboard/');
+  return response.data;
+};
+
 const pettyCashService = {
   // Petty Cash Issuance
   issuePettyCash,
@@ -325,6 +335,9 @@ const pettyCashService = {
 
   // Report
   getPettyCashReport,
+
+  // Dashboard
+  getPettyCashDashboard,
 };
 
 export default pettyCashService;

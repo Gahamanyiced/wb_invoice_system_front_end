@@ -40,8 +40,8 @@ export const supplierRegistrationValidation = Yup.object({
     .min(8, 'Password must be at least 8 characters long')
     .max(30, 'Password must be at most 30 characters long')
     .matches(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
-      'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character'
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d])\S{8,}$/,
+      'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
     ),
   firstname: Yup.string()
     .required('First name is required')
@@ -72,7 +72,7 @@ export const supplierRegistrationValidation = Yup.object({
       .required('Phone number is required')
       .matches(
         /^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,4}[-\s.]?[0-9]{1,9}$/,
-        'Invalid phone number format'
+        'Invalid phone number format',
       ),
 
     // Address fields
@@ -107,7 +107,7 @@ export const supplierRegistrationValidation = Yup.object({
             'IBAN is required or enter N/A',
             function (value) {
               return value === 'N/A' || (value && value.length <= 50);
-            }
+            },
           ),
     }),
     swift_code: Yup.string().when('$swiftNotApplicable', {
@@ -121,7 +121,7 @@ export const supplierRegistrationValidation = Yup.object({
             'SWIFT code is required or enter N/A',
             function (value) {
               return value === 'N/A' || (value && value.length <= 20);
-            }
+            },
           ),
     }),
     sort_code: Yup.string().test(
@@ -130,7 +130,7 @@ export const supplierRegistrationValidation = Yup.object({
       function (value) {
         if (!value) return true; // Optional field
         return value === 'N/A' || value.length <= 20;
-      }
+      },
     ),
     payment_currency: Yup.string().required('Payment currency is required'),
   }),
