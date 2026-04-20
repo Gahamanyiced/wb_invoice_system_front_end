@@ -172,6 +172,9 @@ function COAAutocomplete({
   );
 }
 
+// ── Service period format check (module-level — used in JSX + submit) ─────────
+const isNewFormat = (sp) => /^\d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2}$/.test(sp);
+
 function UpdateInvoiceModal({
   defaultValues,
   open,
@@ -458,8 +461,6 @@ function UpdateInvoiceModal({
 
       // ── Service period validation ──────────────────────────────────────────
       // New format check: YYYY-MM-DD to YYYY-MM-DD
-      const isNewFormat = (sp) =>
-        /^\d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2}$/.test(sp);
       const originalServicePeriod = getInvoiceData('service_period') || '';
 
       // If the user explicitly edited the picker, enforce the new format
@@ -725,21 +726,70 @@ function UpdateInvoiceModal({
                 />
               </Grid>
               <Grid item xs={12} md={6}>
-                <ServicePeriodPicker
-                  value={servicePeriod}
-                  onChange={(val) => {
-                    setServicePeriod(val);
-                    setServicePeriodEdited(true);
-                    setServicePeriodError(false);
-                  }}
-                  required
-                  error={servicePeriodError}
-                  helperText={
-                    servicePeriodError
-                      ? 'Please select a service period date range'
-                      : ''
-                  }
-                />
+                {/* Show legacy value as read-only text if not yet edited and not new format */}
+                {!servicePeriodEdited &&
+                servicePeriod &&
+                !isNewFormat(servicePeriod) ? (
+                  <Box>
+                    <TextField
+                      label="Service Period"
+                      value={servicePeriod}
+                      fullWidth
+                      size="small"
+                      variant="outlined"
+                      InputLabelProps={{ shrink: true }}
+                      InputProps={{ readOnly: true }}
+                      helperText="Legacy format — click below to update"
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          bgcolor: '#f8fafc',
+                          '& fieldset': { borderColor: '#e0e8f0' },
+                        },
+                        '& .MuiFormHelperText-root': {
+                          color: '#e65100',
+                          fontSize: '11px',
+                        },
+                      }}
+                    />
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => {
+                        setServicePeriodEdited(true);
+                        setServicePeriod('');
+                      }}
+                      sx={{
+                        mt: 0.75,
+                        fontSize: '11px',
+                        textTransform: 'none',
+                        borderColor: '#00529B',
+                        color: '#00529B',
+                        borderRadius: '6px',
+                        py: 0.4,
+                        px: 1.5,
+                        '&:hover': { bgcolor: '#e3f2fd' },
+                      }}
+                    >
+                      Change service period
+                    </Button>
+                  </Box>
+                ) : (
+                  <ServicePeriodPicker
+                    value={servicePeriod}
+                    onChange={(val) => {
+                      setServicePeriod(val);
+                      setServicePeriodEdited(true);
+                      setServicePeriodError(false);
+                    }}
+                    required
+                    error={servicePeriodError}
+                    helperText={
+                      servicePeriodError
+                        ? 'Please select a service period date range'
+                        : ''
+                    }
+                  />
+                )}
               </Grid>
               <Grid item xs={12} md={6}>
                 <TextField
