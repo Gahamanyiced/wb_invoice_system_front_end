@@ -362,7 +362,11 @@ export default function Invoice() {
       (user?.role === 'admin' &&
         indexInvoice === 2 &&
         isInvoiceEditable(data)) ||
-      (user?.role === 'signer' && indexInvoice === 2 && isInvoiceEditable(data))
+      (user?.role === 'signer' &&
+        indexInvoice === 2 &&
+        isInvoiceEditable(data)) ||
+      // Supplier Invoices view (index 4) — admin or signer_admin with is_invoice_verifier
+      (canSeeSupplierInvoices && indexInvoice === 4 && isInvoiceEditable(data))
     ) {
       setSelectedUpdate(data);
       setOpenUpdate(true);
@@ -1102,8 +1106,8 @@ export default function Invoice() {
                             user?.role === 'supplier' ||
                             user?.role === 'signer_admin' ||
                             (user?.role === 'admin' && indexInvoice === 2) ||
-                            (user?.role === 'signer' &&
-                              indexInvoice === 2)) && (
+                            (user?.role === 'signer' && indexInvoice === 2) ||
+                            (canSeeSupplierInvoices && indexInvoice === 4)) && (
                             <Tooltip title="Edit">
                               <Chip
                                 onClick={(e) => {
