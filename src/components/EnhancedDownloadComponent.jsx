@@ -1,12 +1,7 @@
 // src/components/EnhancedDownloadComponent.jsx
-import { formatCurrencyAmount as _fca } from '../utils/formatAmount';
 import React, { useState } from 'react';
 import {
   Button,
-  Menu,
-  MenuItem,
-  ListItemIcon,
-  ListItemText,
   Dialog,
   DialogActions,
   DialogContent,
@@ -18,6 +13,9 @@ import {
   Box,
   Typography,
   Divider,
+  ToggleButton,
+  ToggleButtonGroup,
+  Grid,
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
@@ -32,8 +30,8 @@ import {
   StyleSheet,
 } from '@react-pdf/renderer';
 
-// Create styles for PDF
-const styles = StyleSheet.create({
+// ── PDF styles ────────────────────────────────────────────────────────────────
+const pdfStyles = StyleSheet.create({
   page: {
     flexDirection: 'column',
     backgroundColor: '#FFFFFF',
@@ -42,16 +40,17 @@ const styles = StyleSheet.create({
     fontSize: 8,
   },
   header: {
-    fontSize: 16,
-    marginBottom: 10,
+    fontSize: 14,
+    marginBottom: 6,
     textAlign: 'center',
     color: '#001C64',
     fontWeight: 'bold',
   },
   subheader: {
-    fontSize: 9,
-    marginBottom: 15,
+    fontSize: 8,
+    marginBottom: 12,
     textAlign: 'left',
+    color: '#555',
   },
   table: {
     display: 'flex',
@@ -62,12 +61,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
     marginBottom: 10,
   },
-  tableRow: {
-    margin: 'auto',
-    flexDirection: 'row',
-  },
+  tableRow: { flexDirection: 'row' },
   tableColHeader: {
-    width: '7.69%',
+    flex: 1,
     borderStyle: 'solid',
     borderWidth: 1,
     borderLeftWidth: 0,
@@ -75,363 +71,317 @@ const styles = StyleSheet.create({
     backgroundColor: '#00529B',
     color: '#FFFFFF',
     padding: 3,
-    fontSize: 7,
+    fontSize: 6,
     fontWeight: 'bold',
   },
   tableCol: {
-    width: '7.69%',
+    flex: 1,
     borderStyle: 'solid',
     borderWidth: 1,
     borderLeftWidth: 0,
     borderTopWidth: 0,
     padding: 3,
-    fontSize: 6,
+    fontSize: 5.5,
   },
   footer: {
     position: 'absolute',
-    bottom: 20,
+    bottom: 15,
     left: 20,
     right: 20,
     fontSize: 7,
     textAlign: 'center',
-  },
-  summarySection: {
-    marginTop: 20,
-    padding: 10,
-    backgroundColor: '#f5f5f5',
-    fontSize: 8,
+    color: '#888',
   },
 });
 
-// ── GL line _detail resolvers ─────────────────────────────────────────────────
-const resolveGLCode = (glLine) => {
-  if (glLine?.gl_account_detail)
-    return `${glLine.gl_account_detail.gl_code} - ${glLine.gl_account_detail.gl_description}`;
-  return glLine?.gl_description || '-';
-};
+// ── GL resolvers ──────────────────────────────────────────────────────────────
+const resolveGLCode = (l) =>
+  l?.gl_account_detail
+    ? `${l.gl_account_detail.gl_code} - ${l.gl_account_detail.gl_description}`
+    : l?.gl_description || '-';
+const resolveCostCenter = (l) =>
+  l?.cost_center_detail
+    ? `${l.cost_center_detail.cc_code} - ${l.cost_center_detail.cc_description}`
+    : l?.cost_center
+      ? String(l.cost_center)
+      : '-';
+const resolveLocation = (l) =>
+  l?.location_detail
+    ? `${l.location_detail.loc_code} - ${l.location_detail.loc_name}`
+    : '-';
+const resolveAircraftType = (l) =>
+  l?.aircraft_type_detail
+    ? `${l.aircraft_type_detail.code} - ${l.aircraft_type_detail.description}`
+    : '-';
+const resolveRoute = (l) =>
+  l?.route_detail
+    ? `${l.route_detail.code} - ${l.route_detail.description}`
+    : '-';
 
-const resolveCostCenter = (glLine) => {
-  if (glLine?.cost_center_detail)
-    return `${glLine.cost_center_detail.cc_code} - ${glLine.cost_center_detail.cc_description}`;
-  return glLine?.cost_center ? String(glLine.cost_center) : '-';
-};
+// ── All available columns ─────────────────────────────────────────────────────
+// getValue(invoice, glLine):
+//   - invoice: the invoice row (flat or nested)
+//   - glLine: current GL line object (null when not expanded)
+const ALL_COLUMNS = [
+  // Invoice fields
+  {
+    key: 'supplier_number',
+    label: 'Supplier Number',
+    group: 'Invoice',
+    getValue: (inv) => inv?.supplier_number || '',
+  },
+  {
+    key: 'supplier_name',
+    label: 'Supplier Name',
+    group: 'Invoice',
+    getValue: (inv) => inv?.supplier_name || '',
+  },
+  {
+    key: 'invoice_number',
+    label: 'Invoice Number',
+    group: 'Invoice',
+    getValue: (inv) => inv?.invoice_number || '',
+  },
+  {
+    key: 'reference',
+    label: 'Reference',
+    group: 'Invoice',
+    getValue: (inv) => inv?.reference || '',
+  },
+  {
+    key: 'invoice_date',
+    label: 'Invoice Date',
+    group: 'Invoice',
+    getValue: (inv) => inv?.invoice_date || '',
+  },
+  {
+    key: 'service_period',
+    label: 'Service Period',
+    group: 'Invoice',
+    getValue: (inv) => inv?.service_period || '',
+  },
+  {
+    key: 'status',
+    label: 'Status',
+    group: 'Invoice',
+    getValue: (inv) => inv?.status || '',
+  },
+  {
+    key: 'payment_terms',
+    label: 'Payment Terms',
+    group: 'Invoice',
+    getValue: (inv) => inv?.payment_terms || '',
+  },
+  {
+    key: 'payment_due_date',
+    label: 'Payment Due Date',
+    group: 'Invoice',
+    getValue: (inv) => inv?.payment_due_date || '',
+  },
+  {
+    key: 'quantity',
+    label: 'Quantity',
+    group: 'Invoice',
+    getValue: (inv) => inv?.quantity ?? '',
+  },
+  // Owner fields
+  {
+    key: 'owner_name',
+    label: 'Invoice Owner',
+    group: 'Owner',
+    getValue: (inv) => {
+      const o = inv?.invoice_owner || {};
+      return `${o.firstname || ''} ${o.lastname || ''}`.trim();
+    },
+  },
+  {
+    key: 'owner_email',
+    label: 'Owner Email',
+    group: 'Owner',
+    getValue: (inv) => (inv?.invoice_owner || {}).email || '',
+  },
+  {
+    key: 'owner_department',
+    label: 'Owner Department',
+    group: 'Owner',
+    getValue: (inv) => (inv?.invoice_owner || {}).department || '',
+  },
+  // Financial fields
+  {
+    key: 'currency',
+    label: 'Origin Currency',
+    group: 'Financial',
+    getValue: (inv) => inv?.currency || '',
+  },
+  {
+    key: 'amount',
+    label: 'Original Amount',
+    group: 'Financial',
+    getValue: (inv) => inv?.amount ?? '',
+  },
+  {
+    key: 'exchange_rate',
+    label: 'Exchange Rate',
+    group: 'Financial',
+    getValue: (inv) => inv?.exchange_rate_to_usd ?? '',
+  },
+  {
+    key: 'amount_in_usd',
+    label: 'Amount in USD',
+    group: 'Financial',
+    getValue: (inv) => inv?.amount_in_usd ?? '',
+  },
+  // GL Line fields (shown per-line when expanded, summary/blank when collapsed)
+  {
+    key: 'gl_account',
+    label: 'GL Account',
+    group: 'GL Line',
+    getValue: (inv, gl) =>
+      gl
+        ? resolveGLCode(gl)
+        : inv?.gl_lines?.length
+          ? `${inv.gl_lines.length} GL line(s)`
+          : '-',
+  },
+  {
+    key: 'gl_amount',
+    label: 'GL Amount',
+    group: 'GL Line',
+    getValue: (inv, gl) => (gl ? (gl?.gl_amount ?? '') : ''),
+  },
+  {
+    key: 'gl_amount_usd',
+    label: 'GL Amount in USD',
+    group: 'GL Line',
+    getValue: (inv, gl) => (gl ? (gl?.gl_amount_in_usd ?? '') : ''),
+  },
+  {
+    key: 'cost_center',
+    label: 'Cost Center',
+    group: 'GL Line',
+    getValue: (inv, gl) => (gl ? resolveCostCenter(gl) : ''),
+  },
+  {
+    key: 'location',
+    label: 'Location',
+    group: 'GL Line',
+    getValue: (inv, gl) => (gl ? resolveLocation(gl) : ''),
+  },
+  {
+    key: 'aircraft_type',
+    label: 'Aircraft Type',
+    group: 'GL Line',
+    getValue: (inv, gl) => (gl ? resolveAircraftType(gl) : ''),
+  },
+  {
+    key: 'route',
+    label: 'Route',
+    group: 'GL Line',
+    getValue: (inv, gl) => (gl ? resolveRoute(gl) : ''),
+  },
+  // Timestamps
+  {
+    key: 'created_at',
+    label: 'Created Date',
+    group: 'Timestamps',
+    getValue: (inv) =>
+      inv?.created_at
+        ? new Date(inv.created_at).toLocaleDateString('en-GB')
+        : '',
+  },
+  {
+    key: 'updated_at',
+    label: 'Updated Date',
+    group: 'Timestamps',
+    getValue: (inv) =>
+      inv?.updated_at
+        ? new Date(inv.updated_at).toLocaleDateString('en-GB')
+        : '',
+  },
+];
 
-const resolveLocation = (glLine) => {
-  if (glLine?.location_detail)
-    return `${glLine.location_detail.loc_code} - ${glLine.location_detail.loc_name}`;
-  return '-';
-};
+// Columns ON by default
+const DEFAULT_ON = new Set([
+  'supplier_number',
+  'supplier_name',
+  'invoice_number',
+  'reference',
+  'invoice_date',
+  'service_period',
+  'status',
+  'currency',
+  'amount',
+  'gl_account',
+  'gl_amount',
+  'cost_center',
+  'location',
+  'aircraft_type',
+  'route',
+  'created_at',
+]);
 
-const resolveAircraftType = (glLine) => {
-  if (glLine?.aircraft_type_detail)
-    return `${glLine.aircraft_type_detail.code} - ${glLine.aircraft_type_detail.description}`;
-  return '-';
-};
+// ── Build rows from invoices ──────────────────────────────────────────────────
+function buildRows(invoices, expandGLLines, activeColumns) {
+  const cols = ALL_COLUMNS.filter((c) => activeColumns.has(c.key));
+  const hasGLCols = cols.some((c) => c.group === 'GL Line');
+  const rows = [];
 
-const resolveRoute = (glLine) => {
-  if (glLine?.route_detail)
-    return `${glLine.route_detail.code} - ${glLine.route_detail.description}`;
-  return '-';
-};
+  (invoices?.results || []).forEach((inv) => {
+    const glLines = inv?.gl_lines || inv?.invoice?.gl_lines || [];
 
-// ── Enhanced PDF Document ─────────────────────────────────────────────────────
-// Mirrors DownloadInvoiceComponent column layout exactly.
-// showGLAmount: true  → Full report  — ORIGINAL GL AMOUNT column included
-// showGLAmount: false → Without GL Amount — ORIGINAL GL AMOUNT column omitted
-// invoice-level fields shown ONLY on the LAST GL line row to avoid duplication.
-const EnhancedInvoicePDF = ({
-  invoices,
-  title = 'Invoice Report',
-  options = {},
-  showGLAmount = true,
-}) => {
+    if (expandGLLines && hasGLCols && glLines.length > 0) {
+      // One output row per GL line
+      glLines.forEach((gl) => {
+        rows.push(cols.map((c) => String(c.getValue(inv, gl) ?? '')));
+      });
+    } else {
+      // One output row per invoice — GL cols show summary
+      rows.push(cols.map((c) => String(c.getValue(inv, null) ?? '')));
+    }
+  });
+
+  return { headers: cols.map((c) => c.label), rows };
+}
+
+// ── PDF Document ──────────────────────────────────────────────────────────────
+const InvoicePDF = ({ invoices, title, expandGLLines, activeColumns }) => {
+  const { headers, rows } = buildRows(invoices, expandGLLines, activeColumns);
+
   return (
     <Document>
-      <Page size="A4" orientation="landscape" style={styles.page}>
-        <Text style={styles.header}>{title}</Text>
-        <Text style={styles.subheader}>
-          {'Generated on: '}
-          {new Date().toLocaleString()}
-          {'   |   Report type: '}
-          {showGLAmount ? 'Full Report' : 'Without GL Amount'}
+      <Page size="A4" orientation="landscape" style={pdfStyles.page}>
+        <Text style={pdfStyles.header}>{title}</Text>
+        <Text style={pdfStyles.subheader}>
+          {`Generated: ${new Date().toLocaleString()}   |   ${rows.length} rows   |   GL Lines: ${expandGLLines ? 'Expanded' : 'Summarised'}`}
         </Text>
 
-        <View style={styles.table}>
-          {/* Table Header — identical to DownloadInvoiceComponent */}
-          <View style={styles.tableRow}>
-            <View style={styles.tableColHeader}>
-              <Text>SUPPLIER NO.</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>SUPPLIER NAME</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>INVOICE NO.</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>REFERENCE</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>INVOICE DATE</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>SERVICE PERIOD</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>GL ACCOUNT</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>LOCATION</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>COST CENTER</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>ORIGIN CURRENCY</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>ORIGINAL AMOUNT</Text>
-            </View>
-            {/* ORIGINAL GL AMOUNT — full report only */}
-            {showGLAmount && (
-              <View style={styles.tableColHeader}>
-                <Text>ORIGINAL GL AMOUNT</Text>
+        <View style={pdfStyles.table}>
+          {/* Header */}
+          <View style={pdfStyles.tableRow}>
+            {headers.map((h, i) => (
+              <View key={i} style={pdfStyles.tableColHeader}>
+                <Text>{h}</Text>
               </View>
-            )}
-            <View style={styles.tableColHeader}>
-              <Text>EXCHANGE RATE</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>GL AMOUNT IN USD</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>AMOUNT IN USD</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>PAY TERMS</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>PAY DUE DATE</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>QUANTITY</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>AIRCRAFT TYPE</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>ROUTE</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>STATUS</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>CREATED DATE</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text>UPDATED DATE</Text>
-            </View>
+            ))}
           </View>
-
-          {/* Table Data — limit to 100 records for PDF */}
-          {(invoices?.results || [])
-            .slice(0, 100)
-            .map((invoice, invoiceIndex) => {
-              const baseData = {
-                supplier_number: invoice?.supplier_number || '-',
-                supplier_name: invoice?.supplier_name || '-',
-                invoice_number: invoice?.invoice_number || '-',
-                reference: invoice?.reference || '-',
-                invoice_date: invoice?.invoice_date || '-',
-                service_period: invoice?.service_period || '-',
-                currency: invoice?.currency || '-',
-                amount: invoice?.amount || '-',
-                exchange_rate: invoice?.exchange_rate_to_usd ?? '-',
-                amount_in_usd: invoice?.amount_in_usd ?? '-',
-                payment_terms: invoice?.payment_terms || '-',
-                payment_due_date: invoice?.payment_due_date || '-',
-                quantity: invoice?.quantity || '-',
-                status: invoice?.status || '-',
-                created_at: invoice?.created_at
-                  ? new Date(invoice.created_at).toLocaleDateString()
-                  : '-',
-                updated_at: invoice?.updated_at
-                  ? new Date(invoice.updated_at).toLocaleDateString()
-                  : '-',
-              };
-
-              if (invoice?.gl_lines && invoice.gl_lines.length > 0) {
-                const lastIdx = invoice.gl_lines.length - 1;
-                return invoice.gl_lines.map((glLine, glIndex) => {
-                  const isLast = glIndex === lastIdx;
-                  return (
-                    <View
-                      key={`${invoiceIndex}-${glIndex}`}
-                      style={styles.tableRow}
-                    >
-                      <View style={styles.tableCol}>
-                        <Text>{baseData.supplier_number}</Text>
-                      </View>
-                      <View style={styles.tableCol}>
-                        <Text>{baseData.supplier_name}</Text>
-                      </View>
-                      <View style={styles.tableCol}>
-                        <Text>{baseData.invoice_number}</Text>
-                      </View>
-                      <View style={styles.tableCol}>
-                        <Text>{baseData.reference}</Text>
-                      </View>
-                      <View style={styles.tableCol}>
-                        <Text>{baseData.invoice_date}</Text>
-                      </View>
-                      <View style={styles.tableCol}>
-                        <Text>{baseData.service_period}</Text>
-                      </View>
-                      <View style={styles.tableCol}>
-                        <Text>{resolveGLCode(glLine)}</Text>
-                      </View>
-                      <View style={styles.tableCol}>
-                        <Text>{resolveLocation(glLine)}</Text>
-                      </View>
-                      <View style={styles.tableCol}>
-                        <Text>{resolveCostCenter(glLine)}</Text>
-                      </View>
-                      {/* Invoice-level — last GL line only */}
-                      <View style={styles.tableCol}>
-                        <Text>{isLast ? baseData.currency : ''}</Text>
-                      </View>
-                      <View style={styles.tableCol}>
-                        <Text>{isLast ? baseData.amount : ''}</Text>
-                      </View>
-                      {showGLAmount && (
-                        <View style={styles.tableCol}>
-                          <Text>{glLine?.gl_amount || '-'}</Text>
-                        </View>
-                      )}
-                      <View style={styles.tableCol}>
-                        <Text>{isLast ? baseData.exchange_rate : ''}</Text>
-                      </View>
-                      <View style={styles.tableCol}>
-                        <Text>{glLine?.gl_amount_in_usd ?? '-'}</Text>
-                      </View>
-                      <View style={styles.tableCol}>
-                        <Text>{isLast ? baseData.amount_in_usd : ''}</Text>
-                      </View>
-                      <View style={styles.tableCol}>
-                        <Text>{isLast ? baseData.payment_terms : ''}</Text>
-                      </View>
-                      <View style={styles.tableCol}>
-                        <Text>{isLast ? baseData.payment_due_date : ''}</Text>
-                      </View>
-                      <View style={styles.tableCol}>
-                        <Text>{isLast ? baseData.quantity : ''}</Text>
-                      </View>
-                      <View style={styles.tableCol}>
-                        <Text>{resolveAircraftType(glLine)}</Text>
-                      </View>
-                      <View style={styles.tableCol}>
-                        <Text>{resolveRoute(glLine)}</Text>
-                      </View>
-                      <View style={styles.tableCol}>
-                        <Text>{isLast ? baseData.status : ''}</Text>
-                      </View>
-                      <View style={styles.tableCol}>
-                        <Text>{isLast ? baseData.created_at : ''}</Text>
-                      </View>
-                      <View style={styles.tableCol}>
-                        <Text>{isLast ? baseData.updated_at : ''}</Text>
-                      </View>
-                    </View>
-                  );
-                });
-              } else {
-                return (
-                  <View key={invoiceIndex} style={styles.tableRow}>
-                    <View style={styles.tableCol}>
-                      <Text>{baseData.supplier_number}</Text>
-                    </View>
-                    <View style={styles.tableCol}>
-                      <Text>{baseData.supplier_name}</Text>
-                    </View>
-                    <View style={styles.tableCol}>
-                      <Text>{baseData.invoice_number}</Text>
-                    </View>
-                    <View style={styles.tableCol}>
-                      <Text>{baseData.reference}</Text>
-                    </View>
-                    <View style={styles.tableCol}>
-                      <Text>{baseData.invoice_date}</Text>
-                    </View>
-                    <View style={styles.tableCol}>
-                      <Text>{baseData.service_period}</Text>
-                    </View>
-                    <View style={styles.tableCol}>
-                      <Text>-</Text>
-                    </View>
-                    <View style={styles.tableCol}>
-                      <Text>-</Text>
-                    </View>
-                    <View style={styles.tableCol}>
-                      <Text>-</Text>
-                    </View>
-                    <View style={styles.tableCol}>
-                      <Text>{baseData.currency}</Text>
-                    </View>
-                    <View style={styles.tableCol}>
-                      <Text>{baseData.amount}</Text>
-                    </View>
-                    {showGLAmount && (
-                      <View style={styles.tableCol}>
-                        <Text>-</Text>
-                      </View>
-                    )}
-                    <View style={styles.tableCol}>
-                      <Text>{baseData.exchange_rate}</Text>
-                    </View>
-                    <View style={styles.tableCol}>
-                      <Text>-</Text>
-                    </View>
-                    <View style={styles.tableCol}>
-                      <Text>{baseData.amount_in_usd}</Text>
-                    </View>
-                    <View style={styles.tableCol}>
-                      <Text>{baseData.payment_terms}</Text>
-                    </View>
-                    <View style={styles.tableCol}>
-                      <Text>{baseData.payment_due_date}</Text>
-                    </View>
-                    <View style={styles.tableCol}>
-                      <Text>{baseData.quantity}</Text>
-                    </View>
-                    <View style={styles.tableCol}>
-                      <Text>-</Text>
-                    </View>
-                    <View style={styles.tableCol}>
-                      <Text>-</Text>
-                    </View>
-                    <View style={styles.tableCol}>
-                      <Text>{baseData.status}</Text>
-                    </View>
-                    <View style={styles.tableCol}>
-                      <Text>{baseData.created_at}</Text>
-                    </View>
-                    <View style={styles.tableCol}>
-                      <Text>{baseData.updated_at}</Text>
-                    </View>
-                  </View>
-                );
-              }
-            })}
+          {/* Data — cap at 200 */}
+          {rows.slice(0, 200).map((row, ri) => (
+            <View key={ri} style={pdfStyles.tableRow}>
+              {row.map((cell, ci) => (
+                <View key={ci} style={pdfStyles.tableCol}>
+                  <Text>{cell}</Text>
+                </View>
+              ))}
+            </View>
+          ))}
         </View>
 
-        {(invoices?.results?.length || 0) > 100 && (
-          <Text style={styles.subheader}>
-            Note: Only first 100 records shown in PDF. Download CSV for complete
-            data.
+        {rows.length > 200 && (
+          <Text style={pdfStyles.subheader}>
+            Note: PDF is limited to 200 rows. Use CSV for complete data.
           </Text>
         )}
-
-        <Text style={styles.footer}>
+        <Text style={pdfStyles.footer}>
           {title} • Generated by Invoice Management System
         </Text>
       </Page>
@@ -439,212 +389,74 @@ const EnhancedInvoicePDF = ({
   );
 };
 
-// ── EnhancedDownloadComponent ─────────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────────────────────
 const EnhancedDownloadComponent = ({ invoices, title = 'Invoice Report' }) => {
-  const [anchorEl, setAnchorEl] = useState(null);
-  const [showOptionsDialog, setShowOptionsDialog] = useState(false);
-  const [downloadOptions, setDownloadOptions] = useState({
-    expandGLLines: true,
-    includeOwnerDetails: true,
-    includeTimestamps: true,
-  });
+  const [open, setOpen] = useState(false);
+  const [format, setFormat] = useState('csv'); // 'csv' | 'pdf'
+  const [expandGLLines, setExpand] = useState(true);
+  const [activeColumns, setActive] = useState(new Set(DEFAULT_ON));
 
-  // downloadType: null | 'pdf_full' | 'pdf_without_gl' | 'csv_full' | 'csv_without_gl'
-  const [downloadType, setDownloadType] = useState(null);
-  const open = Boolean(anchorEl);
-
-  const handleClick = (event) => setAnchorEl(event.currentTarget);
-  const handleClose = () => setAnchorEl(null);
-
-  const handleDownloadOption = (type) => {
-    setDownloadType(type);
-    setShowOptionsDialog(true);
-    handleClose();
+  const toggleColumn = (key) => {
+    setActive((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
   };
 
-  const handleOptionsDialogClose = () => {
-    setShowOptionsDialog(false);
-    setDownloadType(null);
+  const toggleGroup = (group) => {
+    const groupKeys = ALL_COLUMNS.filter((c) => c.group === group).map(
+      (c) => c.key,
+    );
+    const allOn = groupKeys.every((k) => activeColumns.has(k));
+    setActive((prev) => {
+      const next = new Set(prev);
+      groupKeys.forEach((k) => (allOn ? next.delete(k) : next.add(k)));
+      return next;
+    });
   };
 
-  const handleOptionChange = (option, value) => {
-    setDownloadOptions((prev) => ({ ...prev, [option]: value }));
-  };
+  const selectAll = () => setActive(new Set(ALL_COLUMNS.map((c) => c.key)));
+  const deselectAll = () => setActive(new Set());
 
-  // Derived flags
-  const isPdf = downloadType?.startsWith('pdf');
-  const showGLAmount =
-    downloadType === 'pdf_full' || downloadType === 'csv_full';
-  const dialogTitle = downloadType
-    ? `Download Options — ${isPdf ? 'PDF' : 'CSV'} (${showGLAmount ? 'Full Report' : 'Without GL Amount'})`
-    : 'Download Options';
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
-  const getInvoiceValue = (invoice, directPath, nestedPath = null) => {
-    const path = nestedPath || directPath;
-    return invoice?.[directPath] || invoice?.invoice?.[path] || '';
-  };
-
-  const getInvoiceOwner = (invoice) => {
-    return invoice?.invoice_owner || invoice?.invoice?.invoice_owner || {};
-  };
-
-  const getGLLines = (invoice) => {
-    return invoice?.gl_lines || invoice?.invoice?.gl_lines || [];
-  };
-
-  // ── CSV export ────────────────────────────────────────────────────────────
-  // Mirrors DownloadInvoiceComponent column layout exactly.
-  // showGLAmount controls whether ORIGINAL GL AMOUNT column is included.
-  // invoice-level fields shown ONLY on the LAST GL line row.
-  const generateEnhancedCSV = (includeGLAmount) => {
+  // ── CSV generation ────────────────────────────────────────────────────────
+  const downloadCSV = () => {
     try {
-      const currentDate = new Date().toLocaleString();
-      let csvContent = 'data:text/csv;charset=utf-8,';
-      csvContent += `"${title}"\n`;
-      csvContent += `"Generated on: ${currentDate}"\n`;
-      csvContent += `"Report type: ${includeGLAmount ? 'Full Report' : 'Without GL Amount'}"\n\n`;
+      const { headers, rows } = buildRows(
+        invoices,
+        expandGLLines,
+        activeColumns,
+      );
+      const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
 
-      const q = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
-
-      // Headers — identical to DownloadInvoiceComponent, with conditional ORIGINAL GL AMOUNT
-      const headers = [
-        'Supplier Number',
-        'Supplier Name',
-        'Invoice Number',
-        'Reference',
-        'Invoice Date',
-        'Service Period',
-        'GL Account',
-        'Location',
-        'Cost Center',
-        'Origin Currency',
-        'Original Amount',
-        ...(includeGLAmount ? ['Original GL Amount'] : []),
-        'Exchange Rate',
-        'GL Amount in USD',
-        'Amount in USD',
-        'Payment Terms',
-        'Payment Due Date',
-        'Status',
-        'Quantity',
-        'Aircraft Type',
-        'Route',
-        'Created Date',
-        'Updated Date',
-      ];
-
-      csvContent += headers.map((h) => q(h)).join(',') + '\n';
-
-      (invoices?.results || []).forEach((invoice) => {
-        const baseData = {
-          supplier_number: invoice?.supplier_number || '',
-          supplier_name: invoice?.supplier_name || '',
-          invoice_number: invoice?.invoice_number || '',
-          reference: invoice?.reference || '',
-          invoice_date: invoice?.invoice_date || '',
-          service_period: invoice?.service_period || '',
-          currency: invoice?.currency || '',
-          amount: invoice?.amount || '',
-          exchange_rate: invoice?.exchange_rate_to_usd ?? '',
-          amount_in_usd: invoice?.amount_in_usd ?? '',
-          payment_terms: invoice?.payment_terms || '',
-          payment_due_date: invoice?.payment_due_date || '',
-          quantity: invoice?.quantity || '',
-          status: invoice?.status || '',
-          created_at: invoice?.created_at
-            ? new Date(invoice.created_at).toLocaleDateString()
-            : '',
-          updated_at: invoice?.updated_at
-            ? new Date(invoice.updated_at).toLocaleDateString()
-            : '',
-        };
-
-        if (invoice?.gl_lines && invoice.gl_lines.length > 0) {
-          const lastIdx = invoice.gl_lines.length - 1;
-          invoice.gl_lines.forEach((glLine, glIdx) => {
-            const isLast = glIdx === lastIdx;
-            const row = [
-              q(baseData.supplier_number),
-              q(baseData.supplier_name),
-              q(baseData.invoice_number),
-              q(baseData.reference),
-              q(baseData.invoice_date),
-              q(baseData.service_period),
-              q(resolveGLCode(glLine)),
-              q(resolveLocation(glLine)),
-              q(resolveCostCenter(glLine)),
-              // Invoice-level fields — only on last GL line
-              q(isLast ? baseData.currency : ''),
-              q(isLast ? baseData.amount : ''),
-              ...(includeGLAmount ? [q(glLine?.gl_amount || '')] : []),
-              q(isLast ? baseData.exchange_rate : ''),
-              q(glLine?.gl_amount_in_usd ?? ''),
-              q(isLast ? baseData.amount_in_usd : ''),
-              q(isLast ? baseData.payment_terms : ''),
-              q(isLast ? baseData.payment_due_date : ''),
-              q(isLast ? baseData.status : ''),
-              q(isLast ? baseData.quantity : ''),
-              q(resolveAircraftType(glLine)),
-              q(resolveRoute(glLine)),
-              q(isLast ? baseData.created_at : ''),
-              q(isLast ? baseData.updated_at : ''),
-            ].join(',');
-            csvContent += row + '\n';
-          });
-        } else {
-          // No GL lines — single row
-          const row = [
-            q(baseData.supplier_number),
-            q(baseData.supplier_name),
-            q(baseData.invoice_number),
-            q(baseData.reference),
-            q(baseData.invoice_date),
-            q(baseData.service_period),
-            q(''), // GL Account
-            q(''), // Location
-            q(''), // Cost Center
-            q(baseData.currency),
-            q(baseData.amount),
-            ...(includeGLAmount ? [q('')] : []), // Original GL Amount
-            q(baseData.exchange_rate),
-            q(''), // GL Amount in USD
-            q(baseData.amount_in_usd),
-            q(baseData.payment_terms),
-            q(baseData.payment_due_date),
-            q(baseData.status),
-            q(baseData.quantity),
-            q(''), // Aircraft Type
-            q(''), // Route
-            q(baseData.created_at),
-            q(baseData.updated_at),
-          ].join(',');
-          csvContent += row + '\n';
-        }
+      let csv = `data:text/csv;charset=utf-8,`;
+      csv += `"${title}"\n`;
+      csv += `"Generated: ${new Date().toLocaleString()}"\n`;
+      csv += `"GL Lines: ${expandGLLines ? 'Expanded' : 'Summarised'}"\n\n`;
+      csv += headers.map(q).join(',') + '\n';
+      rows.forEach((row) => {
+        csv += row.map(q).join(',') + '\n';
       });
 
-      const encodedUri = encodeURI(csvContent);
       const link = document.createElement('a');
-      link.setAttribute('href', encodedUri);
+      link.setAttribute('href', encodeURI(csv));
       link.setAttribute(
         'download',
-        `${title.replace(/\s+/g, '_')}_${
-          includeGLAmount ? 'Full_Report' : 'Without_GL_Amount'
-        }_${new Date().toISOString().split('T')[0]}.csv`,
+        `${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`,
       );
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      handleOptionsDialogClose();
-    } catch (error) {
-      console.error('Error generating CSV:', error);
+      setOpen(false);
+    } catch (e) {
+      console.error('CSV error:', e);
       alert('Failed to generate CSV. Please try again.');
     }
   };
 
-  const handleConfirmDownload = () => {
-    if (!isPdf) generateEnhancedCSV(showGLAmount);
-  };
+  const groups = [...new Set(ALL_COLUMNS.map((c) => c.group))];
+  const activeCount = activeColumns.size;
+  const totalRows = invoices?.results?.length || 0;
 
   return (
     <>
@@ -652,212 +464,360 @@ const EnhancedDownloadComponent = ({ invoices, title = 'Invoice Report' }) => {
         variant="contained"
         color="success"
         startIcon={<DownloadIcon />}
-        onClick={handleClick}
-        aria-controls={open ? 'download-menu' : undefined}
-        aria-haspopup="true"
-        aria-expanded={open ? 'true' : undefined}
+        onClick={() => setOpen(true)}
+        sx={{
+          textTransform: 'none',
+          fontWeight: 600,
+          borderRadius: '8px',
+          fontSize: '13px',
+        }}
       >
         Download Report
       </Button>
 
-      <Menu
-        id="download-menu"
-        anchorEl={anchorEl}
-        open={open}
-        onClose={handleClose}
-        MenuListProps={{ 'aria-labelledby': 'download-button' }}
-      >
-        {/* ── PDF ── */}
-        <MenuItem disabled sx={{ opacity: '1 !important' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={600}>
-            PDF
-          </Typography>
-        </MenuItem>
-
-        <MenuItem onClick={() => handleDownloadOption('pdf_full')}>
-          <ListItemIcon>
-            <PictureAsPdfIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText
-            primary="Full Report"
-            secondary="Includes Original GL Amount"
-          />
-        </MenuItem>
-
-        <MenuItem onClick={() => handleDownloadOption('pdf_without_gl')}>
-          <ListItemIcon>
-            <PictureAsPdfIcon fontSize="small" sx={{ color: '#9e9e9e' }} />
-          </ListItemIcon>
-          <ListItemText
-            primary="Without GL Amount"
-            secondary="Excludes Original GL Amount column"
-          />
-        </MenuItem>
-
-        <Divider />
-
-        {/* ── CSV ── */}
-        <MenuItem disabled sx={{ opacity: '1 !important' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={600}>
-            CSV
-          </Typography>
-        </MenuItem>
-
-        <MenuItem onClick={() => handleDownloadOption('csv_full')}>
-          <ListItemIcon>
-            <TableChartIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText
-            primary="Full Report"
-            secondary="Includes Original GL Amount"
-          />
-        </MenuItem>
-
-        <MenuItem onClick={() => handleDownloadOption('csv_without_gl')}>
-          <ListItemIcon>
-            <TableChartIcon fontSize="small" sx={{ color: '#9e9e9e' }} />
-          </ListItemIcon>
-          <ListItemText
-            primary="Without GL Amount"
-            secondary="Excludes Original GL Amount column"
-          />
-        </MenuItem>
-      </Menu>
-
-      {/* ── Download Options Dialog ── */}
       <Dialog
-        open={showOptionsDialog}
-        onClose={handleOptionsDialogClose}
+        open={open}
+        onClose={() => setOpen(false)}
         fullWidth
-        maxWidth="sm"
+        maxWidth="md"
       >
-        <DialogTitle>
-          {dialogTitle}
-          <IconButton
-            aria-label="close"
-            onClick={handleOptionsDialogClose}
-            sx={{ position: 'absolute', right: 8, top: 8 }}
-          >
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-
-        <DialogContent>
-          {/* Report type banner */}
+        <DialogTitle sx={{ pb: 1 }}>
           <Box
             sx={{
-              mb: 2,
-              p: 1.5,
-              bgcolor: showGLAmount ? '#f0f7ff' : '#fff8e1',
-              borderRadius: 1,
-              border: `1px solid ${showGLAmount ? '#90caf9' : '#ffe082'}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
             }}
           >
-            <Typography variant="body2" color="text.secondary">
-              {showGLAmount
-                ? '✅ Full Report — all columns included, with the Original GL Amount column.'
-                : '⚠️ Without GL Amount — the Original GL Amount column will be excluded from this report.'}
+            <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '16px' }}>
+              Customize &amp; Download
             </Typography>
+            <IconButton onClick={() => setOpen(false)} size="small">
+              <CloseIcon fontSize="small" />
+            </IconButton>
           </Box>
+        </DialogTitle>
 
-          <Box sx={{ mt: 1 }}>
-            <Typography variant="subtitle2" gutterBottom>
-              Customize your download:
-            </Typography>
-
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={downloadOptions.expandGLLines}
-                  onChange={(e) =>
-                    handleOptionChange('expandGLLines', e.target.checked)
-                  }
-                />
-              }
-              label="Expand GL Lines (show each GL line as separate row)"
-            />
-
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={downloadOptions.includeOwnerDetails}
-                  onChange={(e) =>
-                    handleOptionChange('includeOwnerDetails', e.target.checked)
-                  }
-                />
-              }
-              label="Include Invoice Owner Details"
-            />
-
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={downloadOptions.includeTimestamps}
-                  onChange={(e) =>
-                    handleOptionChange('includeTimestamps', e.target.checked)
-                  }
-                />
-              }
-              label="Include Created/Updated Timestamps"
-            />
-
-            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Records:</strong> {invoices?.results?.length || 0}{' '}
-                invoices
-                {downloadOptions.expandGLLines && (
-                  <span>
-                    {' '}
-                    (may result in more rows due to GL line expansion)
-                  </span>
-                )}
+        <DialogContent sx={{ pt: 0 }}>
+          {/* ── Format + GL expand ───────────────────────────────────── */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'flex-end',
+              gap: 3,
+              mb: 2.5,
+              mt: 0.5,
+              flexWrap: 'wrap',
+            }}
+          >
+            <Box>
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: 700,
+                  color: '#555',
+                  display: 'block',
+                  mb: 0.75,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                Format
               </Typography>
+              <ToggleButtonGroup
+                value={format}
+                exclusive
+                size="small"
+                onChange={(_, v) => v && setFormat(v)}
+                sx={{
+                  '& .MuiToggleButton-root': {
+                    textTransform: 'none',
+                    px: 2,
+                    fontSize: '12.5px',
+                    borderRadius: '7px !important',
+                  },
+                }}
+              >
+                <ToggleButton value="csv">
+                  <TableChartIcon sx={{ fontSize: 15, mr: 0.75 }} />
+                  CSV
+                </ToggleButton>
+                <ToggleButton value="pdf">
+                  <PictureAsPdfIcon sx={{ fontSize: 15, mr: 0.75 }} />
+                  PDF
+                </ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+
+            <Box>
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: 700,
+                  color: '#555',
+                  display: 'block',
+                  mb: 0.75,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                GL Lines
+              </Typography>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={expandGLLines}
+                    onChange={(e) => setExpand(e.target.checked)}
+                    size="small"
+                    sx={{ p: 0.5 }}
+                  />
+                }
+                label={
+                  <Typography sx={{ fontSize: '13px' }}>
+                    Expand (one row per GL line)
+                  </Typography>
+                }
+                sx={{ m: 0 }}
+              />
+            </Box>
+
+            <Box sx={{ ml: 'auto', textAlign: 'right' }}>
+              <Typography
+                variant="caption"
+                sx={{ color: '#888', display: 'block', mb: 0.5 }}
+              >
+                {totalRows} invoice{totalRows !== 1 ? 's' : ''} &nbsp;·&nbsp;{' '}
+                {activeCount}/{ALL_COLUMNS.length} columns
+              </Typography>
+              <Box
+                sx={{ display: 'flex', gap: 0.75, justifyContent: 'flex-end' }}
+              >
+                <Button
+                  size="small"
+                  onClick={selectAll}
+                  sx={{
+                    fontSize: '11px',
+                    textTransform: 'none',
+                    py: 0.25,
+                    px: 1,
+                    minWidth: 0,
+                    borderRadius: '6px',
+                  }}
+                >
+                  Select All
+                </Button>
+                <Button
+                  size="small"
+                  onClick={deselectAll}
+                  sx={{
+                    fontSize: '11px',
+                    textTransform: 'none',
+                    py: 0.25,
+                    px: 1,
+                    minWidth: 0,
+                    borderRadius: '6px',
+                  }}
+                >
+                  Clear
+                </Button>
+              </Box>
             </Box>
           </Box>
+
+          <Divider sx={{ mb: 2 }} />
+
+          {/* ── Column picker ────────────────────────────────────────── */}
+          <Typography
+            variant="caption"
+            sx={{
+              fontWeight: 700,
+              color: '#555',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              display: 'block',
+              mb: 1.5,
+            }}
+          >
+            Columns to Include
+          </Typography>
+
+          <Grid container spacing={1.5}>
+            {groups.map((group) => {
+              const groupCols = ALL_COLUMNS.filter((c) => c.group === group);
+              const allOn = groupCols.every((c) => activeColumns.has(c.key));
+              const someOn = groupCols.some((c) => activeColumns.has(c.key));
+              return (
+                <Grid item xs={12} sm={6} md={3} key={group}>
+                  <Box
+                    sx={{
+                      border: '1px solid #e0e8f0',
+                      borderRadius: '8px',
+                      overflow: 'hidden',
+                      height: '100%',
+                    }}
+                  >
+                    {/* Group header — clicking toggles the whole group */}
+                    <Box
+                      onClick={() => toggleGroup(group)}
+                      sx={{
+                        px: 1.5,
+                        py: 0.75,
+                        bgcolor: '#f0f4f8',
+                        borderBottom: '1px solid #e0e8f0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        '&:hover': { bgcolor: '#e3effc' },
+                      }}
+                    >
+                      <Checkbox
+                        checked={allOn}
+                        indeterminate={someOn && !allOn}
+                        size="small"
+                        sx={{ p: 0, mr: 0.75 }}
+                        onChange={() => toggleGroup(group)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <Typography
+                        sx={{
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          color: '#1565c0',
+                        }}
+                      >
+                        {group}
+                      </Typography>
+                    </Box>
+                    {/* Column checkboxes */}
+                    <Box sx={{ px: 1, py: 0.5 }}>
+                      {groupCols.map((col) => (
+                        <FormControlLabel
+                          key={col.key}
+                          control={
+                            <Checkbox
+                              checked={activeColumns.has(col.key)}
+                              onChange={() => toggleColumn(col.key)}
+                              size="small"
+                              sx={{ p: 0.5 }}
+                            />
+                          }
+                          label={
+                            <Typography sx={{ fontSize: '12px' }}>
+                              {col.label}
+                            </Typography>
+                          }
+                          sx={{ display: 'flex', m: 0, py: 0.2 }}
+                        />
+                      ))}
+                    </Box>
+                  </Box>
+                </Grid>
+              );
+            })}
+          </Grid>
+
+          {/* ── Warnings ─────────────────────────────────────────────── */}
+          {format === 'pdf' && (
+            <Box
+              sx={{
+                mt: 2,
+                p: 1.25,
+                bgcolor: '#fff3e0',
+                borderRadius: '7px',
+                border: '1px solid #ffcc80',
+              }}
+            >
+              <Typography
+                variant="caption"
+                sx={{ color: '#e65100', fontSize: '12px' }}
+              >
+                ⚠ PDF is limited to 200 rows. Use CSV for the complete dataset.
+              </Typography>
+            </Box>
+          )}
+          {activeCount === 0 && (
+            <Box
+              sx={{
+                mt: 1.5,
+                p: 1.25,
+                bgcolor: '#ffebee',
+                borderRadius: '7px',
+                border: '1px solid #ef9a9a',
+              }}
+            >
+              <Typography
+                variant="caption"
+                sx={{ color: '#c62828', fontSize: '12px' }}
+              >
+                Please select at least one column to download.
+              </Typography>
+            </Box>
+          )}
         </DialogContent>
 
-        <DialogActions>
-          <Button onClick={handleOptionsDialogClose}>Cancel</Button>
-          {isPdf ? (
+        <DialogActions sx={{ px: 3, pb: 2.5, pt: 1 }}>
+          <Button
+            onClick={() => setOpen(false)}
+            sx={{ textTransform: 'none', color: '#555' }}
+          >
+            Cancel
+          </Button>
+
+          {format === 'csv' ? (
+            <Button
+              variant="contained"
+              onClick={downloadCSV}
+              disabled={activeCount === 0}
+              startIcon={<TableChartIcon />}
+              sx={{
+                textTransform: 'none',
+                borderRadius: '8px',
+                bgcolor: '#00529B',
+                '&:hover': { bgcolor: '#003d75' },
+                px: 2.5,
+              }}
+            >
+              Download CSV
+            </Button>
+          ) : (
             <PDFDownloadLink
               document={
-                <EnhancedInvoicePDF
+                <InvoicePDF
                   invoices={invoices}
                   title={title}
-                  options={downloadOptions}
-                  showGLAmount={showGLAmount}
+                  expandGLLines={expandGLLines}
+                  activeColumns={activeColumns}
                 />
               }
-              fileName={`${title.replace(/\s+/g, '_')}_${
-                showGLAmount ? 'Full_Report' : 'Without_GL_Amount'
-              }_${new Date().toISOString().split('T')[0]}.pdf`}
+              fileName={`${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`}
               style={{ textDecoration: 'none' }}
             >
               {({ loading }) => (
                 <Button
                   variant="contained"
-                  disabled={loading}
+                  disabled={loading || activeCount === 0}
                   startIcon={
                     loading ? (
-                      <CircularProgress size={16} />
+                      <CircularProgress size={15} color="inherit" />
                     ) : (
                       <PictureAsPdfIcon />
                     )
                   }
-                  onClick={handleOptionsDialogClose}
+                  onClick={() => {
+                    if (!loading) setOpen(false);
+                  }}
+                  sx={{
+                    textTransform: 'none',
+                    borderRadius: '8px',
+                    bgcolor: '#c62828',
+                    '&:hover': { bgcolor: '#b71c1c' },
+                    px: 2.5,
+                  }}
                 >
-                  {loading ? 'Generating...' : 'Download PDF'}
+                  {loading ? 'Generating PDF…' : 'Download PDF'}
                 </Button>
               )}
             </PDFDownloadLink>
-          ) : (
-            <Button
-              variant="contained"
-              onClick={handleConfirmDownload}
-              startIcon={<TableChartIcon />}
-            >
-              Download CSV
-            </Button>
           )}
         </DialogActions>
       </Dialog>
