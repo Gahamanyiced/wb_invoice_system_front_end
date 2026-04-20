@@ -22,10 +22,8 @@ import AttachmentIcon from '@mui/icons-material/Attachment';
 import DownloadIcon from '@mui/icons-material/Download';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 
-// ── COA data from DB instead of Excel file ────────────────────────────────────
 import useCOAData from '../hooks/useCOAData';
 
-// Payment terms — kept for getDescriptiveValue lookup (no API equivalent)
 const paymentTermsOptions = [
   { value: 'net_30', label: 'Net 30 - Payment due within 30 days' },
   { value: 'net_45', label: 'Net 45 - Payment due within 45 days' },
@@ -125,8 +123,7 @@ const formatCurrency = (amount, currency) => {
   return _fca(amount, currency);
 };
 
-// ── Document helper ───────────────────────────────────────────────────────────
-// Extensions the browser can render inline in a new tab.
+// ── Document helpers ───────────────────────────────────────────────────────────
 const BROWSER_VIEWABLE = new Set([
   'pdf',
   'jpg',
@@ -143,7 +140,6 @@ const BROWSER_VIEWABLE = new Set([
 
 const getFileExtension = (url = '') => {
   try {
-    // Strip query params before checking extension
     const pathname = new URL(url).pathname;
     return pathname.split('.').pop().toLowerCase().split('?')[0];
   } catch {
@@ -161,7 +157,6 @@ const getFileName = (url = '', fallback = 'document') => {
   }
 };
 
-// Opens viewable files in new tab; triggers download for non-viewable types.
 const handleDocumentAction = async (url, docName) => {
   if (!url) return;
   const ext = getFileExtension(url);
@@ -170,10 +165,10 @@ const handleDocumentAction = async (url, docName) => {
     // PDF, images, text → open in new tab
     window.open(url, '_blank', 'noopener,noreferrer');
   } else {
-    // CSV, Excel, Word, zip, etc. → force download via fetch + blob
+    // CSV, Excel, Word, etc. → force download
     try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Network response was not ok');
+      const response = await fetch(url, { credentials: 'same-origin' });
+      if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -183,14 +178,20 @@ const handleDocumentAction = async (url, docName) => {
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
-    } catch {
-      // Fallback: open in new tab (may trigger browser download anyway)
-      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      console.error('Download failed:', err);
+      // Fallback — direct anchor download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = docName || getFileName(url, 'document');
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
     }
   }
 };
 
-// Label + icon for the action button based on file type
 const getDocumentActionLabel = (url = '') => {
   const ext = getFileExtension(url);
   if (BROWSER_VIEWABLE.has(ext)) {
@@ -202,7 +203,6 @@ const getDocumentActionLabel = (url = '') => {
 function ViewInvoiceModal({ defaultValues, open, handleClose }) {
   const { excelData, isLoading: coaLoading } = useCOAData({ enabled: open });
 
-  // ── value helpers ──────────────────────────────────────────────────────────
   const getValue = (field) => defaultValues?.[field] || 'N/A';
 
   const getDescriptiveValue = (field, value) => {
@@ -223,7 +223,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
     }
   };
 
-  // ── GL line _detail resolvers ─────────────────────────────────────────────
   const resolveGLCode = (line) => {
     if (line?.gl_account_detail)
       return `${line.gl_account_detail.gl_code} - ${line.gl_account_detail.gl_description}`;
@@ -260,7 +259,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
     return line?.route ? String(line.route) : 'N/A';
   };
 
-  // ── data ───────────────────────────────────────────────────────────────────
   const glLines = defaultValues?.gl_lines || [];
   const documents = defaultValues?.documents || [];
 
@@ -269,7 +267,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
     ? `${invoiceOwner.firstname || ''} ${invoiceOwner.lastname || ''}`.trim()
     : 'N/A';
 
-  // ── render ─────────────────────────────────────────────────────────────────
   return (
     <Modal
       open={open}
@@ -304,7 +301,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
             >
               Basic Information
             </Typography>
-
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
                 <Box sx={style.fieldContainer}>
@@ -314,7 +310,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                   </Typography>
                 </Box>
               </Grid>
-
               <Grid item xs={12} md={6}>
                 <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>Reference</Typography>
@@ -323,7 +318,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                   </Typography>
                 </Box>
               </Grid>
-
               <Grid item xs={12} md={6}>
                 <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>Invoice Date</Typography>
@@ -334,7 +328,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                   </Typography>
                 </Box>
               </Grid>
-
               <Grid item xs={12} md={6}>
                 <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>Service Period</Typography>
@@ -343,7 +336,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                   </Typography>
                 </Box>
               </Grid>
-
               <Grid item xs={12} md={6}>
                 <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>Status</Typography>
@@ -356,7 +348,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                   />
                 </Box>
               </Grid>
-
               <Grid item xs={12} md={6}>
                 <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>Created By</Typography>
@@ -366,7 +357,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                   </Box>
                 </Box>
               </Grid>
-
               <Grid item xs={12} md={6}>
                 <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>Created At</Typography>
@@ -395,7 +385,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
             >
               Supplier & Financial Information
             </Typography>
-
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
                 <Box sx={style.fieldContainer}>
@@ -410,7 +399,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                   </Typography>
                 </Box>
               </Grid>
-
               <Grid item xs={12} md={6}>
                 <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>Supplier Name</Typography>
@@ -419,7 +407,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                   </Typography>
                 </Box>
               </Grid>
-
               <Grid item xs={12} md={6}>
                 <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>Currency</Typography>
@@ -428,7 +415,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                   </Typography>
                 </Box>
               </Grid>
-
               <Grid item xs={12} md={6}>
                 <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>Total Amount</Typography>
@@ -441,7 +427,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                   </Typography>
                 </Box>
               </Grid>
-
               <Grid item xs={12} md={6}>
                 <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>Quantity</Typography>
@@ -464,7 +449,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
               >
                 GL Lines ({glLines.length})
               </Typography>
-
               {glLines.map((line, index) => (
                 <Card key={index} sx={style.glLineCard}>
                   <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
@@ -475,9 +459,7 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                     >
                       GL Line {index + 1}
                     </Typography>
-
                     <Grid container spacing={2}>
-                      {/* Row 1: GL Code | GL Description | Cost Center | Amount */}
                       <Grid item xs={12} md={3}>
                         <Box sx={style.fieldContainer}>
                           <Typography sx={style.fieldLabel}>GL Code</Typography>
@@ -486,7 +468,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                           </Typography>
                         </Box>
                       </Grid>
-
                       <Grid item xs={12} md={4}>
                         <Box sx={style.fieldContainer}>
                           <Typography sx={style.fieldLabel}>
@@ -497,7 +478,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                           </Typography>
                         </Box>
                       </Grid>
-
                       <Grid item xs={12} md={3}>
                         <Box sx={style.fieldContainer}>
                           <Typography sx={style.fieldLabel}>
@@ -508,7 +488,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                           </Typography>
                         </Box>
                       </Grid>
-
                       <Grid item xs={12} md={2}>
                         <Box sx={style.fieldContainer}>
                           <Typography sx={style.fieldLabel}>Amount</Typography>
@@ -520,8 +499,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                           </Typography>
                         </Box>
                       </Grid>
-
-                      {/* Row 2: Location | Aircraft Type | Route */}
                       <Grid item xs={12} md={4}>
                         <Box sx={style.fieldContainer}>
                           <Typography sx={style.fieldLabel}>
@@ -532,7 +509,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                           </Typography>
                         </Box>
                       </Grid>
-
                       <Grid item xs={12} md={4}>
                         <Box sx={style.fieldContainer}>
                           <Typography sx={style.fieldLabel}>
@@ -543,7 +519,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                           </Typography>
                         </Box>
                       </Grid>
-
                       <Grid item xs={12} md={4}>
                         <Box sx={style.fieldContainer}>
                           <Typography sx={style.fieldLabel}>Route</Typography>
@@ -569,7 +544,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
             >
               Payment Information
             </Typography>
-
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
                 <Box sx={style.fieldContainer}>
@@ -584,7 +558,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                   </Typography>
                 </Box>
               </Grid>
-
               <Grid item xs={12} md={6}>
                 <Box sx={style.fieldContainer}>
                   <Typography sx={style.fieldLabel}>
@@ -617,7 +590,6 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
                   Documents ({documents.length})
                 </Typography>
               </Box>
-
               <Stack spacing={2}>
                 {documents.map((doc, index) => {
                   const fileUrl = doc.file_data || '';
