@@ -56,6 +56,10 @@ import TrackAndSignPettyCashDialog from '../components/TrackAndSignPettyCashDial
 import EditExpenseModal from '../components/EditExpenseModal';
 import DeleteExpenseDialog from '../components/DeleteExpenseDialog';
 import PETTY_CASH_CURRENCIES from '../constants/pettyCashCurrencies';
+// ── Bulk action additions ─────────────────────────────────────────────────────
+import Checkbox from '@mui/material/Checkbox';
+import GroupsIcon from '@mui/icons-material/Groups';
+import BulkExpenseActionDialog from '../components/BulkExpenseActionDialog';
 
 const styles = {
   header: {
@@ -203,6 +207,10 @@ const ManageExpenses = () => {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
+  // ── Bulk selection ────────────────────────────────────────────────────────────
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [openBulkDialog, setOpenBulkDialog] = useState(false);
+
   // Verifiers for the Add Expense form
   const [signers, setSigners] = useState([]);
   const [loadingVerifiers, setLoadingVerifiers] = useState(false);
@@ -227,6 +235,27 @@ const ManageExpenses = () => {
   const refreshList = () => {
     dispatch(getIssuancePettyCashExpenses(transactionId));
   };
+
+  // ── Selection helpers ──────────────────────────────────────────────────────────
+  const allIds = expenses.map((e) => e.id);
+  const allSelected =
+    allIds.length > 0 && allIds.every((id) => selectedIds.has(id));
+  const someSelected = allIds.some((id) => selectedIds.has(id)) && !allSelected;
+  const selectedExpenses = expenses.filter((e) => selectedIds.has(e.id));
+
+  const toggleOne = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(allIds));
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
 
   useEffect(() => {
     refreshList();
@@ -594,7 +623,24 @@ const ManageExpenses = () => {
             </Box>
           </Box>
 
-          <Box sx={{ display: 'flex', gap: 2 }}>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+            {/* ── Bulk Action button — only visible when expenses are selected ── */}
+            {selectedIds.size > 0 && (
+              <Button
+                variant="contained"
+                startIcon={<GroupsIcon />}
+                onClick={() => setOpenBulkDialog(true)}
+                sx={{
+                  bgcolor: '#6a1b9a',
+                  '&:hover': { bgcolor: '#4a148c' },
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  borderRadius: '8px',
+                }}
+              >
+                Bulk Action ({selectedIds.size})
+              </Button>
+            )}
             <Button
               variant="outlined"
               startIcon={
@@ -753,6 +799,15 @@ const ManageExpenses = () => {
           <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0' }}>
             <Typography variant="h6" color="#00529B" fontWeight={600}>
               Expenses
+              {selectedIds.size > 0 && (
+                <Typography
+                  component="span"
+                  variant="body2"
+                  sx={{ ml: 1.5, color: '#6a1b9a', fontWeight: 600 }}
+                >
+                  {selectedIds.size} selected
+                </Typography>
+              )}
             </Typography>
           </Box>
 
@@ -763,9 +818,26 @@ const ManageExpenses = () => {
               maxHeight: 'calc(100vh - 180px)',
             }}
           >
-            <Table sx={{ tableLayout: 'fixed', minWidth: 900 }} stickyHeader>
+            <Table sx={{ tableLayout: 'fixed', minWidth: 950 }} stickyHeader>
               <TableHead>
                 <TableRow sx={{ bgcolor: 'rgba(0, 82, 155, 0.05)' }}>
+                  {/* ── Select-all checkbox ── */}
+                  <TableCell
+                    padding="checkbox"
+                    sx={{ ...styles.headerCell, width: '48px' }}
+                  >
+                    <Checkbox
+                      size="small"
+                      checked={allSelected}
+                      indeterminate={someSelected}
+                      onChange={toggleAll}
+                      sx={{
+                        color: '#00529B',
+                        '&.Mui-checked': { color: '#00529B' },
+                        '&.MuiCheckbox-indeterminate': { color: '#00529B' },
+                      }}
+                    />
+                  </TableCell>
                   <TableCell sx={{ ...styles.headerCell, width: '50px' }}>
                     #
                   </TableCell>
@@ -798,14 +870,14 @@ const ManageExpenses = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
+                    <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
                       <CircularProgress size={24} sx={{ color: '#00529B' }} />
                     </TableCell>
                   </TableRow>
                 ) : expenses.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={9}
                       align="center"
                       sx={{ py: 3, color: 'text.secondary' }}
                     >
@@ -817,8 +889,32 @@ const ManageExpenses = () => {
                     <TableRow
                       key={expense.id}
                       hover
-                      sx={{ '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.02)' } }}
+                      selected={selectedIds.has(expense.id)}
+                      sx={{
+                        '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.02)' },
+                        '&.Mui-selected': {
+                          bgcolor: 'rgba(106, 27, 154, 0.05)',
+                        },
+                        '&.Mui-selected:hover': {
+                          bgcolor: 'rgba(106, 27, 154, 0.08)',
+                        },
+                      }}
                     >
+                      {/* ── Row checkbox ── */}
+                      <TableCell
+                        padding="checkbox"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Checkbox
+                          size="small"
+                          checked={selectedIds.has(expense.id)}
+                          onChange={() => toggleOne(expense.id)}
+                          sx={{
+                            color: '#00529B',
+                            '&.Mui-checked': { color: '#6a1b9a' },
+                          }}
+                        />
+                      </TableCell>
                       <TableCell sx={{ width: '50px' }}>
                         {page * rowsPerPage + index + 1}
                       </TableCell>
@@ -1290,7 +1386,6 @@ const ManageExpenses = () => {
                                         '1px solid rgba(0, 82, 155, 0.15)',
                                     }}
                                   >
-                                    {/* ── left: icon + name + size ── */}
                                     <Box
                                       sx={{
                                         display: 'flex',
@@ -1322,7 +1417,6 @@ const ManageExpenses = () => {
                                         ({(file.size / 1024).toFixed(1)} KB)
                                       </Typography>
                                     </Box>
-                                    {/* ── right: preview + remove ── */}
                                     <Box
                                       sx={{
                                         display: 'flex',
@@ -1428,6 +1522,17 @@ const ManageExpenses = () => {
             />
           </>
         )}
+
+        {/* ── Bulk Expense Action Dialog ────────────────────────────────────────── */}
+        <BulkExpenseActionDialog
+          open={openBulkDialog}
+          onClose={() => setOpenBulkDialog(false)}
+          selectedExpenses={selectedExpenses}
+          onSuccess={() => {
+            clearSelection();
+            refreshList();
+          }}
+        />
       </Box>
     </RootLayout>
   );

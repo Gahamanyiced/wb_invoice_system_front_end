@@ -1,8 +1,7 @@
 // src/components/BulkExpenseActionDialog.jsx
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
-  DialogTitle,
   DialogContent,
   DialogActions,
   Box,
@@ -17,7 +16,6 @@ import {
   Chip,
   Divider,
   Alert,
-  Autocomplete,
 } from '@mui/material';
 import GroupsIcon from '@mui/icons-material/Groups';
 import CloseIcon from '@mui/icons-material/Close';
@@ -29,19 +27,7 @@ import ForwardIcon from '@mui/icons-material/Forward';
 import { useDispatch } from 'react-redux';
 import { toast } from 'react-toastify';
 import { bulkActionPettyCashExpenses } from '../features/pettyCash/pettyCashSlice';
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-const style = {
-  header: {
-    bgcolor: '#00529B',
-    color: 'white',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    px: 3,
-    py: 2,
-  },
-};
+import http from '../http-common';
 
 // ── Action config ─────────────────────────────────────────────────────────────
 const ACTION_OPTIONS = [
@@ -79,17 +65,24 @@ const ACTION_OPTIONS = [
   },
 ];
 
+const actionColor = {
+  approve_and_forward: '#00529B',
+  approve_final: '#2e7d32',
+  deny: '#c62828',
+  rollback: '#e65100',
+};
+
 // ── Component ─────────────────────────────────────────────────────────────────
 const BulkExpenseActionDialog = ({
   open,
   onClose,
   selectedExpenses, // array of full expense objects
-  availableSigners, // array from ManageExpenses for next-approver dropdown
-  onSuccess, // callback → refreshList()
+  onSuccess, // callback → refreshList() + clearSelection()
 }) => {
   const dispatch = useDispatch();
   const isSubmitting = useRef(false);
 
+  // ── Form state ────────────────────────────────────────────────────────────
   const [action, setAction] = useState('');
   const [notes, setNotes] = useState('');
   const [nextApproverId, setNextApprover] = useState('');
@@ -97,6 +90,11 @@ const BulkExpenseActionDialog = ({
   const [approverError, setApproverError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // ── Next approver list (fetched on open, role-aware) ─────────────────────
+  const [availableSigners, setAvailableSigners] = useState([]);
+  const [loadingSigners, setLoadingSigners] = useState(false);
+
+  // ── Logged-in user ────────────────────────────────────────────────────────
   const loggedInUser = (() => {
     try {
       return JSON.parse(localStorage.getItem('user') || 'null');
@@ -105,24 +103,82 @@ const BulkExpenseActionDialog = ({
     }
   })();
 
-  // Determine which actions are available based on logged-in user's role
-  const isLastApprover = loggedInUser?.is_last_approver === true;
+  // ── Role flags (same names as TrackAndSignPettyCashDialog) ────────────────
   const isCustodian = loggedInUser?.is_custodian === true;
   const isFirstApprover = loggedInUser?.is_first_approver === true;
   const isSecondApprover = loggedInUser?.is_second_approver === true;
+  const isLastApprover = loggedInUser?.is_last_approver === true;
 
-  // Last approver → final approval; everyone else → approve & forward
+  // Last-only approver → Final Approval; everyone else → Approve & Forward
   const showFinal =
     isLastApprover && !isCustodian && !isFirstApprover && !isSecondApprover;
+
   const visibleActions = ACTION_OPTIONS.filter((a) => {
     if (a.value === 'approve_final') return showFinal;
     if (a.value === 'approve_and_forward') return !showFinal;
     return true; // deny + rollback always visible
   });
 
-  const selectedAction = ACTION_OPTIONS.find((a) => a.value === action);
-  const expenseIds = selectedExpenses.map((e) => e.id);
+  // ── Fetch role-aware next approvers — mirrors TrackAndSignPettyCashDialog ─
+  // Expense chain: custodian → first_approver → second_approver → last_approver
+  // Each role fetches the NEXT flag in the chain via two parallel API calls
+  // (role=signer + role=signer_admin), merged and deduplicated by id.
+  const fetchNextApprovers = async () => {
+    // Determine which permission flag the next approver must have
+    let nextApproverFlag = null;
+    if (isCustodian) nextApproverFlag = 'is_first_approver';
+    else if (isFirstApprover) nextApproverFlag = 'is_second_approver';
+    else if (isSecondApprover) nextApproverFlag = 'is_last_approver';
+    // last approver → showFinal=true, approve_and_forward is hidden, no fetch needed
 
+    if (!nextApproverFlag) {
+      setAvailableSigners([]);
+      return;
+    }
+
+    setLoadingSigners(true);
+    try {
+      const [signerRes, signerAdminRes] = await Promise.all([
+        http.get('/auth/user-list/', {
+          params: {
+            [nextApproverFlag]: true,
+            is_petty_cash_user: true,
+            is_approved: true,
+            role: 'signer',
+          },
+        }),
+        http.get('/auth/user-list/', {
+          params: {
+            [nextApproverFlag]: true,
+            is_petty_cash_user: true,
+            is_approved: true,
+            role: 'signer_admin',
+          },
+        }),
+      ]);
+
+      const signerResults = signerRes.data?.results ?? signerRes.data ?? [];
+      const signerAdminResults =
+        signerAdminRes.data?.results ?? signerAdminRes.data ?? [];
+      const merged = [...signerResults, ...signerAdminResults];
+      const unique = merged.filter(
+        (user, idx, self) => idx === self.findIndex((u) => u.id === user.id),
+      );
+      setAvailableSigners(unique);
+    } catch (err) {
+      console.error('Failed to fetch next approvers:', err);
+      setAvailableSigners([]);
+    } finally {
+      setLoadingSigners(false);
+    }
+  };
+
+  // ── Fetch on open ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (open) fetchNextApprovers();
+  }, [open]); // eslint-disable-line
+
+  // ── Reset on close ────────────────────────────────────────────────────────
   const handleClose = () => {
     if (isSubmitting.current) return;
     setAction('');
@@ -133,26 +189,30 @@ const BulkExpenseActionDialog = ({
     onClose();
   };
 
+  const expenseIds = selectedExpenses.map((e) => e.id);
+  const selectedAction = ACTION_OPTIONS.find((a) => a.value === action);
+
+  // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (isSubmitting.current) return;
 
-    // Validation
     if (!action) {
       toast.error('Please select an action');
       return;
     }
+
     if (selectedAction?.requiresNotes && !notes.trim()) {
       setNotesError('Notes are required for this action');
       return;
     }
-    if (selectedAction?.requiresNextApprover && !nextApproverId) {
+    if (action === 'approve_and_forward' && !nextApproverId) {
       setApproverError('Please select the next approver');
       return;
     }
     setNotesError('');
     setApproverError('');
 
-    // Build payload
+    // Build payload — matches bulk-action endpoint shapes
     let payload;
     if (action === 'approve_and_forward') {
       payload = {
@@ -169,6 +229,7 @@ const BulkExpenseActionDialog = ({
         final_approval: true,
       };
     } else {
+      // deny | rollback
       payload = { expense_ids: expenseIds, action, notes: notes.trim() };
     }
 
@@ -197,13 +258,7 @@ const BulkExpenseActionDialog = ({
     }
   };
 
-  const actionColor = {
-    approve_and_forward: '#00529B',
-    approve_final: '#2e7d32',
-    deny: '#c62828',
-    rollback: '#e65100',
-  };
-
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Dialog
       open={open}
@@ -212,8 +267,18 @@ const BulkExpenseActionDialog = ({
       fullWidth
       PaperProps={{ sx: { borderRadius: 2 } }}
     >
-      {/* Header */}
-      <Box sx={style.header}>
+      {/* ── Header ── */}
+      <Box
+        sx={{
+          bgcolor: '#00529B',
+          color: 'white',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          px: 3,
+          py: 2,
+        }}
+      >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <GroupsIcon sx={{ fontSize: 24 }} />
           <Box>
@@ -235,7 +300,7 @@ const BulkExpenseActionDialog = ({
       </Box>
 
       <DialogContent sx={{ pt: 2.5 }}>
-        {/* Selected expenses summary */}
+        {/* Selected expenses chips */}
         <Box
           sx={{
             mb: 2.5,
@@ -288,7 +353,7 @@ const BulkExpenseActionDialog = ({
 
         <Divider sx={{ mb: 2.5 }} />
 
-        {/* Action selector */}
+        {/* ── Action selector ── */}
         <FormControl fullWidth sx={{ mb: 2.5 }}>
           <InputLabel>Action *</InputLabel>
           <Select
@@ -297,6 +362,7 @@ const BulkExpenseActionDialog = ({
               setAction(e.target.value);
               setNotesError('');
               setApproverError('');
+              setNextApprover('');
             }}
             label="Action *"
           >
@@ -318,36 +384,69 @@ const BulkExpenseActionDialog = ({
           </Select>
         </FormControl>
 
-        {/* Next approver — only for approve_and_forward */}
+        {/* ── Next approver — approve_and_forward only ─────────────────────── */}
+        {/* Matches TrackAndSignPettyCashDialog: MUI Select, two-line option display */}
         {action === 'approve_and_forward' && (
-          <Autocomplete
-            options={availableSigners}
-            getOptionLabel={(u) =>
-              `${u.firstname || ''} ${u.lastname || ''}`.trim()
-            }
-            value={
-              availableSigners.find((u) => u.id === nextApproverId) || null
-            }
-            onChange={(_, v) => {
-              setNextApprover(v ? v.id : '');
-              setApproverError('');
-            }}
-            sx={{ mb: 2.5 }}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Next Approver *"
-                error={!!approverError}
-                helperText={approverError}
-                size="small"
-              />
+          <FormControl fullWidth sx={{ mb: 2.5 }} error={!!approverError}>
+            <InputLabel>Next Approver *</InputLabel>
+            <Select
+              value={nextApproverId}
+              onChange={(e) => {
+                setNextApprover(e.target.value);
+                setApproverError('');
+              }}
+              label="Next Approver *"
+              disabled={loadingSigners}
+              MenuProps={{ PaperProps: { style: { maxHeight: 300 } } }}
+            >
+              <MenuItem value="" disabled>
+                {loadingSigners ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CircularProgress size={14} />
+                    <em>Loading next approvers...</em>
+                  </Box>
+                ) : availableSigners.length === 0 ? (
+                  <em>No eligible next approvers</em>
+                ) : (
+                  <em>Select next approver</em>
+                )}
+              </MenuItem>
+              {availableSigners.map((signer) => (
+                <MenuItem key={signer.id} value={signer.id} sx={{ py: 1.25 }}>
+                  <Box>
+                    <Typography variant="body2" fontWeight={500}>
+                      {signer.firstname} {signer.lastname}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      display="block"
+                    >
+                      {signer.position} • {signer.department}
+                    </Typography>
+                  </Box>
+                </MenuItem>
+              ))}
+            </Select>
+            {approverError && (
+              <Typography
+                variant="caption"
+                color="error"
+                sx={{ mt: 0.5, ml: 1.5 }}
+              >
+                {approverError}
+              </Typography>
             )}
-          />
+          </FormControl>
         )}
 
-        {/* Notes */}
+        {/* ── Notes ── */}
         <TextField
-          label={selectedAction?.requiresNotes ? 'Notes *' : 'Notes (optional)'}
+          label={
+            action === 'deny' || action === 'rollback'
+              ? 'Notes (Required) *'
+              : 'Notes (Optional)'
+          }
           value={notes}
           onChange={(e) => {
             setNotes(e.target.value);
@@ -360,15 +459,17 @@ const BulkExpenseActionDialog = ({
           error={!!notesError}
           helperText={notesError}
           placeholder={
-            action === 'deny'
-              ? 'Reason for denial...'
-              : action === 'rollback'
-                ? 'Reason for rollback...'
-                : 'Optional notes...'
+            action === 'approve_and_forward'
+              ? 'e.g. Forwarding for final review...'
+              : action === 'deny'
+                ? 'Reason for denial...'
+                : action === 'rollback'
+                  ? 'Reason for rollback...'
+                  : 'Optional notes...'
           }
         />
 
-        {/* Warning for destructive actions */}
+        {/* Warning for destructive bulk actions */}
         {(action === 'deny' || action === 'rollback') &&
           expenseIds.length > 1 && (
             <Alert
