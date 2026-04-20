@@ -50,6 +50,7 @@ const PERMISSION_LABELS = {
   is_custodian: 'Petty Cash Custodian',
   is_expense_creator: 'Expense Creator',
   is_first_approver: 'First Approver',
+  is_invoice_user: 'Invoice User',
   is_invoice_verifier: 'Invoice Verifier',
   is_last_approver: 'Last Approver',
   is_petty_cash_user: 'Petty Cash User',
