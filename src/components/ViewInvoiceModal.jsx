@@ -19,6 +19,8 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import PersonIcon from '@mui/icons-material/Person';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import AttachmentIcon from '@mui/icons-material/Attachment';
+import DownloadIcon from '@mui/icons-material/Download';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 
 // ── COA data from DB instead of Excel file ────────────────────────────────────
 import useCOAData from '../hooks/useCOAData';
@@ -123,14 +125,86 @@ const formatCurrency = (amount, currency) => {
   return _fca(amount, currency);
 };
 
+// ── Document helper ───────────────────────────────────────────────────────────
+// Extensions the browser can render inline in a new tab.
+const BROWSER_VIEWABLE = new Set([
+  'pdf',
+  'jpg',
+  'jpeg',
+  'png',
+  'gif',
+  'webp',
+  'svg',
+  'bmp',
+  'txt',
+  'html',
+  'htm',
+]);
+
+const getFileExtension = (url = '') => {
+  try {
+    // Strip query params before checking extension
+    const pathname = new URL(url).pathname;
+    return pathname.split('.').pop().toLowerCase().split('?')[0];
+  } catch {
+    return url.split('.').pop().toLowerCase().split('?')[0];
+  }
+};
+
+const getFileName = (url = '', fallback = 'document') => {
+  try {
+    const pathname = new URL(url).pathname;
+    const name = pathname.split('/').pop();
+    return name || fallback;
+  } catch {
+    return url.split('/').pop() || fallback;
+  }
+};
+
+// Opens viewable files in new tab; triggers download for non-viewable types.
+const handleDocumentAction = async (url, docName) => {
+  if (!url) return;
+  const ext = getFileExtension(url);
+
+  if (BROWSER_VIEWABLE.has(ext)) {
+    // PDF, images, text → open in new tab
+    window.open(url, '_blank', 'noopener,noreferrer');
+  } else {
+    // CSV, Excel, Word, zip, etc. → force download via fetch + blob
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Network response was not ok');
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = docName || getFileName(url, 'document');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    } catch {
+      // Fallback: open in new tab (may trigger browser download anyway)
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  }
+};
+
+// Label + icon for the action button based on file type
+const getDocumentActionLabel = (url = '') => {
+  const ext = getFileExtension(url);
+  if (BROWSER_VIEWABLE.has(ext)) {
+    return { label: 'View', icon: <OpenInNewIcon sx={{ fontSize: 16 }} /> };
+  }
+  return { label: 'Download', icon: <DownloadIcon sx={{ fontSize: 16 }} /> };
+};
+
 function ViewInvoiceModal({ defaultValues, open, handleClose }) {
   const { excelData, isLoading: coaLoading } = useCOAData({ enabled: open });
 
   // ── value helpers ──────────────────────────────────────────────────────────
   const getValue = (field) => defaultValues?.[field] || 'N/A';
 
-  // getDescriptiveValue: only used for supplier_number and payment_terms
-  // (those fields have no _detail equivalents in the API response)
   const getDescriptiveValue = (field, value) => {
     if (!value || value === 'N/A') return 'N/A';
     switch (field) {
@@ -150,17 +224,12 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
   };
 
   // ── GL line _detail resolvers ─────────────────────────────────────────────
-  // API returns _detail nested objects alongside raw IDs.
-  // Always prefer _detail; fall back to raw value if detail is absent.
-
   const resolveGLCode = (line) => {
     if (line?.gl_account_detail)
       return `${line.gl_account_detail.gl_code} - ${line.gl_account_detail.gl_description}`;
     return line?.gl_description || 'N/A';
   };
 
-  // GL Description: prefer gl_account_detail.gl_description (gl_description on
-  // the line itself is now null for new invoices — it was the old free-text field)
   const resolveGLDescription = (line) => {
     if (line?.gl_account_detail?.gl_description)
       return line.gl_account_detail.gl_description;
@@ -550,39 +619,50 @@ function ViewInvoiceModal({ defaultValues, open, handleClose }) {
               </Box>
 
               <Stack spacing={2}>
-                {documents.map((doc, index) => (
-                  <Card key={index} sx={style.documentCard}>
-                    <DescriptionIcon sx={{ color: '#00529B' }} />
-                    <Box sx={{ flexGrow: 1 }}>
-                      <Typography variant="body2" fontWeight="500">
-                        Document {index + 1}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {doc.filename ||
-                          doc.name ||
-                          `Invoice_Document_${index + 1}`}
-                      </Typography>
-                    </Box>
-                    {doc.file_data && (
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        component="a"
-                        href={doc.file_data}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        sx={{
-                          color: '#00529B',
-                          borderColor: '#00529B',
-                          '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.05)' },
-                          borderRadius: '8px',
-                        }}
-                      >
-                        View Document
-                      </Button>
-                    )}
-                  </Card>
-                ))}
+                {documents.map((doc, index) => {
+                  const fileUrl = doc.file_data || '';
+                  const ext = getFileExtension(fileUrl);
+                  const fileName =
+                    doc.filename ||
+                    doc.name ||
+                    getFileName(fileUrl, `Invoice_Document_${index + 1}`);
+                  const { label, icon } = getDocumentActionLabel(fileUrl);
+
+                  return (
+                    <Card key={index} sx={style.documentCard}>
+                      <DescriptionIcon sx={{ color: '#00529B' }} />
+                      <Box sx={{ flexGrow: 1 }}>
+                        <Typography variant="body2" fontWeight="500">
+                          {fileName}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {ext ? ext.toUpperCase() : 'File'} · Document{' '}
+                          {index + 1}
+                        </Typography>
+                      </Box>
+                      {fileUrl && (
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={icon}
+                          onClick={() =>
+                            handleDocumentAction(fileUrl, fileName)
+                          }
+                          sx={{
+                            color: '#00529B',
+                            borderColor: '#00529B',
+                            '&:hover': { bgcolor: 'rgba(0, 82, 155, 0.05)' },
+                            borderRadius: '8px',
+                            textTransform: 'none',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {label}
+                        </Button>
+                      )}
+                    </Card>
+                  );
+                })}
               </Stack>
             </Paper>
           )}
