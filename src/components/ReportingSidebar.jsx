@@ -31,6 +31,9 @@ import { useSelector } from 'react-redux';
 import invoiceService from '../features/invoice/invoiceService';
 import pettyCashService from '../features/pettyCash/pettyCashService';
 import EnhancedDownloadComponent from './EnhancedDownloadComponent';
+import useCOAData from '../hooks/useCOAData';
+import TuneIcon from '@mui/icons-material/Tune';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
 
 // ── Petty Cash CSV Download — Ledger Format ───────────────────────────────────
 const PettyCashReportDownload = ({ data, summary, title }) => {
@@ -194,6 +197,20 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
   );
 };
 
+// ── Shared field style — compact, consistent with FilterPanel ────────────────
+const fieldSx = {
+  '& .MuiOutlinedInput-root': {
+    borderRadius: '7px',
+    fontSize: '12.5px',
+    backgroundColor: '#fff',
+    '& fieldset': { borderColor: '#e0e8f0' },
+    '&:hover fieldset': { borderColor: '#90caf9' },
+    '&.Mui-focused fieldset': { borderColor: '#00529B', borderWidth: '1.5px' },
+  },
+  '& .MuiInputLabel-root': { fontSize: '12.5px' },
+  '& input::placeholder': { fontSize: '12px', color: '#aaa' },
+};
+
 // ── Main Component ────────────────────────────────────────────────────────────
 const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
   // ── Invoice state ──
@@ -203,11 +220,12 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
   const [error, setError] = useState(null);
   const [showResults, setShowResults] = useState(true);
   const [reportFilters, setReportFilters] = useState({
-    supplier_name: '',
+    supplier_id: '',
     invoice_number: '',
     invoice_owner: '',
     created_date: '',
     status: '',
+    year: '',
   });
   const [filtersExpanded, setFiltersExpanded] = useState(false);
 
@@ -225,6 +243,7 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
   });
 
   const { allUsers } = useSelector((state) => state.user);
+  const { excelData: coaData } = useCOAData({ enabled: open });
 
   const userOptions =
     allUsers?.map((u) => ({
@@ -259,11 +278,12 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
 
   const clearFilters = () => {
     setReportFilters({
-      supplier_name: '',
+      supplier_id: '',
       invoice_number: '',
       invoice_owner: '',
       created_date: '',
       status: '',
+      year: '',
     });
   };
 
@@ -425,67 +445,161 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
       {/* ══════════════════════ INVOICE TAB ══════════════════════ */}
       {defaultTab === 0 && (
         <Box>
-          <Paper
-            elevation={2}
-            sx={{ mb: 3, p: 2, backgroundColor: 'white', borderRadius: 2 }}
+          {/* ── Compact filter bar ───────────────────────────────── */}
+          <Box
+            sx={{
+              mb: 2,
+              p: 1.5,
+              backgroundColor: '#fff',
+              border: '1px solid #e0e8f0',
+              borderRadius: '10px',
+            }}
           >
+            {/* Header row */}
             <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                cursor: 'pointer',
-                mb: filtersExpanded ? 2 : 0,
-              }}
-              onClick={() => setFiltersExpanded(!filtersExpanded)}
+              sx={{ display: 'flex', alignItems: 'center', mb: 1.5, gap: 1 }}
             >
-              <FilterIcon sx={{ mr: 1, color: 'primary.main' }} />
+              <TuneIcon sx={{ fontSize: 15, color: '#00529B' }} />
               <Typography
-                variant="h6"
-                color="primary"
-                sx={{ flexGrow: 1, fontWeight: '600' }}
-              >
-                Report Filters
-              </Typography>
-              <Button
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  clearFilters();
+                sx={{
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: '#00529B',
+                  flex: 1,
                 }}
-                sx={{ mr: 1, textTransform: 'none' }}
               >
-                Clear All
-              </Button>
-              {filtersExpanded ? (
-                <ExpandLess color="primary" />
-              ) : (
-                <ExpandMore color="primary" />
+                Filters
+                {Object.values(reportFilters).some((v) => v !== '') && (
+                  <Box
+                    component="span"
+                    sx={{
+                      ml: 1,
+                      px: 0.75,
+                      py: 0.2,
+                      bgcolor: '#00529B',
+                      color: '#fff',
+                      borderRadius: '12px',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {
+                      Object.values(reportFilters).filter((v) => v !== '')
+                        .length
+                    }
+                  </Box>
+                )}
+              </Typography>
+              {Object.values(reportFilters).some((v) => v !== '') && (
+                <Button
+                  size="small"
+                  startIcon={<RestartAltIcon sx={{ fontSize: 13 }} />}
+                  onClick={clearFilters}
+                  sx={{
+                    fontSize: '11px',
+                    textTransform: 'none',
+                    color: '#d32f2f',
+                    py: 0.3,
+                    px: 1,
+                    minWidth: 0,
+                    borderRadius: '6px',
+                    '&:hover': { bgcolor: '#ffebee' },
+                  }}
+                >
+                  Clear
+                </Button>
               )}
+              <IconButton
+                size="small"
+                onClick={() => setFiltersExpanded((p) => !p)}
+                sx={{ p: 0.5 }}
+              >
+                {filtersExpanded ? (
+                  <ExpandLess sx={{ fontSize: 18, color: '#00529B' }} />
+                ) : (
+                  <ExpandMore sx={{ fontSize: 18, color: '#00529B' }} />
+                )}
+              </IconButton>
             </Box>
 
+            {/* Always-visible quick chips for active filters */}
+            {!filtersExpanded &&
+              Object.entries(reportFilters).some(([, v]) => v !== '') && (
+                <Box
+                  sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}
+                >
+                  {Object.entries(reportFilters)
+                    .filter(([, v]) => v !== '')
+                    .map(([k, v]) => (
+                      <Chip
+                        key={k}
+                        label={`${k.replace(/_/g, ' ')}: ${v}`}
+                        size="small"
+                        onDelete={() => handleFilterChange(k, '')}
+                        sx={{
+                          fontSize: '10px',
+                          height: '20px',
+                          bgcolor: '#e3f2fd',
+                          color: '#1565c0',
+                        }}
+                      />
+                    ))}
+                </Box>
+              )}
+
             <Collapse in={filtersExpanded}>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 1.5,
+                  pt: 0.5,
+                }}
+              >
+                {/* Year */}
                 <TextField
-                  label="Year (Optional)"
+                  label="Year"
                   type="number"
                   value={reportFilters.year || ''}
                   onChange={(e) => handleFilterChange('year', e.target.value)}
                   size="small"
                   fullWidth
-                  placeholder="Enter year to filter..."
-                  sx={{ backgroundColor: 'white' }}
+                  placeholder="e.g. 2026"
+                  sx={fieldSx}
                 />
-                <TextField
-                  label="Supplier Name"
-                  value={reportFilters.supplier_name}
-                  onChange={(e) =>
-                    handleFilterChange('supplier_name', e.target.value)
+
+                {/* Supplier — dropdown from COA DB */}
+                <Autocomplete
+                  options={coaData.suppliers}
+                  getOptionLabel={(opt) => opt.label || ''}
+                  value={
+                    coaData.suppliers.find(
+                      (s) => String(s.id) === String(reportFilters.supplier_id),
+                    ) || null
+                  }
+                  onChange={(_, v) =>
+                    handleFilterChange('supplier_id', v ? String(v.id) : '')
                   }
                   size="small"
-                  fullWidth
-                  placeholder="Search by supplier name..."
-                  sx={{ backgroundColor: 'white' }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Supplier"
+                      size="small"
+                      sx={fieldSx}
+                      placeholder="Search supplier..."
+                    />
+                  )}
+                  slotProps={{
+                    popper: {
+                      sx: {
+                        '& .MuiAutocomplete-listbox': { fontSize: '12.5px' },
+                      },
+                    },
+                  }}
                 />
+
+                {/* Invoice Number */}
                 <TextField
                   label="Invoice Number"
                   value={reportFilters.invoice_number}
@@ -494,34 +608,35 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   }
                   size="small"
                   fullWidth
-                  placeholder="Search by invoice number..."
-                  sx={{ backgroundColor: 'white' }}
+                  placeholder="e.g. INV-001"
+                  sx={fieldSx}
                 />
+
+                {/* Invoice Owner */}
                 <Autocomplete
                   options={userOptions}
-                  getOptionLabel={(option) => option.label || ''}
+                  getOptionLabel={(opt) => opt.label || ''}
                   value={
                     userOptions.find(
-                      (option) => option.value === reportFilters.invoice_owner,
+                      (o) => o.value === reportFilters.invoice_owner,
                     ) || null
                   }
-                  onChange={(event, newValue) =>
-                    handleFilterChange(
-                      'invoice_owner',
-                      newValue ? newValue.value : '',
-                    )
+                  onChange={(_, v) =>
+                    handleFilterChange('invoice_owner', v ? v.value : '')
                   }
+                  size="small"
                   renderInput={(params) => (
                     <TextField
                       {...params}
                       label="Invoice Owner"
                       size="small"
-                      sx={{ backgroundColor: 'white' }}
-                      placeholder="Select invoice owner..."
+                      sx={fieldSx}
+                      placeholder="Select owner..."
                     />
                   )}
-                  size="small"
                 />
+
+                {/* Created Date */}
                 <TextField
                   label="Created Date"
                   type="date"
@@ -532,37 +647,46 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   InputLabelProps={{ shrink: true }}
                   size="small"
                   fullWidth
-                  sx={{ backgroundColor: 'white' }}
+                  sx={fieldSx}
                 />
+
+                {/* Status */}
                 <Autocomplete
                   options={statusOptions}
-                  getOptionLabel={(option) => option.label || ''}
+                  getOptionLabel={(opt) => opt.label || ''}
                   value={
                     statusOptions.find(
-                      (option) => option.value === reportFilters.status,
+                      (o) => o.value === reportFilters.status,
                     ) || null
                   }
-                  onChange={(event, newValue) =>
-                    handleFilterChange('status', newValue ? newValue.value : '')
+                  onChange={(_, v) =>
+                    handleFilterChange('status', v ? v.value : '')
                   }
+                  size="small"
                   renderInput={(params) => (
                     <TextField
                       {...params}
                       label="Status"
                       size="small"
-                      sx={{ backgroundColor: 'white' }}
+                      sx={fieldSx}
                       placeholder="Select status..."
                     />
                   )}
-                  size="small"
                 />
               </Box>
             </Collapse>
-          </Paper>
+          </Box>
 
           <Typography
-            variant="h6"
-            sx={{ mb: 2, color: '#333', fontWeight: '600' }}
+            variant="subtitle2"
+            sx={{
+              mb: 1.5,
+              color: '#555',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              fontSize: '11px',
+            }}
           >
             Available Reports
           </Typography>
@@ -862,8 +986,15 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
           </Paper>
 
           <Typography
-            variant="h6"
-            sx={{ mb: 2, color: '#333', fontWeight: '600' }}
+            variant="subtitle2"
+            sx={{
+              mb: 1.5,
+              color: '#555',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              fontSize: '11px',
+            }}
           >
             Available Reports
           </Typography>

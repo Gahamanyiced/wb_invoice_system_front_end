@@ -273,6 +273,19 @@ export const approvePettyCashExpense = createAsyncThunk(
   },
 );
 
+// ==================== Bulk Action Expenses ====================
+
+export const bulkActionPettyCashExpenses = createAsyncThunk(
+  'pettyCash/bulkActionPettyCashExpenses',
+  async (data, thunkAPI) => {
+    try {
+      return await pettyCashService.bulkActionPettyCashExpenses(data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
 // ==================== Petty Cash Replenishment Requests ====================
 
 export const createPettyCashReplenishRequest = createAsyncThunk(
@@ -730,6 +743,20 @@ export const pettyCashSlice = createSlice({
         state.error = null;
       })
       .addCase(approvePettyCashExpense.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // ==================== Bulk Action Expenses ====================
+      .addCase(bulkActionPettyCashExpenses.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(bulkActionPettyCashExpenses.fulfilled, (state) => {
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(bulkActionPettyCashExpenses.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
       })

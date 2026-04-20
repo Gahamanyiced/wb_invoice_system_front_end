@@ -298,6 +298,28 @@ const ALL_COLUMNS = [
         ? new Date(inv.updated_at).toLocaleDateString('en-GB')
         : '',
   },
+  // Pending-only fields — only meaningful when status is pending
+  {
+    key: 'addressed_to',
+    label: 'Addressed To',
+    group: 'Pending Info',
+    getValue: (inv) =>
+      inv?.status === 'pending' ? inv?.is_addressed_to?.name || '' : '',
+  },
+  {
+    key: 'addressed_email',
+    label: 'Addressed To Email',
+    group: 'Pending Info',
+    getValue: (inv) =>
+      inv?.status === 'pending' ? inv?.is_addressed_to?.email || '' : '',
+  },
+  {
+    key: 'days_pending',
+    label: 'Days Pending (Verifier)',
+    group: 'Pending Info',
+    getValue: (inv) =>
+      inv?.status === 'pending' ? (inv?.days_pending_with_verifier ?? '') : '',
+  },
 ];
 
 // Columns ON by default
@@ -318,6 +340,8 @@ const DEFAULT_ON = new Set([
   'aircraft_type',
   'route',
   'created_at',
+  'addressed_to',
+  'days_pending',
 ]);
 
 // ── Build rows from invoices ──────────────────────────────────────────────────

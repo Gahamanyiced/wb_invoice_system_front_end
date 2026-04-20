@@ -205,6 +205,21 @@ const approvePettyCashExpense = async (id, data) => {
   return response.data;
 };
 
+// Bulk Action on Petty Cash Expenses
+// POST /invoice/petty-cash-expense/bulk-action/
+// Payload shapes:
+//   approve & forward: { expense_ids, action: "approve", notes, next_approver_id }
+//   final approval:    { expense_ids, action: "approve", notes, final_approval: true }
+//   deny:              { expense_ids, action: "deny",    notes }
+//   rollback:          { expense_ids, action: "rollback", notes }
+const bulkActionPettyCashExpenses = async (data) => {
+  const response = await http.post(
+    '/invoice/petty-cash-expense/bulk-action/',
+    data,
+  );
+  return response.data;
+};
+
 // Get Issue Comments for a Petty Cash issuance
 // GET /invoice/petty-cash/{id}/issue-comments/
 const getPettyCashIssueComments = async (id) => {
@@ -297,6 +312,7 @@ const pettyCashService = {
   getIssuancePettyCashExpenses,
   trackPettyCashExpense,
   approvePettyCashExpense,
+  bulkActionPettyCashExpenses,
 
   // Export
   exportApprovedExpenses,

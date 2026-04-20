@@ -714,6 +714,17 @@ export default function Invoice() {
     return { bg: '#f5f5f5', color: '#616161', border: '#e0e0e0' };
   };
 
+  // ── Resolve status for display ────────────────────────────────────────────
+  // For Invoice Approval view (index 3): find the login user's entry in
+  // invoice_histories and show that status instead of the invoice status.
+  // For all other views: use invoice.status as-is.
+  const getDisplayStatus = (invoice) => {
+    if (indexInvoice !== 3) return invoice?.status;
+    const histories = invoice?.invoice_histories || [];
+    const match = histories.find((h) => h?.signer?.id === user?.id);
+    return match ? match.status : invoice?.status;
+  };
+
   return (
     <RootLayout>
       <InvoiceModal />
@@ -819,7 +830,9 @@ export default function Invoice() {
                 const hasMultipleGLLines = glLines.length > 1;
                 const isExpanded = expandedRows.has(invoice.id);
                 const totalAmount = getTotalAmount(invoice);
-                const status = invoice?.status;
+                // For Invoice Approval (index 3): show the login user's own signing status
+                // from invoice_histories. For all other views: use invoice.status.
+                const status = getDisplayStatus(invoice);
                 const currency = invoice?.currency;
                 const sc = statusColor(status);
 
