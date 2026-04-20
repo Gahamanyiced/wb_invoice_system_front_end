@@ -779,6 +779,7 @@ export default function Invoice() {
                 <TableCell sx={styles.header}>Supplier Name</TableCell>
                 <TableCell sx={styles.header}>Invoice No.</TableCell>
                 <TableCell sx={styles.header}>Service Period</TableCell>
+                <TableCell sx={styles.header}>Created At</TableCell>
                 <TableCell sx={styles.header}>GL Code</TableCell>
                 <TableCell sx={styles.header}>GL Description</TableCell>
                 <TableCell sx={styles.header}>Location</TableCell>
@@ -875,6 +876,26 @@ export default function Invoice() {
                         }}
                       >
                         {invoice?.service_period || '-'}
+                      </TableCell>
+                      {/* Created At */}
+                      <TableCell
+                        sx={{
+                          fontSize: '11.5px',
+                          color: '#777',
+                          py: 1.2,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {invoice?.created_at
+                          ? new Date(invoice.created_at).toLocaleDateString(
+                              'en-GB',
+                              {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                              },
+                            )
+                          : '-'}
                       </TableCell>
                       {/* GL Code */}
                       <TableCell

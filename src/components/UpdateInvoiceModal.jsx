@@ -70,11 +70,7 @@ const style = {
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  content: {
-    p: 0,
-    overflowY: 'auto',
-    maxHeight: 'calc(90vh - 130px)',
-  },
+  content: { p: 0, overflowY: 'auto', maxHeight: 'calc(90vh - 130px)' },
   footer: {
     p: 2,
     borderTop: '1px solid rgba(0, 0, 0, 0.12)',
@@ -110,7 +106,6 @@ const style = {
   },
 };
 
-// ─── COA Autocomplete ─────────────────────────────────────────────────────────
 function COAAutocomplete({
   options = [],
   value,
@@ -167,14 +162,8 @@ function COAAutocomplete({
             },
           }}
           sx={{
-            '& .MuiInputBase-root': {
-              minHeight: 48,
-              flexWrap: 'nowrap',
-            },
-            '& .MuiInputBase-input': {
-              flex: 1,
-              minWidth: '60px !important',
-            },
+            '& .MuiInputBase-root': { minHeight: 48, flexWrap: 'nowrap' },
+            '& .MuiInputBase-input': { flex: 1, minWidth: '60px !important' },
           }}
         />
       )}
@@ -191,28 +180,21 @@ function UpdateInvoiceModal({
 }) {
   const dispatch = useDispatch();
   const { isLoading } = useSelector((state) => state.invoice);
-
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isSupplier = user?.role === 'supplier';
 
-  // ── Helper: read from nested invoice or flat ──────────────────────────────
   const getInvoiceData = (key) =>
     defaultValues?.invoice ? defaultValues.invoice[key] : defaultValues?.[key];
-
   const documentsInInvoice = Boolean(defaultValues?.invoice?.documents);
-
   const getDocuments = () =>
     documentsInInvoice
       ? defaultValues?.invoice?.documents || []
       : defaultValues?.documents || [];
-
   const getRawGLLines = () =>
     defaultValues?.invoice?.gl_lines || defaultValues?.gl_lines || [];
 
-  // ── COA data ──────────────────────────────────────────────────────────────
   const { excelData, isLoading: coaLoading } = useCOAData({ enabled: open });
 
-  // ── Empty GL entry factory ────────────────────────────────────────────────
   const emptyGLEntry = () => ({
     gl_code: null,
     gl_description: '',
@@ -223,7 +205,6 @@ function UpdateInvoiceModal({
     route: null,
   });
 
-  // ── Build initial GL entries from _detail objects ─────────────────────────
   const buildInitialGLEntries = () => {
     const lines = getRawGLLines();
     if (lines.length === 0) return [emptyGLEntry()];
@@ -274,16 +255,13 @@ function UpdateInvoiceModal({
     }));
   };
 
-  // ── State ─────────────────────────────────────────────────────────────────
   const [comment, setComment] = useState('');
   const [customPaymentTerms, setCustomPaymentTerms] = useState(false);
   const [customTermsInput, setCustomTermsInput] = useState('');
   const [selectedSupplier, setSelectedSupplier] = useState(null);
-
-  // ── Service period — single combined string driven by ServicePeriodPicker ──
   const [servicePeriod, setServicePeriod] = useState('');
+  const [servicePeriodEdited, setServicePeriodEdited] = useState(false);
   const [servicePeriodError, setServicePeriodError] = useState(false);
-
   const [formData, setFormData] = useState({
     supplier_number: getInvoiceData('supplier_number') || '',
     supplier_name: getInvoiceData('supplier_name') || '',
@@ -296,7 +274,6 @@ function UpdateInvoiceModal({
     payment_terms: getInvoiceData('payment_terms') || '',
     payment_due_date: getInvoiceData('payment_due_date') || '',
   });
-
   const [glEntries, setGLEntries] = useState([emptyGLEntry()]);
   const [documents, setDocuments] = useState(getDocuments());
   const [anotherDocuments, setAnotherDocuments] = useState([]);
@@ -307,27 +284,20 @@ function UpdateInvoiceModal({
   const [selectedDocumentIndices, setSelectedDocumentIndices] = useState([]);
   const [docMode, setDocMode] = useState('new');
 
-  // ── Pre-populate on open ──────────────────────────────────────────────────
   useEffect(() => {
     if (!open) return;
     setGLEntries(buildInitialGLEntries());
-
     if (excelData.suppliers.length > 0 && getInvoiceData('supplier_number')) {
       const match = excelData.suppliers.find(
         (s) => s.value === getInvoiceData('supplier_number'),
       );
       if (match) setSelectedSupplier(match);
     }
-
-    // Restore stored service_period string directly into state — the picker
-    // will parse it back into start/end internally when it opens
     setServicePeriod(getInvoiceData('service_period') || '');
+    setServicePeriodEdited(false);
     setServicePeriodError(false);
+  }, [open, excelData.suppliers.length]); // eslint-disable-line
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, excelData.suppliers.length]);
-
-  // ── Detect custom payment terms on open ───────────────────────────────────
   useEffect(() => {
     if (!open) return;
     const pt = getInvoiceData('payment_terms');
@@ -339,10 +309,8 @@ function UpdateInvoiceModal({
       setCustomPaymentTerms(false);
       setCustomTermsInput('');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open]); // eslint-disable-line
 
-  // ── Invoice number uniqueness check ───────────────────────────────────────
   const {
     invoiceNumStatus,
     invoiceNumMessage,
@@ -350,7 +318,6 @@ function UpdateInvoiceModal({
     resetInvoiceNumCheck,
   } = useInvoiceNumberCheck(selectedSupplier?.id || null);
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
   const handleSupplierChange = (option) => {
     setSelectedSupplier(option);
     setFormData((prev) => ({
@@ -383,13 +350,11 @@ function UpdateInvoiceModal({
     setFormData((prev) => ({ ...prev, payment_terms: val }));
   };
 
-  // GL entry helpers — full option objects
   const handleGLEntryOptionChange = (index, field, option) => {
     const updated = [...glEntries];
     updated[index] = { ...updated[index], [field]: option };
-    if (field === 'gl_code') {
+    if (field === 'gl_code')
       updated[index].gl_description = option ? option.description : '';
-    }
     setGLEntries(updated);
   };
 
@@ -417,7 +382,6 @@ function UpdateInvoiceModal({
     }
   };
 
-  // Document helpers
   const handleFileSelect = (e, index) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -441,14 +405,11 @@ function UpdateInvoiceModal({
   };
 
   const handleAddMore = () => {
-    if (docMode === 'new' || documentsInInvoice) {
+    if (docMode === 'new' || documentsInInvoice)
       setAnotherDocuments([...anotherDocuments, null]);
-    } else {
-      setDocuments([...documents, {}]);
-    }
+    else setDocuments([...documents, {}]);
   };
 
-  // ── Reset ─────────────────────────────────────────────────────────────────
   const resetState = () => {
     setFormData({
       supplier_number: getInvoiceData('supplier_number') || '',
@@ -465,6 +426,7 @@ function UpdateInvoiceModal({
     setGLEntries(buildInitialGLEntries());
     setSelectedSupplier(null);
     setServicePeriod('');
+    setServicePeriodEdited(false);
     setServicePeriodError(false);
     setDocuments(getDocuments());
     setAnotherDocuments([]);
@@ -484,7 +446,6 @@ function UpdateInvoiceModal({
     handleClose();
   };
 
-  // ── Submit ────────────────────────────────────────────────────────────────
   const submit = async () => {
     try {
       if (invoiceNumStatus === 'taken') {
@@ -495,13 +456,27 @@ function UpdateInvoiceModal({
         return;
       }
 
-      // ── Service period validation ─────────────────────────────────────────
-      if (!servicePeriod || !servicePeriod.includes(' to ')) {
-        setServicePeriodError(true);
-        toast.error('Please select a service period date range');
-        return;
+      // ── Service period validation ──────────────────────────────────────────
+      // New format check: YYYY-MM-DD to YYYY-MM-DD
+      const isNewFormat = (sp) =>
+        /^\d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2}$/.test(sp);
+      const originalServicePeriod = getInvoiceData('service_period') || '';
+
+      // If the user explicitly edited the picker, enforce the new format
+      if (servicePeriodEdited) {
+        if (!servicePeriod || !isNewFormat(servicePeriod)) {
+          setServicePeriodError(true);
+          toast.error('Please select a service period date range');
+          return;
+        }
       }
+      // If untouched, keep the original value as-is (even legacy "April 25" format)
       setServicePeriodError(false);
+
+      // Determine what to send: edited → new value, untouched → preserve original
+      const servicePeriodToSend = servicePeriodEdited
+        ? servicePeriod
+        : originalServicePeriod;
 
       if (isSupplier) {
         if (
@@ -540,7 +515,7 @@ function UpdateInvoiceModal({
 
       if (isSupplier) {
         data.append('invoice_number', formData.invoice_number);
-        data.append('service_period', servicePeriod);
+        data.append('service_period', servicePeriodToSend);
         data.append('currency', formData.currency);
         data.append('amount', formData.amount);
         if (formData.reference) data.append('reference', formData.reference);
@@ -567,12 +542,11 @@ function UpdateInvoiceModal({
             data.append(key, formData[key]);
         });
 
-        // service_period comes from the picker, not formData
-        data.append('service_period', servicePeriod);
+        // service_period: use edited value or preserve original (legacy format safe)
+        data.append('service_period', servicePeriodToSend);
 
-        if (selectedSupplier?.id) {
+        if (selectedSupplier?.id)
           data.append('supplier_id', selectedSupplier.id);
-        }
 
         data.append(
           'gl_lines',
@@ -605,7 +579,6 @@ function UpdateInvoiceModal({
       }
 
       const invoiceId = defaultValues?.invoice?.id || defaultValues?.id;
-
       const result = await dispatch(updateInvoice({ id: invoiceId, data }));
       if (updateInvoice.fulfilled.match(result)) {
         toast.success('Invoice Updated Successfully');
@@ -623,7 +596,6 @@ function UpdateInvoiceModal({
     }
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Modal
       open={open}
@@ -631,7 +603,6 @@ function UpdateInvoiceModal({
       aria-labelledby="update-invoice-modal-title"
     >
       <Box sx={style.modal}>
-        {/* Header */}
         <Box sx={style.header}>
           <Typography variant="h6" component="h2" fontWeight="500">
             Update Invoice
@@ -647,7 +618,7 @@ function UpdateInvoiceModal({
         </Box>
 
         <Box sx={style.content}>
-          {/* ── Supplier Information ─────────────────────────────────────── */}
+          {/* Supplier Information */}
           <Paper elevation={0} sx={style.section}>
             <Typography
               variant="subtitle1"
@@ -672,7 +643,7 @@ function UpdateInvoiceModal({
             </Grid>
           </Paper>
 
-          {/* ── Invoice Information ──────────────────────────────────────── */}
+          {/* Invoice Information */}
           <Paper elevation={0} sx={style.section}>
             <Typography
               variant="subtitle1"
@@ -753,13 +724,12 @@ function UpdateInvoiceModal({
                   InputLabelProps={{ shrink: true }}
                 />
               </Grid>
-
-              {/* ── Service Period — booking.com-style range picker ────────── */}
               <Grid item xs={12} md={6}>
                 <ServicePeriodPicker
                   value={servicePeriod}
                   onChange={(val) => {
                     setServicePeriod(val);
+                    setServicePeriodEdited(true);
                     setServicePeriodError(false);
                   }}
                   required
@@ -771,7 +741,6 @@ function UpdateInvoiceModal({
                   }
                 />
               </Grid>
-
               <Grid item xs={12} md={6}>
                 <TextField
                   label="Quantity"
@@ -787,7 +756,7 @@ function UpdateInvoiceModal({
             </Grid>
           </Paper>
 
-          {/* ── Financial Information ────────────────────────────────────── */}
+          {/* Financial Information */}
           <Paper elevation={0} sx={style.section}>
             <Typography
               variant="subtitle1"
@@ -827,9 +796,7 @@ function UpdateInvoiceModal({
                   variant="outlined"
                   size="small"
                   type="number"
-                  InputProps={{
-                    readOnly: !isSupplier && glEntries.length > 0,
-                  }}
+                  InputProps={{ readOnly: !isSupplier && glEntries.length > 0 }}
                   helperText={
                     !isSupplier && glEntries.length > 0
                       ? 'Auto-calculated from GL lines'
@@ -840,7 +807,7 @@ function UpdateInvoiceModal({
             </Grid>
           </Paper>
 
-          {/* ── GL Lines (non-supplier only) ─────────────────────────────── */}
+          {/* GL Lines */}
           {!isSupplier && (
             <Paper elevation={0} sx={style.section}>
               <Box
@@ -868,7 +835,6 @@ function UpdateInvoiceModal({
                   Add GL Line
                 </Button>
               </Box>
-
               {glEntries.map((entry, index) => (
                 <Card key={index} sx={style.glLineCard}>
                   <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
@@ -893,7 +859,6 @@ function UpdateInvoiceModal({
                         </IconButton>
                       )}
                     </Box>
-
                     <Grid container spacing={2}>
                       <Grid item xs={12} md={5}>
                         <COAAutocomplete
@@ -994,7 +959,7 @@ function UpdateInvoiceModal({
             </Paper>
           )}
 
-          {/* ── Payment Terms (non-supplier only) ────────────────────────── */}
+          {/* Payment Terms */}
           {!isSupplier && (
             <Paper elevation={0} sx={style.section}>
               <Typography
@@ -1054,7 +1019,7 @@ function UpdateInvoiceModal({
             </Paper>
           )}
 
-          {/* ── Documents ────────────────────────────────────────────────── */}
+          {/* Documents */}
           <Paper elevation={0} sx={style.section}>
             <Typography
               variant="subtitle1"
@@ -1064,7 +1029,6 @@ function UpdateInvoiceModal({
             >
               Documents
             </Typography>
-
             {documents
               .filter((doc) => doc && (doc.id || doc.file_data))
               .map((doc, index) => (
@@ -1107,7 +1071,6 @@ function UpdateInvoiceModal({
                   )}
                 </Box>
               ))}
-
             {[...Array(anotherDocuments.length || 1).keys()].map((index) => (
               <Box key={index} sx={style.uploadBox}>
                 <label
@@ -1160,7 +1123,6 @@ function UpdateInvoiceModal({
                 </label>
               </Box>
             ))}
-
             <Button
               variant="outlined"
               size="small"
@@ -1172,7 +1134,7 @@ function UpdateInvoiceModal({
             </Button>
           </Paper>
 
-          {/* ── Comment ──────────────────────────────────────────────────── */}
+          {/* Comment */}
           <Paper elevation={0} sx={style.section}>
             <Typography
               variant="subtitle1"
@@ -1196,7 +1158,6 @@ function UpdateInvoiceModal({
           </Paper>
         </Box>
 
-        {/* Footer */}
         <Box sx={style.footer}>
           <Button
             variant="outlined"
