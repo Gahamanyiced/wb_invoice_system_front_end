@@ -636,6 +636,7 @@ export default function InvoiceModal() {
                   ))}
                 </Box>
               )}
+
               {/* ── Supplier Information ──────────────────────────────────── */}
               <Box sx={style.section}>
                 <Typography variant="h6" sx={style.sectionTitle}>
@@ -657,12 +658,10 @@ export default function InvoiceModal() {
                   </Grid>
                 </Grid>
               </Box>
+
               <Divider sx={{ my: 2 }} />
+
               {/* ══ INVOICE VERIFIER ONLY SECTIONS ══════════════════════════ */}
-              {/* GL Code Configuration and Payment Terms are only shown to    */}
-              /* users with is_invoice_verifier = true. All other roles */ /*
-              (supplier, staff, signer, signer_admin, admin without flag) */ /*
-              see the same limited form as suppliers. */
               {isInvoiceVerifier && (
                 <>
                   {/* ── GL Code Configuration ──────────────────────────────── */}
@@ -985,6 +984,7 @@ export default function InvoiceModal() {
                   <Divider sx={{ my: 2 }} />
                 </>
               )}
+
               {/* ── Invoice Details ──────────────────────────────────────────── */}
               <Box sx={style.section}>
                 <Typography variant="h6" sx={style.sectionTitle}>
@@ -1136,7 +1136,9 @@ export default function InvoiceModal() {
                   </Grid>
                 </Grid>
               </Box>
+
               <Divider sx={{ my: 2 }} />
+
               {/* ── Financial Information ────────────────────────────────────── */}
               <Box sx={style.section}>
                 <Typography variant="h6" sx={style.sectionTitle}>
@@ -1220,7 +1222,9 @@ export default function InvoiceModal() {
                   </Grid>
                 </Grid>
               </Box>
+
               <Divider sx={{ my: 2 }} />
+
               {/* ── Payment Terms — invoice verifiers only ───────────────────── */}
               {isInvoiceVerifier && (
                 <>
@@ -1305,6 +1309,7 @@ export default function InvoiceModal() {
                   <Divider sx={{ my: 2 }} />
                 </>
               )}
+
               {/* ── Attachments ──────────────────────────────────────────────── */}
               <Box sx={style.section}>
                 <Typography variant="h6" sx={style.sectionTitle}>
@@ -1354,6 +1359,7 @@ export default function InvoiceModal() {
                   Add More Files
                 </Button>
               </Box>
+
               {/* ── Actions ──────────────────────────────────────────────────── */}
               <Box sx={style.actionButtons}>
                 <Button variant="outlined" onClick={handleReset}>
