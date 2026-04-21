@@ -194,6 +194,9 @@ export default function Sidebar() {
     isAdmin || (isSignerAdmin && !!user?.is_invoice_verifier);
   const canSeeSupplierInvoices =
     isAdmin || (isSignerAdmin && !!user?.is_invoice_verifier);
+  // Staff Invoices — same permission gate as Supplier Invoices
+  const canSeeStaffInvoices =
+    isAdmin || (isSignerAdmin && !!user?.is_invoice_verifier);
   const canSeeDelegation = isAdmin || isSignerAdmin || isSigner;
   const canSeeInvoiceReports =
     isAdmin ||
@@ -220,14 +223,12 @@ export default function Sidebar() {
   ].filter((m) => m.visible || m.locked);
 
   // ── Route → module sync ───────────────────────────────────────────────────
-  // Also persists to localStorage so Dashboard.jsx knows which module is active.
   useEffect(() => {
     const p = location.pathname;
     const isPCRoute =
       p.startsWith('/petty-cash') ||
       p.startsWith('/manage-expenses') ||
       p.startsWith('/request-petty-cash');
-    // Note: /petty-cash/dashboard is already covered by p.startsWith('/petty-cash')
 
     const mod = isPCRoute ? 'petty_cash' : 'invoice';
     setActiveModule(mod);
@@ -330,7 +331,6 @@ export default function Sidebar() {
     navigate('/login', { replace: true });
   };
 
-  // ── Module switch — persists so Dashboard.jsx can detect active module ────
   const switchModule = (id) => {
     const mod = MODULES.find((m) => m.id === id);
     if (mod?.locked) return;
@@ -520,6 +520,15 @@ export default function Sidebar() {
                       Supplier Invoices
                     </SubMenuItem>
                   )}
+                  {/* ── Staff Invoices dashboard entry (index 5) ── */}
+                  {canSeeStaffInvoices && (
+                    <SubMenuItem
+                      className={activeDashboardOption === 5 ? 'active' : ''}
+                      onClick={() => goDashboard(5)}
+                    >
+                      Staff Invoices
+                    </SubMenuItem>
+                  )}
                 </Collapse>
               </Box>
 
@@ -569,6 +578,15 @@ export default function Sidebar() {
                       onClick={() => goInvoice(4)}
                     >
                       Supplier Invoices
+                    </SubMenuItem>
+                  )}
+                  {/* ── Staff Invoices invoice entry (index 5) ── */}
+                  {canSeeStaffInvoices && (
+                    <SubMenuItem
+                      className={activeInvoiceOption === 5 ? 'active' : ''}
+                      onClick={() => goInvoice(5)}
+                    >
+                      Staff Invoices
                     </SubMenuItem>
                   )}
                 </Collapse>
@@ -688,7 +706,6 @@ export default function Sidebar() {
             <List sx={{ p: 0, pt: 0.5 }}>
               <MenuHeading>Main</MenuHeading>
 
-              {/* ── Petty Cash Dashboard — own dedicated route ── */}
               <StyledNavLink to="/petty-cash/dashboard">
                 <MenuIcon>
                   <DashboardOutlinedIcon sx={{ fontSize: 17 }} />

@@ -407,10 +407,7 @@ export const verifyAndTrackInvoice = createAsyncThunk(
 );
 
 // ── Chain Override thunks ─────────────────────────────────────────────────────
-// All dispatched as: dispatch(thunk({ invoiceId, data }))
 
-// Replace an existing signer in the chain
-// data: { history_id, new_signer_id, reason }
 export const chainReplaceSigner = createAsyncThunk(
   'invoice/chainReplaceSigner',
   async ({ invoiceId, data }, thunkAPI) => {
@@ -422,9 +419,6 @@ export const chainReplaceSigner = createAsyncThunk(
   },
 );
 
-// Change invoice or history entry status
-// data (invoice): { target: 'invoice', new_status, reason }
-// data (history): { target: 'history', history_id, new_status, reason }
 export const chainChangeStatus = createAsyncThunk(
   'invoice/chainChangeStatus',
   async ({ invoiceId, data }, thunkAPI) => {
@@ -436,8 +430,6 @@ export const chainChangeStatus = createAsyncThunk(
   },
 );
 
-// Reorder the signing chain
-// data: { order: [history_id, ...], reason }
 export const chainReorder = createAsyncThunk(
   'invoice/chainReorder',
   async ({ invoiceId, data }, thunkAPI) => {
@@ -449,8 +441,6 @@ export const chainReorder = createAsyncThunk(
   },
 );
 
-// Insert a new signer into the chain
-// data: { signer_id, insert_after_history_id (null = beginning), reason }
 export const chainInsertSigner = createAsyncThunk(
   'invoice/chainInsertSigner',
   async ({ invoiceId, data }, thunkAPI) => {
@@ -462,8 +452,6 @@ export const chainInsertSigner = createAsyncThunk(
   },
 );
 
-// Remove a signer from the chain
-// data: { history_id, reason }
 export const chainRemoveSigner = createAsyncThunk(
   'invoice/chainRemoveSigner',
   async ({ invoiceId, data }, thunkAPI) => {
@@ -476,8 +464,6 @@ export const chainRemoveSigner = createAsyncThunk(
 );
 
 // ── Invoice Number Validation thunk ───────────────────────────────────────────
-// dispatch(checkInvoiceNumber({ invoice_number: 'INV-001', supplier_id: 3 }))
-// Returns plain boolean: true = already used, false = available
 export const checkInvoiceNumber = createAsyncThunk(
   'invoice/checkInvoiceNumber',
   async ({ invoice_number, supplier_id }, thunkAPI) => {
@@ -492,6 +478,7 @@ export const checkInvoiceNumber = createAsyncThunk(
   },
 );
 
+// ── Supplier Invoices thunk ───────────────────────────────────────────────────
 export const getSupplierInvoices = createAsyncThunk(
   'invoice/getSupplierInvoices',
   async (data, thunkAPI) => {
@@ -503,8 +490,21 @@ export const getSupplierInvoices = createAsyncThunk(
   },
 );
 
+// ── Staff Invoices thunk ──────────────────────────────────────────────────────
+// Mirrors getSupplierInvoices but hits /invoice/staff-invoices/
+// dispatch(getStaffInvoices({ page: 1, status: 'pending', year: 2025 }))
+export const getStaffInvoices = createAsyncThunk(
+  'invoice/getStaffInvoices',
+  async (data, thunkAPI) => {
+    try {
+      return await invoiceService.getStaffInvoices(data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
 // ── Address Invoice To thunk ──────────────────────────────────────────────────
-// dispatch(addressInvoiceTo({ invoiceId: 23, data: { verifier_id: 5, reason: '...' } }))
 export const addressInvoiceTo = createAsyncThunk(
   'invoice/addressInvoiceTo',
   async ({ invoiceId, data }, thunkAPI) => {
@@ -517,7 +517,6 @@ export const addressInvoiceTo = createAsyncThunk(
 );
 
 // ── Rollback Invoice To Supplier thunk ───────────────────────────────────────
-// dispatch(rollbackInvoiceToSupplier({ invoiceId: 23, data: { status: 'rollback', reason: '...' } }))
 export const rollbackInvoiceToSupplier = createAsyncThunk(
   'invoice/rollbackInvoiceToSupplier',
   async ({ invoiceId, data }, thunkAPI) => {
@@ -1136,9 +1135,8 @@ const invoiceSlice = createSlice({
         state.verifyInvoice = '';
       })
 
-      // ── Chain Override ── (use shared isLoading, no extra state key needed)
+      // ── Chain Override ────────────────────────────────────────────────────
 
-      // Replace signer
       .addCase(chainReplaceSigner.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -1152,7 +1150,6 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
       })
 
-      // Change status
       .addCase(chainChangeStatus.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -1166,7 +1163,6 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
       })
 
-      // Reorder chain
       .addCase(chainReorder.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -1180,7 +1176,6 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
       })
 
-      // Insert signer
       .addCase(chainInsertSigner.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -1194,7 +1189,6 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
       })
 
-      // Remove signer
       .addCase(chainRemoveSigner.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -1208,7 +1202,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
       })
 
-      // ── Invoice Number Check ── (lightweight — no state written, just fires the request)
+      // ── Invoice Number Check ──────────────────────────────────────────────
       .addCase(checkInvoiceNumber.pending, (state) => {
         state.error = null;
       })
@@ -1219,7 +1213,7 @@ const invoiceSlice = createSlice({
         state.error = action.payload;
       })
 
-      // Get all supplier invoices
+      // ── Supplier Invoices ─────────────────────────────────────────────────
       .addCase(getSupplierInvoices.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -1236,8 +1230,24 @@ const invoiceSlice = createSlice({
         state.invoices = [];
       })
 
+      // ── Staff Invoices ────────────────────────────────────────────────────
+      .addCase(getStaffInvoices.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+        state.invoices = [];
+      })
+      .addCase(getStaffInvoices.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.invoices = action.payload;
+        state.error = null;
+      })
+      .addCase(getStaffInvoices.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+        state.invoices = [];
+      })
+
       // ── Address Invoice To ────────────────────────────────────────────────
-      // Lightweight — no dedicated state key; shares isLoading only.
       .addCase(addressInvoiceTo.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -1252,7 +1262,6 @@ const invoiceSlice = createSlice({
       })
 
       // ── Rollback Invoice To Supplier ──────────────────────────────────────
-      // Lightweight — no dedicated state key; shares isLoading only.
       .addCase(rollbackInvoiceToSupplier.pending, (state) => {
         state.isLoading = true;
         state.error = null;

@@ -1,7 +1,7 @@
 // src/validations/invoice.js
 import * as Yup from 'yup';
 
-// Base validation schema for fields that both suppliers and staff need to validate
+// Base validation schema — fields every user must fill in regardless of role
 const baseInvoiceValidation = {
   invoice_number: Yup.string()
     .required('Invoice number is required')
@@ -28,8 +28,8 @@ const baseInvoiceValidation = {
     .optional(),
 };
 
-// Additional fields for staff/admin users
-const staffValidationFields = {
+// Additional fields only for users with is_invoice_verifier = true
+const invoiceVerifierFields = {
   ...baseInvoiceValidation,
   supplier_number: Yup.string().required('Supplier is required'),
   supplier_name: Yup.string().required('Supplier name is required'),
@@ -63,17 +63,24 @@ const staffValidationFields = {
   next_signers_validator: Yup.string().nullable().optional(),
 };
 
-// Supplier validation schema
-export const supplierInvoiceValidation = Yup.object().shape(
-  baseInvoiceValidation
+// Limited schema — supplier, staff, signer, signer_admin, admin WITHOUT is_invoice_verifier
+export const limitedInvoiceValidation = Yup.object().shape(
+  baseInvoiceValidation,
 );
 
-// Staff/Admin validation schema
-export const staffInvoiceValidation = Yup.object().shape(staffValidationFields);
+// Full schema — only for users WITH is_invoice_verifier = true
+export const verifierInvoiceValidation = Yup.object().shape(
+  invoiceVerifierFields,
+);
 
-// Function to determine which validation schema to use based on user role
-export const getInvoiceValidationSchema = (userRole) => {
-  return userRole === 'supplier'
-    ? supplierInvoiceValidation
-    : staffInvoiceValidation;
+/**
+ * Returns the correct validation schema based on whether the current user
+ * is an invoice verifier.
+ *
+ * @param {boolean} isInvoiceVerifier - pass !!user?.is_invoice_verifier
+ */
+export const getInvoiceValidationSchema = (isInvoiceVerifier) => {
+  return isInvoiceVerifier
+    ? verifierInvoiceValidation
+    : limitedInvoiceValidation;
 };

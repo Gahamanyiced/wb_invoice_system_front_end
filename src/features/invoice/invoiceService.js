@@ -257,10 +257,7 @@ const verifyAndTrackInvoice = async (invoiceId) => {
 };
 
 // ── Chain Override ─────────────────────────────────────────────────────────────
-// Base: /invoice/invoices/{invoice_id}/chain/
 
-// PUT /invoice/invoices/{id}/chain/replace-signer/
-// payload: { history_id, new_signer_id, reason }
 const chainReplaceSigner = async (invoiceId, data) => {
   const response = await http.put(
     `/invoice/invoices/${invoiceId}/chain/replace-signer/`,
@@ -269,9 +266,6 @@ const chainReplaceSigner = async (invoiceId, data) => {
   return response.data;
 };
 
-// PUT /invoice/invoices/{id}/chain/change-status/
-// payload (invoice):  { target: 'invoice', new_status, reason }
-// payload (history):  { target: 'history', history_id, new_status, reason }
 const chainChangeStatus = async (invoiceId, data) => {
   const response = await http.put(
     `/invoice/invoices/${invoiceId}/chain/change-status/`,
@@ -280,8 +274,6 @@ const chainChangeStatus = async (invoiceId, data) => {
   return response.data;
 };
 
-// PUT /invoice/invoices/{id}/chain/reorder/
-// payload: { order: [history_id, ...], reason }
 const chainReorder = async (invoiceId, data) => {
   const response = await http.put(
     `/invoice/invoices/${invoiceId}/chain/reorder/`,
@@ -290,8 +282,6 @@ const chainReorder = async (invoiceId, data) => {
   return response.data;
 };
 
-// PUT /invoice/invoices/{id}/chain/insert-signer/
-// payload: { signer_id, insert_after_history_id (null = beginning), reason }
 const chainInsertSigner = async (invoiceId, data) => {
   const response = await http.put(
     `/invoice/invoices/${invoiceId}/chain/insert-signer/`,
@@ -300,8 +290,6 @@ const chainInsertSigner = async (invoiceId, data) => {
   return response.data;
 };
 
-// PUT /invoice/invoices/{id}/chain/remove-signer/
-// payload: { history_id, reason }
 const chainRemoveSigner = async (invoiceId, data) => {
   const response = await http.put(
     `/invoice/invoices/${invoiceId}/chain/remove-signer/`,
@@ -311,8 +299,6 @@ const chainRemoveSigner = async (invoiceId, data) => {
 };
 
 // ── Invoice Number Validation ──────────────────────────────────────────────────
-// GET /invoice/check-invoice-number/?invoice_number=INV-001&supplier_id=3
-// Returns plain boolean: true = already used, false = available
 const checkInvoiceNumber = async ({ invoice_number, supplier_id }) => {
   const params = new URLSearchParams({ invoice_number });
   if (supplier_id) params.append('supplier_id', supplier_id);
@@ -322,6 +308,7 @@ const checkInvoiceNumber = async ({ invoice_number, supplier_id }) => {
   return response.data;
 };
 
+// ── Supplier Invoices ──────────────────────────────────────────────────────────
 const getSupplierInvoices = async (data) => {
   const filterEmpty = (obj) =>
     Object.fromEntries(
@@ -333,9 +320,21 @@ const getSupplierInvoices = async (data) => {
   return response.data;
 };
 
+// ── Staff Invoices ─────────────────────────────────────────────────────────────
+// GET /invoice/staff-invoices/?page=1&status=pending&...
+// Behaves identically to getSupplierInvoices but targets the staff endpoint.
+const getStaffInvoices = async (data) => {
+  const filterEmpty = (obj) =>
+    Object.fromEntries(
+      Object.entries(obj).filter(([_, v]) => v !== '' && v != null),
+    );
+  const filteredData = filterEmpty(data);
+  const queryParams = new URLSearchParams(filteredData).toString();
+  const response = await http.get(`/invoice/staff-invoices/?${queryParams}`);
+  return response.data;
+};
+
 // ── Address Invoice To ────────────────────────────────────────────────────────
-// PUT /invoice/invoices/{invoiceId}/address-to/
-// payload: { verifier_id, reason }
 const addressInvoiceTo = async (invoiceId, data) => {
   const response = await http.put(
     `/invoice/invoices/${invoiceId}/address-to/`,
@@ -345,8 +344,6 @@ const addressInvoiceTo = async (invoiceId, data) => {
 };
 
 // ── Rollback Invoice To Supplier ──────────────────────────────────────────────
-// PUT /invoice/invoices/{invoiceId}/rollback-to-supplier/
-// payload: { status: 'rollback', reason }
 const rollbackInvoiceToSupplier = async (invoiceId, data) => {
   const response = await http.put(
     `/invoice/invoices/${invoiceId}/rollback-to-supplier/`,
@@ -400,6 +397,8 @@ const invoiceService = {
   checkInvoiceNumber,
   // Supplier Invoices
   getSupplierInvoices,
+  // Staff Invoices
+  getStaffInvoices,
   // Address Invoice To
   addressInvoiceTo,
   // Rollback Invoice To Supplier

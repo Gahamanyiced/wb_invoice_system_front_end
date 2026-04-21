@@ -219,7 +219,12 @@ export default function InvoiceModal() {
   const { users } = useSelector((state) => state.user);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
-  const isSupplier = user?.role === 'supplier';
+  // ── Permission flags ──────────────────────────────────────────────────────
+  // Only users with is_invoice_verifier = true see the full form
+  // (GL section, Payment Terms, etc.). Everyone else — including supplier,
+  // staff, signer, signer_admin, and admin without the flag — sees the
+  // limited (supplier-style) form.
+  const isInvoiceVerifier = !!user?.is_invoice_verifier;
 
   const [open, setOpen] = useState(false);
   const [documents, setDocuments] = useState([{}]);
@@ -252,7 +257,9 @@ export default function InvoiceModal() {
 
   const { excelData, isLoading: coaLoading } = useCOAData({ enabled: open });
 
-  const validationSchema = getInvoiceValidationSchema(user?.role);
+  // Pass isInvoiceVerifier into the validation schema selector so the correct
+  // schema (with or without GL/payment fields) is applied.
+  const validationSchema = getInvoiceValidationSchema(isInvoiceVerifier);
 
   const {
     control,
@@ -463,18 +470,13 @@ export default function InvoiceModal() {
         return;
       }
 
-      if (isSupplier && !selectedSupplier) {
-        toast.error('Please select your supplier profile');
-        return;
-      }
-
       // ── Service period validation ─────────────────────────────────────────
       if (!servicePeriod || !servicePeriod.includes(' to ')) {
         toast.error('Please select a service period date range');
         return;
       }
 
-      if (!isSupplier && useMultipleGL) {
+      if (isInvoiceVerifier && useMultipleGL) {
         if (!validateMultipleGLEntries()) {
           toast.error(
             'Please fill in all required GL entry fields: GL Code, Amount, Cost Center, and Location',
@@ -543,7 +545,8 @@ export default function InvoiceModal() {
         formData.append('supplier_id', selectedSupplier.id);
       }
 
-      if (!isSupplier && useMultipleGL) {
+      // GL lines — only invoice verifiers submit GL data
+      if (isInvoiceVerifier && useMultipleGL) {
         const validEntries = glEntries.filter(
           (e) => e.gl_code && e.gl_amount && e.cost_center,
         );
@@ -560,7 +563,7 @@ export default function InvoiceModal() {
             })),
           ),
         );
-      } else if (!isSupplier && !useMultipleGL) {
+      } else if (isInvoiceVerifier && !useMultipleGL) {
         formData.append(
           'gl_lines',
           JSON.stringify([
@@ -633,7 +636,6 @@ export default function InvoiceModal() {
                   ))}
                 </Box>
               )}
-
               {/* ── Supplier Information ──────────────────────────────────── */}
               <Box sx={style.section}>
                 <Typography variant="h6" sx={style.sectionTitle}>
@@ -655,11 +657,13 @@ export default function InvoiceModal() {
                   </Grid>
                 </Grid>
               </Box>
-
               <Divider sx={{ my: 2 }} />
-
-              {/* ══ NON-SUPPLIER SECTIONS ════════════════════════════════════ */}
-              {!isSupplier && (
+              {/* ══ INVOICE VERIFIER ONLY SECTIONS ══════════════════════════ */}
+              {/* GL Code Configuration and Payment Terms are only shown to    */}
+              /* users with is_invoice_verifier = true. All other roles */ /*
+              (supplier, staff, signer, signer_admin, admin without flag) */ /*
+              see the same limited form as suppliers. */
+              {isInvoiceVerifier && (
                 <>
                   {/* ── GL Code Configuration ──────────────────────────────── */}
                   <Box sx={style.section}>
@@ -981,7 +985,6 @@ export default function InvoiceModal() {
                   <Divider sx={{ my: 2 }} />
                 </>
               )}
-
               {/* ── Invoice Details ──────────────────────────────────────────── */}
               <Box sx={style.section}>
                 <Typography variant="h6" sx={style.sectionTitle}>
@@ -1133,9 +1136,7 @@ export default function InvoiceModal() {
                   </Grid>
                 </Grid>
               </Box>
-
               <Divider sx={{ my: 2 }} />
-
               {/* ── Financial Information ────────────────────────────────────── */}
               <Box sx={style.section}>
                 <Typography variant="h6" sx={style.sectionTitle}>
@@ -1196,9 +1197,9 @@ export default function InvoiceModal() {
                             inputProps={{ step: 'any' }}
                             sx={style.formInputNumber}
                             required
-                            disabled={!isSupplier && useMultipleGL}
+                            disabled={isInvoiceVerifier && useMultipleGL}
                             placeholder={
-                              !isSupplier && useMultipleGL
+                              isInvoiceVerifier && useMultipleGL
                                 ? 'Auto-calculated from GL entries'
                                 : 'Enter amount'
                             }
@@ -1208,7 +1209,7 @@ export default function InvoiceModal() {
                               {errors.amount.message}
                             </FormHelperText>
                           )}
-                          {!isSupplier && useMultipleGL && (
+                          {isInvoiceVerifier && useMultipleGL && (
                             <FormHelperText>
                               Amount is automatically calculated from GL entries
                             </FormHelperText>
@@ -1219,11 +1220,9 @@ export default function InvoiceModal() {
                   </Grid>
                 </Grid>
               </Box>
-
               <Divider sx={{ my: 2 }} />
-
-              {/* ── Payment Terms (non-suppliers only) ──────────────────────── */}
-              {!isSupplier && (
+              {/* ── Payment Terms — invoice verifiers only ───────────────────── */}
+              {isInvoiceVerifier && (
                 <>
                   <Box sx={style.section}>
                     <Typography variant="h6" sx={style.sectionTitle}>
@@ -1306,7 +1305,6 @@ export default function InvoiceModal() {
                   <Divider sx={{ my: 2 }} />
                 </>
               )}
-
               {/* ── Attachments ──────────────────────────────────────────────── */}
               <Box sx={style.section}>
                 <Typography variant="h6" sx={style.sectionTitle}>
@@ -1356,7 +1354,6 @@ export default function InvoiceModal() {
                   Add More Files
                 </Button>
               </Box>
-
               {/* ── Actions ──────────────────────────────────────────────────── */}
               <Box sx={style.actionButtons}>
                 <Button variant="outlined" onClick={handleReset}>

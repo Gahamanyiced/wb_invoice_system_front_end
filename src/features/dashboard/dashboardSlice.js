@@ -12,7 +12,7 @@ const initialState = {
   year: null,
 };
 
-//get all invoiceDashboards by department and year
+// get all invoiceDashboards by department and year
 export const getAllInvoiceDashboardByDepartmentAndYear = createAsyncThunk(
   'invoiceDashboard/getAllInvoiceDashboardByDepartmentAndYear',
   async (data, thunkAPI) => {
@@ -27,7 +27,7 @@ export const getAllInvoiceDashboardByDepartmentAndYear = createAsyncThunk(
   },
 );
 
-//get invoice owned by year
+// get invoice owned by year
 export const getInvoiceOwnedByYear = createAsyncThunk(
   'invoiceDashboard/getInvoiceOwnedByYear',
   async (data, thunkAPI) => {
@@ -39,7 +39,7 @@ export const getInvoiceOwnedByYear = createAsyncThunk(
   },
 );
 
-//get invoice to sign by year
+// get invoice to sign by year
 export const getInvoiceToSignByYear = createAsyncThunk(
   'invoiceDashboard/getInvoiceToSignByYear',
   async (data, thunkAPI) => {
@@ -51,12 +51,26 @@ export const getInvoiceToSignByYear = createAsyncThunk(
   },
 );
 
-//get supplier invoice stats
+// get supplier invoice stats
 export const getSupplierStats = createAsyncThunk(
   'invoiceDashboard/getSupplierStats',
   async (data, thunkAPI) => {
     try {
-      return await dashboardService.getSupplierStats(data.year); // ✅ removed data.id
+      return await dashboardService.getSupplierStats(data.year);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+// ── Staff Stats thunk ─────────────────────────────────────────────────────────
+// Mirrors getSupplierStats but hits /invoice/staff-stats/
+// dispatch(getStaffStats({ year: 2025 }))
+export const getStaffStats = createAsyncThunk(
+  'invoiceDashboard/getStaffStats',
+  async (data, thunkAPI) => {
+    try {
+      return await dashboardService.getStaffStats(data.year);
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
@@ -133,6 +147,7 @@ const invoiceDashboardSlice = createSlice({
         state.isLoading = false;
         state.invoiceDashboard = '';
       })
+
       // getSupplierStats
       .addCase(getSupplierStats.pending, (state) => {
         state.isLoading = true;
@@ -145,6 +160,23 @@ const invoiceDashboardSlice = createSlice({
         state.error = null;
       })
       .addCase(getSupplierStats.rejected, (state, { payload }) => {
+        state.error = payload;
+        state.isLoading = false;
+        state.invoiceDashboard = '';
+      })
+
+      // getStaffStats
+      .addCase(getStaffStats.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+        state.invoiceDashboard = '';
+      })
+      .addCase(getStaffStats.fulfilled, (state, { payload }) => {
+        state.invoiceDashboard = payload;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(getStaffStats.rejected, (state, { payload }) => {
         state.error = payload;
         state.isLoading = false;
         state.invoiceDashboard = '';

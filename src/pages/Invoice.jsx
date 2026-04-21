@@ -51,6 +51,7 @@ import {
   getUserProcessingInvoices,
   getUserRollBackedInvoices,
   getSupplierInvoices,
+  getStaffInvoices, // ← added
 } from '../features/invoice/invoiceSlice';
 import ViewInvoiceModal from '../components/ViewInvoiceModal';
 import UpdateInvoiceModal from '../components/UpdateInvoiceModal';
@@ -216,6 +217,21 @@ export default function Invoice() {
     user?.role === 'admin' ||
     (user?.role === 'signer_admin' && !!user?.is_invoice_verifier);
 
+  // Staff Invoices — same permission gate as Supplier Invoices
+  const canSeeStaffInvoices =
+    user?.role === 'admin' ||
+    (user?.role === 'signer_admin' && !!user?.is_invoice_verifier);
+
+  // Shared card→status map used by both supplier (4) and staff (5) views
+  const cardStatusMap = {
+    2: 'pending',
+    3: 'approved',
+    4: 'denied',
+    5: 'rollback',
+    6: 'processing',
+    9: 'forwarded',
+  };
+
   const dispatchInvoices = () => {
     const invoiceIndex = getInvoiceIndex();
     const params = { page, year, ...filters };
@@ -223,19 +239,26 @@ export default function Invoice() {
 
     if (!user) return;
 
+    // ── Staff Invoices (index 5) ─────────────────────────────────────────────
+    // Available to admin OR signer_admin with is_invoice_verifier.
+    if (invoiceIndex === 5 && canSeeStaffInvoices) {
+      const statusFromCard = cardIndex ? cardStatusMap[cardIndex] : undefined;
+      dispatch(
+        getStaffInvoices({
+          ...params,
+          ...(statusFromCard && !filters.status
+            ? { status: statusFromCard }
+            : {}),
+        }),
+      );
+      return;
+    }
+
     // ── Supplier Invoices (index 4) ──────────────────────────────────────────
     // Available to admin OR signer_admin with is_invoice_verifier.
     // cardIndex maps to a status filter matching the dashboard cards:
     //   2=pending, 3=approved, 4=denied, 5=rollback, 6=processing, 9=forwarded
     if (invoiceIndex === 4 && canSeeSupplierInvoices) {
-      const cardStatusMap = {
-        2: 'pending',
-        3: 'approved',
-        4: 'denied',
-        5: 'rollback',
-        6: 'processing',
-        9: 'forwarded',
-      };
       const statusFromCard = cardIndex ? cardStatusMap[cardIndex] : undefined;
       dispatch(
         getSupplierInvoices({
@@ -366,7 +389,11 @@ export default function Invoice() {
         indexInvoice === 2 &&
         isInvoiceEditable(data)) ||
       // Supplier Invoices view (index 4) — admin or signer_admin with is_invoice_verifier
-      (canSeeSupplierInvoices && indexInvoice === 4 && isInvoiceEditable(data))
+      (canSeeSupplierInvoices &&
+        indexInvoice === 4 &&
+        isInvoiceEditable(data)) ||
+      // Staff Invoices view (index 5) — same permission gate
+      (canSeeStaffInvoices && indexInvoice === 5 && isInvoiceEditable(data))
     ) {
       setSelectedUpdate(data);
       setOpenUpdate(true);
@@ -644,6 +671,8 @@ export default function Invoice() {
       if (cardIndex === 8) title = 'Signed Invoices Report';
     } else if (indexInvoice === 4 && canSeeSupplierInvoices) {
       title = 'Supplier Invoices Report';
+    } else if (indexInvoice === 5 && canSeeStaffInvoices) {
+      title = 'Staff Invoices Report';
     } else {
       title = 'My Invoices Report';
       if (cardIndex === 2) title = 'My Pending Invoices Report';
@@ -725,6 +754,11 @@ export default function Invoice() {
     return match ? match.status : invoice?.status;
   };
 
+  // True when the current view is a verifier panel (supplier OR staff)
+  const isVerifierView =
+    (indexInvoice === 4 && canSeeSupplierInvoices) ||
+    (indexInvoice === 5 && canSeeStaffInvoices);
+
   return (
     <RootLayout>
       <InvoiceModal />
@@ -805,7 +839,8 @@ export default function Invoice() {
                 <TableCell sx={styles.header}>GL Amount</TableCell>
                 <TableCell sx={styles.header}>Total Amount</TableCell>
                 <TableCell sx={styles.header}>Status</TableCell>
-                {indexInvoice === 4 && canSeeSupplierInvoices && (
+                {/* Addressed To — shown for supplier (4) and staff (5) verifier views */}
+                {isVerifierView && (
                   <TableCell sx={styles.header}>Addressed To</TableCell>
                 )}
                 <TableCell sx={styles.header}>Actions</TableCell>
@@ -1048,8 +1083,8 @@ export default function Invoice() {
                           </Typography>
                         </Box>
                       </TableCell>
-                      {/* Addressed To — Supplier Invoices only */}
-                      {indexInvoice === 4 && canSeeSupplierInvoices && (
+                      {/* Addressed To — supplier (4) and staff (5) verifier views */}
+                      {isVerifierView && (
                         <TableCell
                           sx={{ fontSize: '12px', color: '#444', py: 1.2 }}
                         >
@@ -1120,7 +1155,8 @@ export default function Invoice() {
                             user?.role === 'signer_admin' ||
                             (user?.role === 'admin' && indexInvoice === 2) ||
                             (user?.role === 'signer' && indexInvoice === 2) ||
-                            (canSeeSupplierInvoices && indexInvoice === 4)) && (
+                            (canSeeSupplierInvoices && indexInvoice === 4) ||
+                            (canSeeStaffInvoices && indexInvoice === 5)) && (
                             <Tooltip title="Edit">
                               <Chip
                                 onClick={(e) => {
@@ -1163,7 +1199,8 @@ export default function Invoice() {
                             />
                           </Tooltip>
 
-                          {indexInvoice === 4 && canSeeSupplierInvoices && (
+                          {/* Address & Change Status — supplier (4) and staff (5) verifier views */}
+                          {isVerifierView && (
                             <Tooltip title="Address to Signer">
                               <Chip
                                 onClick={(e) => {
@@ -1178,7 +1215,7 @@ export default function Invoice() {
                             </Tooltip>
                           )}
 
-                          {indexInvoice === 4 && canSeeSupplierInvoices && (
+                          {isVerifierView && (
                             <Tooltip title="Change Status">
                               <Chip
                                 onClick={(e) => {

@@ -34,6 +34,7 @@ import {
   getInvoiceOwnedByYear,
   getInvoiceToSignByYear,
   getSupplierStats,
+  getStaffStats, // ← added
   setCardIndex,
 } from '../features/dashboard/dashboardSlice';
 import { getDepartmentByErp } from '../features/department/departmentSlice';
@@ -169,7 +170,13 @@ function Dashboard() {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
+  // ── Permissions ───────────────────────────────────────────────────────────
   const canSeeSupplierInvoices =
+    user?.role === 'admin' ||
+    (user?.role === 'signer_admin' && !!user?.is_invoice_verifier);
+
+  // Staff Invoices — same permission gate as Supplier Invoices
+  const canSeeStaffInvoices =
     user?.role === 'admin' ||
     (user?.role === 'signer_admin' && !!user?.is_invoice_verifier);
 
@@ -194,6 +201,9 @@ function Dashboard() {
       dispatch(getInvoiceToSignByYear({ id: user?.id, year }));
     } else if (dashboardIndex === 4 && canSeeSupplierInvoices) {
       dispatch(getSupplierStats({ year }));
+    } else if (dashboardIndex === 5 && canSeeStaffInvoices) {
+      // ── Staff Invoices dashboard (index 5) ──────────────────────────────
+      dispatch(getStaffStats({ year }));
     } else if (dashboardIndex === 2) {
       dispatch(getInvoiceOwnedByYear({ id: user?.id, year }));
     }
@@ -211,6 +221,9 @@ function Dashboard() {
   const handleCardClick = (cardIndex) => {
     if (isSupplierView) {
       dispatch(setIndex(4));
+    }
+    if (isStaffView) {
+      dispatch(setIndex(5));
     }
     dispatch(setCardIndex({ cardIndex, year }));
     navigate('/');
@@ -240,182 +253,197 @@ function Dashboard() {
     (user?.role === 'signer' || user?.role === 'signer_admin') &&
     anotherDashboardIndex === 3;
   const isSupplierView = anotherDashboardIndex === 4 && canSeeSupplierInvoices;
-  const isOwnerView = !isSignerView && !isSupplierView;
+  const isStaffView = anotherDashboardIndex === 5 && canSeeStaffInvoices; // ← added
+  const isOwnerView = !isSignerView && !isSupplierView && !isStaffView; // ← updated
 
-  const cards = isSupplierView
-    ? [
-        {
-          number: invoiceDashboard?.total_invoices,
-          label: 'Total Invoices',
-          icon: <ReceiptLongIcon sx={{ fontSize: 18, color: '#1565c0' }} />,
-          color: '#1565c0',
-          accent: '#1565c0',
-          cardIndex: 1,
-        },
-        {
-          number: invoiceDashboard?.total_pending_invoices,
-          label: 'Pending',
-          icon: <PendingActionsIcon sx={{ fontSize: 18, color: '#e65100' }} />,
-          color: '#e65100',
-          accent: '#e65100',
-          cardIndex: 2,
-        },
-        {
-          number: invoiceDashboard?.total_approved_invoices,
-          label: 'Approved',
-          icon: (
-            <CheckCircleOutlineIcon sx={{ fontSize: 18, color: '#2e7d32' }} />
-          ),
-          color: '#2e7d32',
-          accent: '#2e7d32',
-          cardIndex: 3,
-        },
-        {
-          number: invoiceDashboard?.total_denied_invoices,
-          label: 'Denied',
-          icon: <CancelOutlinedIcon sx={{ fontSize: 18, color: '#c62828' }} />,
-          color: '#c62828',
-          accent: '#c62828',
-          cardIndex: 4,
-        },
-        {
-          number: invoiceDashboard?.total_rollback_invoices,
-          label: 'Rollback',
-          icon: <ReplayIcon sx={{ fontSize: 18, color: '#6a1b9a' }} />,
-          color: '#6a1b9a',
-          accent: '#6a1b9a',
-          cardIndex: 5,
-        },
-        {
-          number: invoiceDashboard?.total_processing_invoices,
-          label: 'Processing',
-          icon: <AutorenewIcon sx={{ fontSize: 18, color: '#00838f' }} />,
-          color: '#00838f',
-          accent: '#00838f',
-          cardIndex: 6,
-        },
-        {
-          number: invoiceDashboard?.total_forwarded_invoices,
-          label: 'Forwarded',
-          icon: <ForwardToInboxIcon sx={{ fontSize: 18, color: '#1565c0' }} />,
-          color: '#1565c0',
-          accent: '#1565c0',
-          cardIndex: 9,
-        },
-      ]
-    : [
-        {
-          number: invoiceDashboard?.total_invoices,
-          label: 'Total Invoices',
-          icon: <ReceiptLongIcon sx={{ fontSize: 18, color: '#1565c0' }} />,
-          color: '#1565c0',
-          accent: '#1565c0',
-          cardIndex: 1,
-        },
-        {
-          number: invoiceDashboard?.total_pending_invoices,
-          label: 'Pending',
-          icon: <PendingActionsIcon sx={{ fontSize: 18, color: '#e65100' }} />,
-          color: '#e65100',
-          accent: '#e65100',
-          cardIndex: 2,
-        },
-        ...(isOwnerView
-          ? [
-              {
-                number: invoiceDashboard?.total_approved_invoices,
-                label: 'Approved',
-                icon: (
-                  <CheckCircleOutlineIcon
-                    sx={{ fontSize: 18, color: '#2e7d32' }}
-                  />
-                ),
-                color: '#2e7d32',
-                accent: '#2e7d32',
-                cardIndex: 3,
-              },
-            ]
-          : []),
-        {
-          number: invoiceDashboard?.total_denied_invoices,
-          label: 'Denied',
-          icon: <CancelOutlinedIcon sx={{ fontSize: 18, color: '#c62828' }} />,
-          color: '#c62828',
-          accent: '#c62828',
-          cardIndex: 4,
-        },
-        ...(isOwnerView
-          ? [
-              {
-                number: invoiceDashboard?.total_rollback_invoices,
-                label: 'Rollback',
-                icon: <ReplayIcon sx={{ fontSize: 18, color: '#6a1b9a' }} />,
-                color: '#6a1b9a',
-                accent: '#6a1b9a',
-                cardIndex: 5,
-              },
-            ]
-          : []),
-        ...(isOwnerView
-          ? [
-              {
-                number: invoiceDashboard?.total_processing_invoices,
-                label: 'Processing',
-                icon: <AutorenewIcon sx={{ fontSize: 18, color: '#00838f' }} />,
-                color: '#00838f',
-                accent: '#00838f',
-                cardIndex: 6,
-              },
-            ]
-          : []),
-        ...(isSignerView
-          ? [
-              {
-                number: invoiceDashboard?.total_to_sign_invoices,
-                label: 'To Sign',
-                icon: <DrawIcon sx={{ fontSize: 18, color: '#00838f' }} />,
-                color: '#00838f',
-                accent: '#00838f',
-                cardIndex: 7,
-              },
-            ]
-          : []),
-        ...(isSignerView
-          ? [
-              {
-                number: invoiceDashboard?.total_signed_invoices,
-                label: 'Signed',
-                icon: <HowToRegIcon sx={{ fontSize: 18, color: '#2e7d32' }} />,
-                color: '#2e7d32',
-                accent: '#2e7d32',
-                cardIndex: 8,
-              },
-            ]
-          : []),
-        ...(isOwnerView
-          ? [
-              {
-                number: invoiceDashboard?.total_forwarded_invoices,
-                label: 'Forwarded',
-                icon: (
-                  <ForwardToInboxIcon sx={{ fontSize: 18, color: '#1565c0' }} />
-                ),
-                color: '#1565c0',
-                accent: '#1565c0',
-                cardIndex: 9,
-              },
-            ]
-          : []),
-      ];
+  // Shared card set for supplier (4) and staff (5) — same stat key names from API
+  const verifierCards = [
+    {
+      number: invoiceDashboard?.total_invoices,
+      label: 'Total Invoices',
+      icon: <ReceiptLongIcon sx={{ fontSize: 18, color: '#1565c0' }} />,
+      color: '#1565c0',
+      accent: '#1565c0',
+      cardIndex: 1,
+    },
+    {
+      number: invoiceDashboard?.total_pending_invoices,
+      label: 'Pending',
+      icon: <PendingActionsIcon sx={{ fontSize: 18, color: '#e65100' }} />,
+      color: '#e65100',
+      accent: '#e65100',
+      cardIndex: 2,
+    },
+    {
+      number: invoiceDashboard?.total_approved_invoices,
+      label: 'Approved',
+      icon: <CheckCircleOutlineIcon sx={{ fontSize: 18, color: '#2e7d32' }} />,
+      color: '#2e7d32',
+      accent: '#2e7d32',
+      cardIndex: 3,
+    },
+    {
+      number: invoiceDashboard?.total_denied_invoices,
+      label: 'Denied',
+      icon: <CancelOutlinedIcon sx={{ fontSize: 18, color: '#c62828' }} />,
+      color: '#c62828',
+      accent: '#c62828',
+      cardIndex: 4,
+    },
+    {
+      number: invoiceDashboard?.total_rollback_invoices,
+      label: 'Rollback',
+      icon: <ReplayIcon sx={{ fontSize: 18, color: '#6a1b9a' }} />,
+      color: '#6a1b9a',
+      accent: '#6a1b9a',
+      cardIndex: 5,
+    },
+    {
+      number: invoiceDashboard?.total_processing_invoices,
+      label: 'Processing',
+      icon: <AutorenewIcon sx={{ fontSize: 18, color: '#00838f' }} />,
+      color: '#00838f',
+      accent: '#00838f',
+      cardIndex: 6,
+    },
+    {
+      number: invoiceDashboard?.total_forwarded_invoices,
+      label: 'Forwarded',
+      icon: <ForwardToInboxIcon sx={{ fontSize: 18, color: '#1565c0' }} />,
+      color: '#1565c0',
+      accent: '#1565c0',
+      cardIndex: 9,
+    },
+  ];
+
+  const cards =
+    isSupplierView || isStaffView
+      ? verifierCards
+      : [
+          {
+            number: invoiceDashboard?.total_invoices,
+            label: 'Total Invoices',
+            icon: <ReceiptLongIcon sx={{ fontSize: 18, color: '#1565c0' }} />,
+            color: '#1565c0',
+            accent: '#1565c0',
+            cardIndex: 1,
+          },
+          {
+            number: invoiceDashboard?.total_pending_invoices,
+            label: 'Pending',
+            icon: (
+              <PendingActionsIcon sx={{ fontSize: 18, color: '#e65100' }} />
+            ),
+            color: '#e65100',
+            accent: '#e65100',
+            cardIndex: 2,
+          },
+          ...(isOwnerView
+            ? [
+                {
+                  number: invoiceDashboard?.total_approved_invoices,
+                  label: 'Approved',
+                  icon: (
+                    <CheckCircleOutlineIcon
+                      sx={{ fontSize: 18, color: '#2e7d32' }}
+                    />
+                  ),
+                  color: '#2e7d32',
+                  accent: '#2e7d32',
+                  cardIndex: 3,
+                },
+              ]
+            : []),
+          {
+            number: invoiceDashboard?.total_denied_invoices,
+            label: 'Denied',
+            icon: (
+              <CancelOutlinedIcon sx={{ fontSize: 18, color: '#c62828' }} />
+            ),
+            color: '#c62828',
+            accent: '#c62828',
+            cardIndex: 4,
+          },
+          ...(isOwnerView
+            ? [
+                {
+                  number: invoiceDashboard?.total_rollback_invoices,
+                  label: 'Rollback',
+                  icon: <ReplayIcon sx={{ fontSize: 18, color: '#6a1b9a' }} />,
+                  color: '#6a1b9a',
+                  accent: '#6a1b9a',
+                  cardIndex: 5,
+                },
+              ]
+            : []),
+          ...(isOwnerView
+            ? [
+                {
+                  number: invoiceDashboard?.total_processing_invoices,
+                  label: 'Processing',
+                  icon: (
+                    <AutorenewIcon sx={{ fontSize: 18, color: '#00838f' }} />
+                  ),
+                  color: '#00838f',
+                  accent: '#00838f',
+                  cardIndex: 6,
+                },
+              ]
+            : []),
+          ...(isSignerView
+            ? [
+                {
+                  number: invoiceDashboard?.total_to_sign_invoices,
+                  label: 'To Sign',
+                  icon: <DrawIcon sx={{ fontSize: 18, color: '#00838f' }} />,
+                  color: '#00838f',
+                  accent: '#00838f',
+                  cardIndex: 7,
+                },
+              ]
+            : []),
+          ...(isSignerView
+            ? [
+                {
+                  number: invoiceDashboard?.total_signed_invoices,
+                  label: 'Signed',
+                  icon: (
+                    <HowToRegIcon sx={{ fontSize: 18, color: '#2e7d32' }} />
+                  ),
+                  color: '#2e7d32',
+                  accent: '#2e7d32',
+                  cardIndex: 8,
+                },
+              ]
+            : []),
+          ...(isOwnerView
+            ? [
+                {
+                  number: invoiceDashboard?.total_forwarded_invoices,
+                  label: 'Forwarded',
+                  icon: (
+                    <ForwardToInboxIcon
+                      sx={{ fontSize: 18, color: '#1565c0' }}
+                    />
+                  ),
+                  color: '#1565c0',
+                  accent: '#1565c0',
+                  cardIndex: 9,
+                },
+              ]
+            : []),
+        ];
 
   // ── Role label ──────────────────────────────────────────────────────────────
-  const viewLabel = isSupplierView
-    ? 'Supplier Invoices Overview'
-    : isSignerView
-      ? 'Invoice Approval Overview'
-      : anotherDashboardIndex === 1
-        ? 'All Invoices Overview'
-        : 'My Invoices Overview';
+  const viewLabel = isStaffView
+    ? 'Staff Invoices Overview'
+    : isSupplierView
+      ? 'Supplier Invoices Overview'
+      : isSignerView
+        ? 'Invoice Approval Overview'
+        : anotherDashboardIndex === 1
+          ? 'All Invoices Overview'
+          : 'My Invoices Overview';
 
   return (
     <RootLayout>

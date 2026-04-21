@@ -32,11 +32,22 @@ const getSupplierStats = async (year) => {
   return response.data;
 };
 
+// ── Staff Stats ───────────────────────────────────────────────────────────────
+// GET /invoice/staff-stats/?year=2025
+const getStaffStats = async (year) => {
+  const endpoint = year
+    ? `/invoice/staff-stats/?year=${year}`
+    : `/invoice/staff-stats/`;
+  const response = await http.get(endpoint);
+  return response.data;
+};
+
 const dashboardService = {
   getAllInvoiceByDepartmentAndYear,
   getInvoiceOwnedByYear,
   getInvoiceToSignByYear,
-  getSupplierStats, // ✅ was missing from exports
+  getSupplierStats,
+  getStaffStats,
 };
 
 export default dashboardService;
