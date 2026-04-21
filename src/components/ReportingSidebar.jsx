@@ -901,46 +901,114 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
       {/* ══════════════════════ PETTY CASH TAB ══════════════════════ */}
       {defaultTab === 1 && (
         <Box>
-          <Paper
-            elevation={2}
-            sx={{ mb: 3, p: 2, backgroundColor: 'white', borderRadius: 2 }}
+          {/* ── Filter panel — same compact design as invoice tab ── */}
+          <Box
+            sx={{
+              mb: 2,
+              p: 1.5,
+              backgroundColor: '#fff',
+              border: '1px solid #e0e8f0',
+              borderRadius: '10px',
+            }}
           >
+            {/* Header row */}
             <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                cursor: 'pointer',
-                mb: pcFiltersExpanded ? 2 : 0,
-              }}
-              onClick={() => setPcFiltersExpanded((p) => !p)}
+              sx={{ display: 'flex', alignItems: 'center', mb: 1.5, gap: 1 }}
             >
-              <FilterIcon sx={{ mr: 1, color: 'primary.main' }} />
+              <TuneIcon sx={{ fontSize: 15, color: '#00529B' }} />
               <Typography
-                variant="h6"
-                color="primary"
-                sx={{ flexGrow: 1, fontWeight: '600' }}
-              >
-                Report Filters
-              </Typography>
-              <Button
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  clearPcFilters();
+                sx={{
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: '#00529B',
+                  flex: 1,
                 }}
-                sx={{ mr: 1, textTransform: 'none' }}
               >
-                Clear All
-              </Button>
-              {pcFiltersExpanded ? (
-                <ExpandLess color="primary" />
-              ) : (
-                <ExpandMore color="primary" />
+                Filters
+                {Object.values(pcFilters).some((v) => v !== '') && (
+                  <Box
+                    component="span"
+                    sx={{
+                      ml: 1,
+                      px: 0.75,
+                      py: 0.2,
+                      bgcolor: '#00529B',
+                      color: '#fff',
+                      borderRadius: '12px',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {Object.values(pcFilters).filter((v) => v !== '').length}
+                  </Box>
+                )}
+              </Typography>
+              {Object.values(pcFilters).some((v) => v !== '') && (
+                <Button
+                  size="small"
+                  startIcon={<RestartAltIcon sx={{ fontSize: 13 }} />}
+                  onClick={clearPcFilters}
+                  sx={{
+                    fontSize: '11px',
+                    textTransform: 'none',
+                    color: '#d32f2f',
+                    py: 0.3,
+                    px: 1,
+                    minWidth: 0,
+                    borderRadius: '6px',
+                    '&:hover': { bgcolor: '#ffebee' },
+                  }}
+                >
+                  Clear
+                </Button>
               )}
+              <IconButton
+                size="small"
+                onClick={() => setPcFiltersExpanded((p) => !p)}
+                sx={{ p: 0.5 }}
+              >
+                {pcFiltersExpanded ? (
+                  <ExpandLess sx={{ fontSize: 18, color: '#00529B' }} />
+                ) : (
+                  <ExpandMore sx={{ fontSize: 18, color: '#00529B' }} />
+                )}
+              </IconButton>
             </Box>
 
+            {/* Active filter chips when collapsed */}
+            {!pcFiltersExpanded &&
+              Object.entries(pcFilters).some(([, v]) => v !== '') && (
+                <Box
+                  sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}
+                >
+                  {Object.entries(pcFilters)
+                    .filter(([, v]) => v !== '')
+                    .map(([k, v]) => (
+                      <Chip
+                        key={k}
+                        label={`${k.replace(/_/g, ' ')}: ${v}`}
+                        size="small"
+                        onDelete={() => handlePcFilterChange(k, '')}
+                        sx={{
+                          fontSize: '10px',
+                          height: '20px',
+                          bgcolor: '#e3f2fd',
+                          color: '#1565c0',
+                        }}
+                      />
+                    ))}
+                </Box>
+              )}
+
             <Collapse in={pcFiltersExpanded}>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 1.5,
+                  pt: 0.5,
+                }}
+              >
                 {/* Station */}
                 <TextField
                   label="Station"
@@ -951,7 +1019,7 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   size="small"
                   fullWidth
                   placeholder="e.g. NBO, KGL"
-                  sx={{ backgroundColor: 'white' }}
+                  sx={fieldSx}
                 />
 
                 {/* Date From */}
@@ -965,7 +1033,7 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   InputLabelProps={{ shrink: true }}
                   size="small"
                   fullWidth
-                  sx={{ backgroundColor: 'white' }}
+                  sx={fieldSx}
                 />
 
                 {/* Date To */}
@@ -979,12 +1047,13 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   InputLabelProps={{ shrink: true }}
                   size="small"
                   fullWidth
-                  sx={{ backgroundColor: 'white' }}
+                  sx={fieldSx}
                 />
               </Box>
             </Collapse>
-          </Paper>
+          </Box>
 
+          {/* ── Available Reports heading + card — same as invoice ── */}
           <Typography
             variant="subtitle2"
             sx={{
@@ -1059,6 +1128,7 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
             </Paper>
           </Box>
 
+          {/* ── Loading — identical to invoice ── */}
           {pcLoading && (
             <Paper
               elevation={2}
@@ -1083,6 +1153,7 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
             </Paper>
           )}
 
+          {/* ── Error — identical to invoice ── */}
           {pcError && (
             <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: '600' }}>
@@ -1092,6 +1163,7 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
             </Alert>
           )}
 
+          {/* ── Results paper — same structure as invoice, PC-specific summary fields ── */}
           {pcReportData !== null &&
             !pcLoading &&
             pcShowResults &&
@@ -1129,9 +1201,7 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
 
                 <Box sx={{ mb: 3 }}>
                   <Chip
-                    label={`${
-                      pcSummary?.total_records ?? pcRecordCount
-                    } records found`}
+                    label={`${pcSummary?.total_records ?? pcRecordCount} records found`}
                     color="success"
                     sx={{ mr: 1, mb: 1, fontWeight: '600' }}
                   />
@@ -1142,9 +1212,10 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   />
                 </Box>
 
+                {/* Summary box — same '#f8f9fa' bg, same '📊 Report Summary:' label */}
                 <Box
                   sx={{
-                    mb: 3,
+                    mb: 2,
                     p: 2,
                     backgroundColor: '#f8f9fa',
                     borderRadius: 1,
@@ -1186,16 +1257,24 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   <Typography variant="body2" color="text.secondary">
                     • Generated: {new Date().toLocaleString()}
                   </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    • Data includes all matching records without pagination
+                    limits
+                  </Typography>
                 </Box>
 
-                <PettyCashReportDownload
-                  data={pcReportData}
-                  summary={pcSummary}
-                  title="Petty_Cash_Report"
-                />
+                {/* Download — right-aligned, matching invoice layout */}
+                <Box display="flex" justifyContent="flex-end">
+                  <PettyCashReportDownload
+                    data={pcReportData}
+                    summary={pcSummary}
+                    title="Petty_Cash_Report"
+                  />
+                </Box>
               </Paper>
             )}
 
+          {/* ── No data — identical to invoice ── */}
           {pcReportData !== null && !pcLoading && pcRecordCount === 0 && (
             <Alert severity="info" sx={{ borderRadius: 2 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: '600' }}>
