@@ -74,13 +74,11 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
 
       const first = group.records[0];
 
-      // ── Shared header block — printed ONCE per group ──────────────────────
       rows.push(['RWANDAIR PETTY CASH', '', '', '', '']);
       rows.push([`STATION : ${fmt(first.station)}`, '', '', '', '']);
       rows.push([`PERIOD: ${fmt(first.period)}`, '', '', '', '']);
       rows.push([`CUSTODIAN: ${fmt(first.holder?.name)}`, '', '', '', '']);
 
-      // issued_by: deduplicate unique names across records in this group
       const issuedByNames = [
         ...new Set(group.records.map((r) => r.issued_by?.name).filter(Boolean)),
       ];
@@ -91,16 +89,12 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
       rows.push([`CURRENCY: ${fmt(first.currency)}`, '', '', '', '']);
       rows.push(['', '', '', '', '']);
 
-      // ── One ledger section per record inside the group ────────────────────
       group.records.forEach((record, recordIndex) => {
         if (recordIndex > 0) {
           rows.push(['', '', '', '', '']);
         }
 
-        // Column headers
         rows.push(['', 'Description', 'Dr', 'Cr', 'BALANCE']);
-
-        // Opening balance
         rows.push([
           'DATE',
           'Opening balance',
@@ -108,8 +102,6 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
           '',
           '',
         ]);
-
-        // Replenishment
         rows.push([
           fmt(record.issue_date),
           'Replenishment',
@@ -117,11 +109,8 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
           '',
           '',
         ]);
-
-        // Total available
         rows.push(['', '', '', '', fmt(record.total_available ?? 0)]);
 
-        // Expense rows
         const expenses = record.expenses || [];
         expenses.forEach((exp) => {
           rows.push([
@@ -133,7 +122,6 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
           ]);
         });
 
-        // Closing balance
         rows.push([
           '',
           'Closing balance',
@@ -144,7 +132,6 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
       });
     });
 
-    // ── Summary block ─────────────────────────────────────────────────────────
     if (summary) {
       rows.push(['', '', '', '', '']);
       rows.push(['', '', '', '', '']);
@@ -156,7 +143,6 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
       rows.push([`Generated: ${new Date().toLocaleString()}`, '', '', '', '']);
     }
 
-    // ── Serialize to CSV ──────────────────────────────────────────────────────
     const csvContent = rows
       .map((row) =>
         row
@@ -197,7 +183,7 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
   );
 };
 
-// ── Shared field style — compact, consistent with FilterPanel ────────────────
+// ── Shared field style ────────────────────────────────────────────────────────
 const fieldSx = {
   '& .MuiOutlinedInput-root': {
     borderRadius: '7px',
@@ -220,10 +206,11 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
   const [error, setError] = useState(null);
   const [showResults, setShowResults] = useState(true);
   const [reportFilters, setReportFilters] = useState({
-    supplier_id: '',
+    supplier_name: '', // ← was supplier_id
     invoice_number: '',
     invoice_owner: '',
-    created_date: '',
+    created_date_from: '', // ← was created_date
+    created_date_to: '', // ← new
     status: '',
     year: '',
   });
@@ -278,10 +265,11 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
 
   const clearFilters = () => {
     setReportFilters({
-      supplier_id: '',
+      supplier_name: '',
       invoice_number: '',
       invoice_owner: '',
-      created_date: '',
+      created_date_from: '',
+      created_date_to: '',
       status: '',
       year: '',
     });
@@ -340,11 +328,7 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
   };
 
   const clearPcFilters = () => {
-    setPcFilters({
-      station: '',
-      date_from: '',
-      date_to: '',
-    });
+    setPcFilters({ station: '', date_from: '', date_to: '' });
     setPcSummary(null);
     setPcReportData(null);
   };
@@ -413,7 +397,7 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
         </IconButton>
       </Box>
 
-      {/* Module context chip — shows which module's reports are open */}
+      {/* Module context chip */}
       <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
         <Box
           sx={{
@@ -522,7 +506,7 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
               </IconButton>
             </Box>
 
-            {/* Always-visible quick chips for active filters */}
+            {/* Active filter chips when collapsed */}
             {!filtersExpanded &&
               Object.entries(reportFilters).some(([, v]) => v !== '') && (
                 <Box
@@ -568,17 +552,17 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   sx={fieldSx}
                 />
 
-                {/* Supplier — dropdown from COA DB */}
+                {/* Supplier — COA dropdown, sends supplier_name (not id) in params */}
                 <Autocomplete
                   options={coaData.suppliers}
                   getOptionLabel={(opt) => opt.label || ''}
                   value={
                     coaData.suppliers.find(
-                      (s) => String(s.id) === String(reportFilters.supplier_id),
+                      (s) => s.description === reportFilters.supplier_name,
                     ) || null
                   }
                   onChange={(_, v) =>
-                    handleFilterChange('supplier_id', v ? String(v.id) : '')
+                    handleFilterChange('supplier_name', v ? v.description : '')
                   }
                   size="small"
                   renderInput={(params) => (
@@ -636,13 +620,27 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   )}
                 />
 
-                {/* Created Date */}
+                {/* Created Date From (was Created Date) */}
                 <TextField
-                  label="Created Date"
+                  label="Created Date From"
                   type="date"
-                  value={reportFilters.created_date}
+                  value={reportFilters.created_date_from}
                   onChange={(e) =>
-                    handleFilterChange('created_date', e.target.value)
+                    handleFilterChange('created_date_from', e.target.value)
+                  }
+                  InputLabelProps={{ shrink: true }}
+                  size="small"
+                  fullWidth
+                  sx={fieldSx}
+                />
+
+                {/* Created Date To (new) */}
+                <TextField
+                  label="Created Date To"
+                  type="date"
+                  value={reportFilters.created_date_to}
+                  onChange={(e) =>
+                    handleFilterChange('created_date_to', e.target.value)
                   }
                   InputLabelProps={{ shrink: true }}
                   size="small"
@@ -870,7 +868,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   </Typography>
                 </Box>
 
-                {/* ── Download button — right-aligned, same as Invoice page ── */}
                 <Box display="flex" justifyContent="flex-end">
                   <EnhancedDownloadComponent
                     invoices={{
@@ -901,7 +898,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
       {/* ══════════════════════ PETTY CASH TAB ══════════════════════ */}
       {defaultTab === 1 && (
         <Box>
-          {/* ── Filter panel — same compact design as invoice tab ── */}
           <Box
             sx={{
               mb: 2,
@@ -911,7 +907,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
               borderRadius: '10px',
             }}
           >
-            {/* Header row */}
             <Box
               sx={{ display: 'flex', alignItems: 'center', mb: 1.5, gap: 1 }}
             >
@@ -975,7 +970,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
               </IconButton>
             </Box>
 
-            {/* Active filter chips when collapsed */}
             {!pcFiltersExpanded &&
               Object.entries(pcFilters).some(([, v]) => v !== '') && (
                 <Box
@@ -1009,7 +1003,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   pt: 0.5,
                 }}
               >
-                {/* Station */}
                 <TextField
                   label="Station"
                   value={pcFilters.station}
@@ -1021,8 +1014,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   placeholder="e.g. NBO, KGL"
                   sx={fieldSx}
                 />
-
-                {/* Date From */}
                 <TextField
                   label="Date From"
                   type="date"
@@ -1035,8 +1026,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   fullWidth
                   sx={fieldSx}
                 />
-
-                {/* Date To */}
                 <TextField
                   label="Date To"
                   type="date"
@@ -1053,7 +1042,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
             </Collapse>
           </Box>
 
-          {/* ── Available Reports heading + card — same as invoice ── */}
           <Typography
             variant="subtitle2"
             sx={{
@@ -1128,7 +1116,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
             </Paper>
           </Box>
 
-          {/* ── Loading — identical to invoice ── */}
           {pcLoading && (
             <Paper
               elevation={2}
@@ -1153,7 +1140,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
             </Paper>
           )}
 
-          {/* ── Error — identical to invoice ── */}
           {pcError && (
             <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: '600' }}>
@@ -1163,7 +1149,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
             </Alert>
           )}
 
-          {/* ── Results paper — same structure as invoice, PC-specific summary fields ── */}
           {pcReportData !== null &&
             !pcLoading &&
             pcShowResults &&
@@ -1212,7 +1197,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   />
                 </Box>
 
-                {/* Summary box — same '#f8f9fa' bg, same '📊 Report Summary:' label */}
                 <Box
                   sx={{
                     mb: 2,
@@ -1263,7 +1247,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   </Typography>
                 </Box>
 
-                {/* Download — right-aligned, matching invoice layout */}
                 <Box display="flex" justifyContent="flex-end">
                   <PettyCashReportDownload
                     data={pcReportData}
@@ -1274,7 +1257,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
               </Paper>
             )}
 
-          {/* ── No data — identical to invoice ── */}
           {pcReportData !== null && !pcLoading && pcRecordCount === 0 && (
             <Alert severity="info" sx={{ borderRadius: 2 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: '600' }}>

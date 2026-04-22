@@ -69,7 +69,6 @@ function AddLocationSignerDialog({
   const [location, setLocation] = useState(null);
   const [rows, setRows] = useState([{ signer: null, order: 1 }]);
 
-  // Same pattern as CostCenter: "loc_code — loc_name"
   const locationOptions = (
     locations?.results || (Array.isArray(locations) ? locations : [])
   ).map((l) => ({
@@ -154,7 +153,6 @@ function AddLocationSignerDialog({
 
       <DialogContent sx={{ mt: 2 }}>
         <Stack spacing={2} sx={{ mt: 1 }}>
-          {/* Location — same display style as Cost Center (no custom renderOption) */}
           <Autocomplete
             options={locationOptions}
             value={location}
@@ -251,7 +249,7 @@ function AddLocationSignerDialog({
   );
 }
 
-// ---- Edit Signer Dialog — includes signer, order AND is_active ----
+// ---- Edit Signer Dialog ----
 function EditLocationSignerDialog({
   open,
   onClose,
@@ -462,6 +460,7 @@ function LocationSigningFlow() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedSigner, setSelectedSigner] = useState(null);
   const [expandedLoc, setExpandedLoc] = useState({});
+  const [search, setSearch] = useState(''); // ← added
 
   useEffect(() => {
     dispatch(getAllLocationSigners());
@@ -481,6 +480,13 @@ function LocationSigningFlow() {
     acc[key].signers.push(item);
     return acc;
   }, {});
+
+  // ── Client-side filter by location name ────────────────────────────────────
+  const filteredEntries = Object.entries(grouped).filter(
+    ([, group]) =>
+      !search.trim() ||
+      group.locationName?.toLowerCase().includes(search.trim().toLowerCase()),
+  );
 
   return (
     <Box>
@@ -511,6 +517,17 @@ function LocationSigningFlow() {
         </Button>
       </Box>
 
+      {/* Search field */}
+      <Box sx={{ mb: 2 }}>
+        <TextField
+          size="small"
+          placeholder="Search location..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          sx={{ width: 300 }}
+        />
+      </Box>
+
       {/* Table */}
       <TableContainer component={Paper}>
         <Table size="small" stickyHeader>
@@ -529,16 +546,18 @@ function LocationSigningFlow() {
                   <CircularProgress size={28} />
                 </TableCell>
               </TableRow>
-            ) : Object.keys(grouped).length === 0 ? (
+            ) : filteredEntries.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
                   <Typography color="text.secondary">
-                    No signing flows found
+                    {search
+                      ? 'No results match your search'
+                      : 'No signing flows found'}
                   </Typography>
                 </TableCell>
               </TableRow>
             ) : (
-              Object.entries(grouped).map(([locId, group], index) => (
+              filteredEntries.map(([locId, group], index) => (
                 <React.Fragment key={locId}>
                   {/* Location row */}
                   <TableRow

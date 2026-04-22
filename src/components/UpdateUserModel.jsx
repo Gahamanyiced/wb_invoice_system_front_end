@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import Modal from '@mui/material/Modal';
 import { updateUser } from '../features/user/userSlice';
+import { toast } from 'react-toastify';
 import {
   Grid,
   FormControl,
@@ -374,17 +375,26 @@ function UpdateUserModel({
     setSupplierData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // ── Submit — check the action result and show toast accordingly ───────────
   const submit = async (event) => {
     event.preventDefault();
     const dataToSubmit = {
       ...formData,
       ...(hasSupplierProfile && { supplier_profile: supplierData }),
     };
-    await dispatch(
+
+    const result = await dispatch(
       updateUser({ id: defaultValues?.id, formData: dataToSubmit }),
     );
-    handleClose();
-    setUpdateTrigger((prev) => !prev);
+
+    if (updateUser.fulfilled.match(result)) {
+      toast.success('User updated successfully');
+      handleClose();
+      setUpdateTrigger((prev) => !prev);
+    } else {
+      // result.payload is the string already extracted by extractErrorMessage
+      toast.error(result.payload || 'Failed to update user');
+    }
   };
 
   const pettyCashActiveCount = [
@@ -747,7 +757,7 @@ function UpdateUserModel({
                         accentColor="#2e7d32"
                       />
                     </PermissionGroup>
-                    {/* Invoice — now includes is_invoice_user */}
+                    {/* Invoice */}
                     <PermissionGroup
                       icon={
                         <ReceiptOutlinedIcon

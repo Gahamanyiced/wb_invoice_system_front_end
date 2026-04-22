@@ -179,7 +179,6 @@ function EditSupervisorDialog({
 
   useEffect(() => {
     if (open && supervisor) {
-      // Try to find a matching option from signersList; fallback to stored name
       const match = signersList.find((s) => s.id === supervisor.signer);
       if (match) {
         setSigner({
@@ -368,11 +367,19 @@ function SupervisorSigningFlow() {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedSupervisor, setSelectedSupervisor] = useState(null);
+  const [search, setSearch] = useState(''); // ← added
 
   useEffect(() => {
     dispatch(getAllSupervisors());
     dispatch(getAllSigners());
   }, [dispatch]);
+
+  // ── Client-side filter by signer name ──────────────────────────────────────
+  const filtered = supervisors.filter(
+    (s) =>
+      !search.trim() ||
+      s.signer_name?.toLowerCase().includes(search.trim().toLowerCase()),
+  );
 
   return (
     <Box>
@@ -400,6 +407,17 @@ function SupervisorSigningFlow() {
         </Button>
       </Stack>
 
+      {/* Search field */}
+      <Box sx={{ mb: 2 }}>
+        <TextField
+          size="small"
+          placeholder="Search supervisor..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          sx={{ width: 300 }}
+        />
+      </Box>
+
       {/* Table */}
       <TableContainer component={Paper} elevation={1}>
         <Table size="small">
@@ -418,16 +436,18 @@ function SupervisorSigningFlow() {
                   <CircularProgress size={28} sx={{ color: '#00529B' }} />
                 </TableCell>
               </TableRow>
-            ) : supervisors.length === 0 ? (
+            ) : filtered.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
                   <Typography color="text.secondary" variant="body2">
-                    No supervisors found. Click "Add Supervisor" to create one.
+                    {search
+                      ? 'No results match your search'
+                      : 'No supervisors found. Click "Add Supervisor" to create one.'}
                   </Typography>
                 </TableCell>
               </TableRow>
             ) : (
-              supervisors.map((s, index) => (
+              filtered.map((s, index) => (
                 <TableRow key={s.id} hover>
                   <TableCell>{index + 1}</TableCell>
                   <TableCell>{s.signer_name || '—'}</TableCell>

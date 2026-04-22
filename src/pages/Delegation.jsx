@@ -154,7 +154,6 @@ function AddDelegationDialog({
 
       <DialogContent sx={{ mt: 2 }}>
         <Stack spacing={2} sx={{ mt: 1 }}>
-          {/* Delegator — shown only when logged-in user is strictly admin */}
           {isAdmin && (
             <Autocomplete
               options={signerOptions}
@@ -174,7 +173,6 @@ function AddDelegationDialog({
             />
           )}
 
-          {/* Substitute */}
           <Autocomplete
             options={signerOptions}
             value={substitute}
@@ -192,7 +190,6 @@ function AddDelegationDialog({
             noOptionsText="No signers found"
           />
 
-          {/* Date range */}
           <Box sx={{ display: 'flex', gap: 2 }}>
             <TextField
               label="Start Date"
@@ -216,7 +213,6 @@ function AddDelegationDialog({
             />
           </Box>
 
-          {/* Reason */}
           <TextField
             label="Reason"
             size="small"
@@ -372,7 +368,6 @@ function EditDelegationDialog({
 
       <DialogContent sx={{ mt: 2 }}>
         <Stack spacing={2} sx={{ mt: 1 }}>
-          {/* Delegator — editable for admin only */}
           {isAdmin ? (
             <Autocomplete
               options={signerOptions}
@@ -408,7 +403,6 @@ function EditDelegationDialog({
             </Box>
           )}
 
-          {/* Substitute — editable for everyone */}
           <Autocomplete
             options={signerOptions}
             value={substitute}
@@ -426,7 +420,6 @@ function EditDelegationDialog({
             noOptionsText="No signers found"
           />
 
-          {/* Date range */}
           <Box sx={{ display: 'flex', gap: 2 }}>
             <TextField
               label="Start Date"
@@ -450,7 +443,6 @@ function EditDelegationDialog({
             />
           </Box>
 
-          {/* Reason */}
           <TextField
             label="Reason"
             size="small"
@@ -462,7 +454,6 @@ function EditDelegationDialog({
             onChange={(e) => setReason(e.target.value)}
           />
 
-          {/* Active status toggle */}
           <FormControlLabel
             control={
               <Switch
@@ -578,25 +569,17 @@ function Delegation() {
     }
   })();
 
-  // Only strictly 'admin' role sees the Delegator select.
-  // signer_admin can still add delegations — backend uses their own account as delegator.
   const isAdmin = loggedInUser?.role === 'admin';
 
-  // Filter state
-  // true  → show active only   (is_active=true)
-  // false → show inactive only (is_active=false)
   const [showActiveOnly, setShowActiveOnly] = useState(true);
+  const [search, setSearch] = useState(''); // ← added
 
-  // Dialog states
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedDelegation, setSelectedDelegation] = useState(null);
 
   const fetchDelegations = () => {
-    // Always send is_active filter:
-    // toggle ON  → is_active=true  (active delegations only)
-    // toggle OFF → is_active=false (inactive delegations only)
     const params = { is_active: showActiveOnly ? 'true' : 'false' };
     dispatch(getAllDelegations(params));
   };
@@ -607,8 +590,18 @@ function Delegation() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch, showActiveOnly]);
 
-  const rows =
+  const allRows =
     delegations?.results || (Array.isArray(delegations) ? delegations : []);
+
+  // ── Client-side filter by delegator or substitute name ─────────────────────
+  const rows = allRows.filter((row) => {
+    if (!search.trim()) return true;
+    const q = search.trim().toLowerCase();
+    return (
+      row.delegator_name?.toLowerCase().includes(q) ||
+      row.substitute_name?.toLowerCase().includes(q)
+    );
+  });
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '—';
@@ -667,6 +660,17 @@ function Delegation() {
             </Button>
           </Box>
 
+          {/* Search field */}
+          <Box sx={{ mb: 2 }}>
+            <TextField
+              size="small"
+              placeholder="Search delegator or substitute..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              sx={{ width: 300 }}
+            />
+          </Box>
+
           {/* Table */}
           <TableContainer>
             <Table size="small" stickyHeader>
@@ -693,7 +697,9 @@ function Delegation() {
                   <TableRow>
                     <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
                       <Typography color="text.secondary">
-                        No delegations found
+                        {search
+                          ? 'No results match your search'
+                          : 'No delegations found'}
                       </Typography>
                     </TableCell>
                   </TableRow>

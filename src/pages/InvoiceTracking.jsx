@@ -166,10 +166,12 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
   const [selectedId] = useState(selected?.invoice?.id || selected?.id);
   const [chainOpen, setChainOpen] = useState(false);
 
-  // Visible to: admin  OR  (signer_admin AND is_invoice_verifier === true)
+  // ── Manage Chain visibility ───────────────────────────────────────────────
+  // Visible to: admin  OR  is_invoice_verifier === true  OR  is_supervisor === true
   const canManageChain =
     user?.role === 'admin' ||
-    (user?.role === 'signer_admin' && user?.is_invoice_verifier === true);
+    !!user?.is_invoice_verifier ||
+    !!user?.is_supervisor;
 
   // ── COA data from DB ──────────────────────────────────────────────────────
   const { excelData, isLoading: coaLoading } = useCOAData({
@@ -207,8 +209,6 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
     return line?.gl_description || 'N/A';
   };
 
-  // GL Description: prefer gl_account_detail.gl_description (gl_description on
-  // the line itself is now null for new invoices — it was the old free-text field)
   const resolveGLDescription = (line) => {
     if (line?.gl_account_detail?.gl_description)
       return line.gl_account_detail.gl_description;
@@ -263,8 +263,6 @@ function InvoiceTracking({ openModal, handleCloseModal, selected }) {
 
     setIsAllowed(allowed);
 
-    // Open the stepper for any actionable step, or when the step belongs to
-    // the current user. isAllowed gates the action buttons inside StepperModal.
     if (
       isToSign(invoiceItem?.status) ||
       invoiceItem?.signer?.email === currentUser?.email

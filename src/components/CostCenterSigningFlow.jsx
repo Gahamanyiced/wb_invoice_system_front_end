@@ -452,6 +452,7 @@ function CostCenterSigningFlow() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedSigner, setSelectedSigner] = useState(null);
   const [expandedCC, setExpandedCC] = useState({});
+  const [search, setSearch] = useState(''); // ← added
 
   useEffect(() => {
     dispatch(getAllCostCenterSigners());
@@ -470,6 +471,13 @@ function CostCenterSigningFlow() {
     acc[key].signers.push(item);
     return acc;
   }, {});
+
+  // ── Client-side filter by cost center name ─────────────────────────────────
+  const filteredEntries = Object.entries(grouped).filter(
+    ([, group]) =>
+      !search.trim() ||
+      group.costCenterName?.toLowerCase().includes(search.trim().toLowerCase()),
+  );
 
   return (
     <Box>
@@ -500,6 +508,17 @@ function CostCenterSigningFlow() {
         </Button>
       </Box>
 
+      {/* Search field */}
+      <Box sx={{ mb: 2 }}>
+        <TextField
+          size="small"
+          placeholder="Search cost center..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          sx={{ width: 300 }}
+        />
+      </Box>
+
       {/* Table */}
       <TableContainer component={Paper}>
         <Table size="small" stickyHeader>
@@ -518,16 +537,18 @@ function CostCenterSigningFlow() {
                   <CircularProgress size={28} />
                 </TableCell>
               </TableRow>
-            ) : Object.keys(grouped).length === 0 ? (
+            ) : filteredEntries.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
                   <Typography color="text.secondary">
-                    No signing flows found
+                    {search
+                      ? 'No results match your search'
+                      : 'No signing flows found'}
                   </Typography>
                 </TableCell>
               </TableRow>
             ) : (
-              Object.entries(grouped).map(([ccId, group], index) => (
+              filteredEntries.map(([ccId, group], index) => (
                 <React.Fragment key={ccId}>
                   <TableRow
                     hover
