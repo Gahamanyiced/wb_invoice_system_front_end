@@ -30,6 +30,7 @@ import {
 import { useSelector } from 'react-redux';
 import invoiceService from '../features/invoice/invoiceService';
 import pettyCashService from '../features/pettyCash/pettyCashService';
+import http from '../http-common';
 import EnhancedDownloadComponent from './EnhancedDownloadComponent';
 import useCOAData from '../hooks/useCOAData';
 import TuneIcon from '@mui/icons-material/Tune';
@@ -88,15 +89,16 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
 
       rows.push([`CURRENCY: ${fmt(first.currency)}`, '', '', '', '']);
       rows.push(['', '', '', '', '']);
+      // ── Column header — printed ONCE per group ──────────────────────────────
+      rows.push(['DATE', 'Description', 'Dr', 'Cr', 'BALANCE']);
 
       group.records.forEach((record, recordIndex) => {
         if (recordIndex > 0) {
           rows.push(['', '', '', '', '']);
         }
 
-        rows.push(['', 'Description', 'Dr', 'Cr', 'BALANCE']);
         rows.push([
-          'DATE',
+          '',
           'Opening balance',
           fmt(record.opening_balance ?? 0),
           '',
@@ -225,9 +227,55 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
   const [pcFiltersExpanded, setPcFiltersExpanded] = useState(false);
   const [pcFilters, setPcFilters] = useState({
     station: '',
+    custodian_id: '',
     date_from: '',
     date_to: '',
   });
+
+  // ── Custodians — fetched from API on drawer open ──────────────────────────
+  const [custodians, setCustodians] = useState([]);
+  const [loadingCustodians, setLoadingCustodians] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const fetchCustodians = async () => {
+      setLoadingCustodians(true);
+      try {
+        const [signerRes, signerAdminRes] = await Promise.all([
+          http.get('/auth/user-list/', {
+            params: {
+              is_custodian: true,
+              is_petty_cash_user: true,
+              is_approved: true,
+              role: 'signer',
+            },
+          }),
+          http.get('/auth/user-list/', {
+            params: {
+              is_custodian: true,
+              is_petty_cash_user: true,
+              is_approved: true,
+              role: 'signer_admin',
+            },
+          }),
+        ]);
+        const merged = [
+          ...(signerRes.data?.results ?? signerRes.data ?? []),
+          ...(signerAdminRes.data?.results ?? signerAdminRes.data ?? []),
+        ];
+        setCustodians(
+          merged.filter(
+            (u, i, self) => i === self.findIndex((x) => x.id === u.id),
+          ),
+        );
+      } catch (err) {
+        console.error('Failed to fetch custodians:', err);
+      } finally {
+        setLoadingCustodians(false);
+      }
+    };
+    fetchCustodians();
+  }, [open]);
 
   const { allUsers } = useSelector((state) => state.user);
   const { excelData: coaData } = useCOAData({ enabled: open });
@@ -328,7 +376,7 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
   };
 
   const clearPcFilters = () => {
-    setPcFilters({ station: '', date_from: '', date_to: '' });
+    setPcFilters({ station: '', custodian_id: '', date_from: '', date_to: '' });
     setPcSummary(null);
     setPcReportData(null);
   };
@@ -1013,6 +1061,46 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   fullWidth
                   placeholder="e.g. NBO, KGL"
                   sx={fieldSx}
+                />
+                <Autocomplete
+                  options={custodians.map((u) => ({
+                    value: u.id,
+                    label: `${u.firstname} ${u.lastname}`.trim(),
+                  }))}
+                  getOptionLabel={(opt) => opt.label || ''}
+                  value={
+                    custodians
+                      .map((u) => ({
+                        value: u.id,
+                        label: `${u.firstname} ${u.lastname}`.trim(),
+                      }))
+                      .find((o) => o.value === pcFilters.custodian_id) || null
+                  }
+                  onChange={(_, v) =>
+                    handlePcFilterChange('custodian_id', v ? v.value : '')
+                  }
+                  loading={loadingCustodians}
+                  size="small"
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Custodian"
+                      size="small"
+                      sx={fieldSx}
+                      placeholder="Select custodian..."
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {loadingCustodians ? (
+                              <CircularProgress size={14} />
+                            ) : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  )}
                 />
                 <TextField
                   label="Date From"

@@ -94,7 +94,7 @@ const styles = {
   },
 };
 
-// ── CSV generation helper (mirrors PettyCashTransactions) ────────────────────
+// ── CSV generation helper ─────────────────────────────────────────────────────
 const generateLedgerCSV = (ledger, transactionId) => {
   const { header, expenses, closing_balance } = ledger;
   const fmt = (val) => (val == null ? '' : val);
@@ -167,7 +167,6 @@ const previewFile = (file) => {
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
-
 const ManageExpenses = () => {
   const { transactionId } = useParams();
   const location = useLocation();
@@ -184,7 +183,7 @@ const ManageExpenses = () => {
   const totalCount = issuancePettyCashExpenses?.count || 0;
   const summary = issuancePettyCashExpenses?.summary || null;
 
-  // ── Logged-in user & permission ───────────────────────────────────────────────
+  // ── Logged-in user ────────────────────────────────────────────────────────
   const loggedInUser = (() => {
     try {
       return JSON.parse(localStorage.getItem('user') || 'null');
@@ -195,8 +194,7 @@ const ManageExpenses = () => {
 
   const isExpenseCreator = loggedInUser?.is_expense_creator === true;
 
-  // ── Local state ───────────────────────────────────────────────────────────────
-
+  // ── Local state ───────────────────────────────────────────────────────────
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selectedExpense, setSelectedExpense] = useState(null);
@@ -207,15 +205,13 @@ const ManageExpenses = () => {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  // ── Bulk selection ────────────────────────────────────────────────────────────
+  // ── Bulk selection ────────────────────────────────────────────────────────
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [openBulkDialog, setOpenBulkDialog] = useState(false);
 
-  // Verifiers for the Add Expense form
   const [signers, setSigners] = useState([]);
   const [loadingVerifiers, setLoadingVerifiers] = useState(false);
 
-  // Create form — supporting_documents is now an array per expense line
   const [formData, setFormData] = useState({
     verifier_id: '',
     expenses: [
@@ -230,13 +226,11 @@ const ManageExpenses = () => {
   });
   const [currencyError, setCurrencyError] = useState('');
 
-  // ── Data fetching ─────────────────────────────────────────────────────────────
-
+  // ── Data fetching ─────────────────────────────────────────────────────────
   const refreshList = () => {
     dispatch(getIssuancePettyCashExpenses(transactionId));
   };
 
-  // ── Selection helpers ──────────────────────────────────────────────────────────
   const allIds = expenses.map((e) => e.id);
   const allSelected =
     allIds.length > 0 && allIds.every((id) => selectedIds.has(id));
@@ -250,18 +244,13 @@ const ManageExpenses = () => {
       return next;
     });
   };
-
-  const toggleAll = () => {
+  const toggleAll = () =>
     setSelectedIds(allSelected ? new Set() : new Set(allIds));
-  };
-
   const clearSelection = () => setSelectedIds(new Set());
 
   useEffect(() => {
     refreshList();
 
-    // Fetch verifiers: is_custodian=true, is_petty_cash_user=true, is_approved=true
-    // role=signer AND role=signer_admin via two parallel calls
     const fetchVerifiers = async () => {
       setLoadingVerifiers(true);
       try {
@@ -283,15 +272,15 @@ const ManageExpenses = () => {
             },
           }),
         ]);
-        const signerResults = signerRes.data?.results ?? signerRes.data ?? [];
-        const signerAdminResults =
-          signerAdminRes.data?.results ?? signerAdminRes.data ?? [];
-        const merged = [...signerResults, ...signerAdminResults];
-        const unique = merged.filter(
-          (user, index, self) =>
-            index === self.findIndex((u) => u.id === user.id),
+        const merged = [
+          ...(signerRes.data?.results ?? signerRes.data ?? []),
+          ...(signerAdminRes.data?.results ?? signerAdminRes.data ?? []),
+        ];
+        setSigners(
+          merged.filter(
+            (u, i, self) => i === self.findIndex((x) => x.id === u.id),
+          ),
         );
-        setSigners(unique);
       } catch (err) {
         console.error('Failed to fetch verifiers:', err);
       } finally {
@@ -302,21 +291,18 @@ const ManageExpenses = () => {
     fetchVerifiers();
   }, [dispatch, transactionId]);
 
-  // ── Pagination ────────────────────────────────────────────────────────────────
-
+  // ── Pagination ────────────────────────────────────────────────────────────
   const handleChangePage = (_, newPage) => {
     setPage(newPage);
     refreshList();
   };
-
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
     refreshList();
   };
 
-  // ── Create dialog ─────────────────────────────────────────────────────────────
-
+  // ── Create dialog ─────────────────────────────────────────────────────────
   const handleOpenCreateDialog = () => {
     if (!isExpenseCreator) {
       toast.error(
@@ -352,11 +338,10 @@ const ManageExpenses = () => {
   const handleExpenseChange = (index, field, value) => {
     const updated = [...formData.expenses];
     updated[index][field] = value;
-    if (index === 0 && field === 'currency') {
+    if (index === 0 && field === 'currency')
       updated.forEach((exp, i) => {
         if (i !== 0) exp.currency = value;
       });
-    }
     setFormData((prev) => ({ ...prev, expenses: updated }));
   };
 
@@ -365,12 +350,11 @@ const ManageExpenses = () => {
     const existingNames = new Set(
       updated[lineIndex].supporting_documents.map((f) => f.name),
     );
-    const unique = newFiles.filter((f) => !existingNames.has(f.name));
     updated[lineIndex] = {
       ...updated[lineIndex],
       supporting_documents: [
         ...updated[lineIndex].supporting_documents,
-        ...unique,
+        ...newFiles.filter((f) => !existingNames.has(f.name)),
       ],
     };
     setFormData((prev) => ({ ...prev, expenses: updated }));
@@ -427,8 +411,6 @@ const ManageExpenses = () => {
     return true;
   };
 
-  // ── Create submit ─────────────────────────────────────────────────────────────
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateCurrencies()) return;
@@ -436,23 +418,24 @@ const ManageExpenses = () => {
     const payload = new FormData();
     payload.append('petty_cash_id', transactionId);
     payload.append('verifier_id', formData.verifier_id);
-
-    const expensesData = formData.expenses.map((exp) => ({
-      date: exp.date,
-      item_description: exp.item_description,
-      amount: exp.amount,
-      currency: exp.currency,
-    }));
-    payload.append('expenses', JSON.stringify(expensesData));
-
-    formData.expenses.forEach((exp, i) => {
-      exp.supporting_documents.forEach((file, j) => {
-        payload.append(`expense_documents_${i}_${j}`, file);
-      });
-    });
+    payload.append(
+      'expenses',
+      JSON.stringify(
+        formData.expenses.map((exp) => ({
+          date: exp.date,
+          item_description: exp.item_description,
+          amount: exp.amount,
+          currency: exp.currency,
+        })),
+      ),
+    );
+    formData.expenses.forEach((exp, i) =>
+      exp.supporting_documents.forEach((file, j) =>
+        payload.append(`expense_documents_${i}_${j}`, file),
+      ),
+    );
 
     const result = await dispatch(createPettyCashExpense(payload));
-
     if (createPettyCashExpense.fulfilled.match(result)) {
       toast.success('Expense created successfully.');
       handleCloseCreateDialog();
@@ -462,35 +445,28 @@ const ManageExpenses = () => {
     }
   };
 
-  // ── Action handlers ───────────────────────────────────────────────────────────
-
+  // ── Action handlers ───────────────────────────────────────────────────────
   const handleView = (expense) => {
     setSelectedExpense(expense);
     setOpenViewModal(true);
   };
-
   const handleTrackAndSign = (expense) => {
     setSelectedExpense(expense);
     setOpenTrackSignDialog(true);
   };
-
   const handleEdit = (expense) => {
     setSelectedExpense(expense);
     setOpenEditModal(true);
   };
-
   const handleDelete = (expense) => {
     setSelectedExpense(expense);
     setOpenDeleteDialog(true);
   };
 
-  // ── Edit submit ───────────────────────────────────────────────────────────────
-
   const handleEditSubmit = async (id, formDataPayload) => {
     const result = await dispatch(
       updatePettyCashExpense({ id, formData: formDataPayload }),
     );
-
     if (updatePettyCashExpense.fulfilled.match(result)) {
       toast.success('Expense updated successfully.');
       handleCloseEditModal();
@@ -500,11 +476,8 @@ const ManageExpenses = () => {
     }
   };
 
-  // ── Delete confirm ────────────────────────────────────────────────────────────
-
   const handleDeleteConfirm = async (id, comment) => {
     const result = await dispatch(deletePettyCashExpense({ id, comment }));
-
     if (deletePettyCashExpense.fulfilled.match(result)) {
       toast.success('Expense deleted successfully.');
       handleCloseDeleteDialog();
@@ -514,13 +487,7 @@ const ManageExpenses = () => {
     }
   };
 
-  // ── Approve/Deny/Rollback ─────────────────────────────────────────────────────
-
-  const handleApprove = () => {
-    refreshList();
-  };
-
-  // ── Export CSV (Ledger) ───────────────────────────────────────────────────────
+  const handleApprove = () => refreshList();
 
   const handleExportCSV = async () => {
     setIsExporting(true);
@@ -534,8 +501,6 @@ const ManageExpenses = () => {
       setIsExporting(false);
     }
   };
-
-  // ── Close handlers ────────────────────────────────────────────────────────────
 
   const handleCloseViewModal = () => {
     setOpenViewModal(false);
@@ -555,8 +520,7 @@ const ManageExpenses = () => {
     setSelectedExpense(null);
   };
 
-  // ── Helpers ───────────────────────────────────────────────────────────────────
-
+  // ── Status chip helpers ───────────────────────────────────────────────────
   const getStatusChip = (status) => {
     const map = {
       pending: { bgcolor: '#FFA726', color: 'white' },
@@ -588,14 +552,47 @@ const ManageExpenses = () => {
     );
   };
 
+  // ── My approval status chip ───────────────────────────────────────────────
+  // Finds the logged-in user's entry in approval_history by matching user.id,
+  // then renders a small coloured chip showing their level + status.
+  // Returns null if the user is not in the approval chain for this expense.
+  const getMyApprovalChip = (expense) => {
+    const myEntry = expense.approval_history?.find(
+      (h) => h.user?.id === loggedInUser?.id,
+    );
+    if (!myEntry) return null;
+
+    const bgMap = {
+      signed: '#1b5e20',
+      denied: '#b71c1c',
+      pending: '#e65100',
+      'to sign': '#e65100',
+    };
+    const bg = bgMap[myEntry.status?.toLowerCase()] || '#555';
+
+    return (
+      <Chip
+        label={myEntry.status}
+        size="small"
+        sx={{
+          fontWeight: 700,
+          fontSize: '0.68rem',
+          height: 20,
+          bgcolor: bg,
+          color: 'white',
+          textTransform: 'capitalize',
+        }}
+      />
+    );
+  };
+
   const formatAmount = (amount) =>
     new Intl.NumberFormat('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(parseFloat(amount || 0));
 
-  // ── Render ────────────────────────────────────────────────────────────────────
-
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <RootLayout>
       <Box>
@@ -624,7 +621,6 @@ const ManageExpenses = () => {
           </Box>
 
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-            {/* ── Bulk Action button — only visible when expenses are selected ── */}
             {selectedIds.size > 0 && (
               <Button
                 variant="contained"
@@ -821,7 +817,6 @@ const ManageExpenses = () => {
             <Table sx={{ tableLayout: 'fixed', minWidth: 950 }} stickyHeader>
               <TableHead>
                 <TableRow sx={{ bgcolor: 'rgba(0, 82, 155, 0.05)' }}>
-                  {/* ── Select-all checkbox ── */}
                   <TableCell
                     padding="checkbox"
                     sx={{ ...styles.headerCell, width: '48px' }}
@@ -844,16 +839,15 @@ const ManageExpenses = () => {
                   <TableCell sx={{ ...styles.headerCell, width: '120px' }}>
                     Date
                   </TableCell>
-                  <TableCell sx={{ ...styles.headerCell }}>
-                    Item Description
-                  </TableCell>
+                  <TableCell sx={styles.headerCell}>Item Description</TableCell>
                   <TableCell sx={{ ...styles.headerCell, width: '130px' }}>
                     Amount
                   </TableCell>
                   <TableCell sx={{ ...styles.headerCell, width: '90px' }}>
                     Currency
                   </TableCell>
-                  <TableCell sx={{ ...styles.headerCell, width: '110px' }}>
+                  {/* ── Status column: overall status + logged-in user's own approval level ── */}
+                  <TableCell sx={{ ...styles.headerCell, width: '160px' }}>
                     Status
                   </TableCell>
                   <TableCell sx={{ ...styles.headerCell, width: '150px' }}>
@@ -900,7 +894,6 @@ const ManageExpenses = () => {
                         },
                       }}
                     >
-                      {/* ── Row checkbox ── */}
                       <TableCell
                         padding="checkbox"
                         onClick={(e) => e.stopPropagation()}
@@ -956,9 +949,27 @@ const ManageExpenses = () => {
                           }}
                         />
                       </TableCell>
-                      <TableCell sx={{ width: '110px' }}>
-                        {getStatusChip(expense.status)}
+
+                      {/*
+                        ── Status cell ──────────────────────────────────────────
+                        Top chip:    overall expense status (same as before)
+                        Bottom chip: logged-in user's own approval level + status,
+                                     shown only if they appear in approval_history.
+                                     Matched by user.id === loggedInUser.id.
+                      */}
+                      <TableCell sx={{ width: '160px' }}>
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 0.5,
+                          }}
+                        >
+                          {getStatusChip(expense.status)}
+                          {getMyApprovalChip(expense)}
+                        </Box>
                       </TableCell>
+
                       <TableCell
                         sx={{
                           width: '150px',
@@ -1321,7 +1332,6 @@ const ManageExpenses = () => {
                           >
                             Supporting Documents (Optional)
                           </Typography>
-
                           <Box sx={styles.uploadBox}>
                             <input
                               accept="*/*"
@@ -1523,7 +1533,7 @@ const ManageExpenses = () => {
           </>
         )}
 
-        {/* ── Bulk Expense Action Dialog ────────────────────────────────────────── */}
+        {/* Bulk Expense Action Dialog */}
         <BulkExpenseActionDialog
           open={openBulkDialog}
           onClose={() => setOpenBulkDialog(false)}

@@ -120,16 +120,11 @@ const BulkExpenseActionDialog = ({
   });
 
   // ── Fetch role-aware next approvers — mirrors TrackAndSignPettyCashDialog ─
-  // Expense chain: custodian → first_approver → second_approver → last_approver
-  // Each role fetches the NEXT flag in the chain via two parallel API calls
-  // (role=signer + role=signer_admin), merged and deduplicated by id.
   const fetchNextApprovers = async () => {
-    // Determine which permission flag the next approver must have
     let nextApproverFlag = null;
     if (isCustodian) nextApproverFlag = 'is_first_approver';
     else if (isFirstApprover) nextApproverFlag = 'is_second_approver';
     else if (isSecondApprover) nextApproverFlag = 'is_last_approver';
-    // last approver → showFinal=true, approve_and_forward is hidden, no fetch needed
 
     if (!nextApproverFlag) {
       setAvailableSigners([]);
@@ -235,6 +230,11 @@ const BulkExpenseActionDialog = ({
 
     isSubmitting.current = true;
     setIsLoading(true);
+
+    // Track success separately — handleClose() has a guard that checks
+    // isSubmitting.current, so we must clear it first before calling it.
+    let succeeded = false;
+
     try {
       const result = await dispatch(bulkActionPettyCashExpenses(payload));
       if (bulkActionPettyCashExpenses.fulfilled.match(result)) {
@@ -247,14 +247,18 @@ const BulkExpenseActionDialog = ({
         toast.success(
           `${expenseIds.length} expense${expenseIds.length !== 1 ? 's' : ''} ${labels[action]} successfully`,
         );
-        handleClose();
-        onSuccess();
+        succeeded = true;
       } else {
         toast.error(result.payload || 'Bulk action failed');
       }
     } finally {
+      // Clear the guard FIRST, then close + refresh if successful
       isSubmitting.current = false;
       setIsLoading(false);
+      if (succeeded) {
+        handleClose(); // resets form state and calls onClose()
+        onSuccess(); // refreshList() + clearSelection()
+      }
     }
   };
 
@@ -385,7 +389,6 @@ const BulkExpenseActionDialog = ({
         </FormControl>
 
         {/* ── Next approver — approve_and_forward only ─────────────────────── */}
-        {/* Matches TrackAndSignPettyCashDialog: MUI Select, two-line option display */}
         {action === 'approve_and_forward' && (
           <FormControl fullWidth sx={{ mb: 2.5 }} error={!!approverError}>
             <InputLabel>Next Approver *</InputLabel>

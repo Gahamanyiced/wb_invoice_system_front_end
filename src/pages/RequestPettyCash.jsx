@@ -72,14 +72,8 @@ const styles = {
       borderColor: 'rgba(0, 82, 155, 0.5)',
     },
   },
-  table: {
-    minWidth: 650,
-  },
-  headerCell: {
-    color: '#00529B',
-    fontSize: '14px',
-    fontWeight: 600,
-  },
+  table: { minWidth: 650 },
+  headerCell: { color: '#00529B', fontSize: '14px', fontWeight: 600 },
 };
 
 // ── File preview helper ───────────────────────────────────────────────────────
@@ -119,11 +113,10 @@ const RequestPettyCash = () => {
   const [openEditModal, setOpenEditModal] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
 
-  // Verifiers: fetched via parallel HTTP calls on mount
   const [signers, setSigners] = useState([]);
   const [loadingVerifiers, setLoadingVerifiers] = useState(false);
 
-  // ── Logged-in user & permission ──────────────────────────────────────────
+  // ── Logged-in user ────────────────────────────────────────────────────────
   const loggedInUser = (() => {
     try {
       return JSON.parse(localStorage.getItem('user') || 'null');
@@ -143,22 +136,16 @@ const RequestPettyCash = () => {
     issuanceRequests?.count ??
     requests.length;
 
-  // ── Data fetching ──────────────────────────────────────────────────────────
-
+  // ── Data fetching ─────────────────────────────────────────────────────────
   const refreshList = (p = 1) => {
     dispatch(
-      getPettyCashIssuanceRequests({
-        id: transactionId,
-        params: { page: p },
-      }),
+      getPettyCashIssuanceRequests({ id: transactionId, params: { page: p } }),
     );
   };
 
   useEffect(() => {
     refreshList(1);
 
-    // Fetch verifiers: is_first_approver=true, is_petty_cash_user=true,
-    // is_approved=true, role=signer AND role=signer_admin (two parallel calls)
     const fetchVerifiers = async () => {
       setLoadingVerifiers(true);
       try {
@@ -180,15 +167,15 @@ const RequestPettyCash = () => {
             },
           }),
         ]);
-        const signerResults = signerRes.data?.results ?? signerRes.data ?? [];
-        const signerAdminResults =
-          signerAdminRes.data?.results ?? signerAdminRes.data ?? [];
-        const merged = [...signerResults, ...signerAdminResults];
-        const unique = merged.filter(
-          (user, index, self) =>
-            index === self.findIndex((u) => u.id === user.id),
+        const merged = [
+          ...(signerRes.data?.results ?? signerRes.data ?? []),
+          ...(signerAdminRes.data?.results ?? signerAdminRes.data ?? []),
+        ];
+        setSigners(
+          merged.filter(
+            (u, i, self) => i === self.findIndex((x) => x.id === u.id),
+          ),
         );
-        setSigners(unique);
       } catch (err) {
         console.error('Failed to fetch verifiers:', err);
         setSigners([]);
@@ -200,21 +187,18 @@ const RequestPettyCash = () => {
     fetchVerifiers();
   }, [dispatch, transactionId]);
 
-  // ── Pagination ─────────────────────────────────────────────────────────────
-
+  // ── Pagination ────────────────────────────────────────────────────────────
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
     refreshList(newPage + 1);
   };
-
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
     refreshList(1);
   };
 
-  // ── Form handlers ──────────────────────────────────────────────────────────
-
+  // ── Form handlers ─────────────────────────────────────────────────────────
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
@@ -223,22 +207,17 @@ const RequestPettyCash = () => {
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
       toast.error('Please upload a valid CSV file');
       return;
     }
-
     const reader = new FileReader();
     reader.onload = (event) => {
       const csvText = event.target.result;
       const lines = csvText.split('\n');
-
-      // ── Find the header row that contains the "Cr" column ────────────────
       let headerRowIndex = -1;
       let crIndex = -1;
       let dateIndex = 0;
-
       for (let i = 0; i < lines.length; i++) {
         const cols = lines[i].split(',').map((c) => c.trim().toLowerCase());
         if (cols.includes('cr')) {
@@ -248,54 +227,37 @@ const RequestPettyCash = () => {
           break;
         }
       }
-
       if (headerRowIndex === -1 || crIndex === -1) {
         toast.error('CSV does not contain a "Cr" column');
         return;
       }
-
-      // ── Sum Cr values from expense rows only ──────────────────────────────
-      // An expense row is one that has a non-empty date AND a non-empty Cr value.
-      // This skips the header label row ("DATE"), opening balance, replenishment,
-      // total, and closing balance rows which have no date or no Cr value.
       let total = 0;
-
       for (let i = headerRowIndex + 1; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line) continue;
-
         const cols = lines[i].split(',').map((c) => c.trim());
         const dateVal = cols[dateIndex] ?? '';
         const crVal = cols[crIndex] ?? '';
-
         if (dateVal !== '' && crVal !== '') {
           const amount = parseFloat(crVal);
-          if (!isNaN(amount)) {
-            total += amount;
-          }
+          if (!isNaN(amount)) total += amount;
         }
       }
-
-      if (total === 0) {
+      if (total === 0)
         toast.warning('No expense rows with a Cr value were found in the CSV.');
-      }
-
       setFormData((prev) => ({
         ...prev,
         expenses_csv: file,
         amount: total.toFixed(2),
       }));
-
       toast.success(`CSV uploaded. Total Cr amount: ${total.toFixed(2)}`);
     };
-
     reader.onerror = () => toast.error('Error reading CSV file');
     reader.readAsText(file);
   };
 
-  const handleRemoveFile = () => {
+  const handleRemoveFile = () =>
     setFormData({ ...formData, expenses_csv: null, amount: '' });
-  };
 
   const handleSupportingDocUpload = (e) => {
     const newFiles = Array.from(e.target.files);
@@ -303,10 +265,12 @@ const RequestPettyCash = () => {
       const existingNames = new Set(
         prev.supporting_documents.map((f) => f.name),
       );
-      const unique = newFiles.filter((f) => !existingNames.has(f.name));
       return {
         ...prev,
-        supporting_documents: [...prev.supporting_documents, ...unique],
+        supporting_documents: [
+          ...prev.supporting_documents,
+          ...newFiles.filter((f) => !existingNames.has(f.name)),
+        ],
       };
     });
     e.target.value = '';
@@ -351,13 +315,11 @@ const RequestPettyCash = () => {
       submitData.append('verifier_id', formData.verifier_id);
       submitData.append('amount', formData.amount);
       submitData.append('comment', formData.comment);
-      if (formData.expenses_csv) {
+      if (formData.expenses_csv)
         submitData.append('expenses_file', formData.expenses_csv);
-      }
-      formData.supporting_documents.forEach((file) => {
-        submitData.append('supporting_documents', file);
-      });
-
+      formData.supporting_documents.forEach((file) =>
+        submitData.append('supporting_documents', file),
+      );
       await dispatch(createPettyCashReplenishRequest(submitData)).unwrap();
       toast.success('Petty cash request created successfully');
       handleCloseCreateDialog();
@@ -367,23 +329,19 @@ const RequestPettyCash = () => {
     }
   };
 
-  // ── Action handlers ────────────────────────────────────────────────────────
-
+  // ── Action handlers ───────────────────────────────────────────────────────
   const handleView = (request) => {
     setSelectedRequest(request);
     setOpenViewModal(true);
   };
-
   const handleTrackAndSign = (request) => {
     setSelectedRequest(request);
     setOpenTrackSignDialog(true);
   };
-
   const handleEdit = (request) => {
     setSelectedRequest(request);
     setOpenEditModal(true);
   };
-
   const handleDelete = (request) => {
     setSelectedRequest(request);
     setOpenDeleteDialog(true);
@@ -415,11 +373,7 @@ const RequestPettyCash = () => {
     }
   };
 
-  const handleApprove = () => {
-    refreshList(1);
-  };
-
-  // ── Close handlers ─────────────────────────────────────────────────────────
+  const handleApprove = () => refreshList(1);
 
   const handleCloseViewModal = () => {
     setOpenViewModal(false);
@@ -439,8 +393,7 @@ const RequestPettyCash = () => {
     setSelectedRequest(null);
   };
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
-
+  // ── Status chip helpers ───────────────────────────────────────────────────
   const getStatusChip = (status) => {
     const statusColors = {
       pending: { bgcolor: '#FFA726', color: 'white' },
@@ -456,7 +409,7 @@ const RequestPettyCash = () => {
       <Chip
         label={displayStatus
           .split(' ')
-          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
           .join(' ')}
         size="small"
         sx={{
@@ -471,14 +424,48 @@ const RequestPettyCash = () => {
     );
   };
 
+  // ── My approval status chip ───────────────────────────────────────────────
+  // Finds the logged-in user's entry in approval_history by matching user.id,
+  // then renders a small coloured chip showing their status only.
+  // Returns null if the user is not in the approval chain for this request.
+  const getMyApprovalChip = (request) => {
+    const myEntry = request.approval_history?.find(
+      (h) => h.user?.id === loggedInUser?.id,
+    );
+    if (!myEntry) return null;
+
+    const bgMap = {
+      signed: '#1b5e20',
+      denied: '#b71c1c',
+      pending: '#e65100',
+      to_sign: '#e65100',
+      'to sign': '#e65100',
+    };
+    const bg = bgMap[myEntry.status?.toLowerCase()] || '#555';
+
+    return (
+      <Chip
+        label={myEntry.status?.replace(/_/g, ' ')}
+        size="small"
+        sx={{
+          fontWeight: 700,
+          fontSize: '0.68rem',
+          height: 20,
+          bgcolor: bg,
+          color: 'white',
+          textTransform: 'capitalize',
+        }}
+      />
+    );
+  };
+
   const formatAmount = (amount) =>
     new Intl.NumberFormat('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(parseFloat(amount || 0));
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <RootLayout>
       <Box>
@@ -551,7 +538,8 @@ const RequestPettyCash = () => {
                   <TableCell sx={{ ...styles.headerCell, width: '90px' }}>
                     Currency
                   </TableCell>
-                  <TableCell sx={{ ...styles.headerCell, width: '110px' }}>
+                  {/* ── Status column: overall status + logged-in user's own approval level ── */}
+                  <TableCell sx={{ ...styles.headerCell, width: '160px' }}>
                     Status
                   </TableCell>
                   <TableCell sx={{ ...styles.headerCell, width: '150px' }}>
@@ -618,9 +606,27 @@ const RequestPettyCash = () => {
                           }}
                         />
                       </TableCell>
-                      <TableCell sx={{ width: '110px' }}>
-                        {getStatusChip(request.status)}
+
+                      {/*
+                        ── Status cell ──────────────────────────────────────────
+                        Top chip:    overall request status (same as before)
+                        Bottom chip: logged-in user's own approval status,
+                                     shown only if they appear in approval_history.
+                                     Matched by user.id === loggedInUser.id.
+                      */}
+                      <TableCell sx={{ width: '160px' }}>
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 0.5,
+                          }}
+                        >
+                          {getStatusChip(request.status)}
+                          {getMyApprovalChip(request)}
+                        </Box>
                       </TableCell>
+
                       <TableCell sx={{ width: '150px', fontSize: '0.82rem' }}>
                         {request.created_at
                           ? new Date(request.created_at).toLocaleString(
@@ -851,7 +857,6 @@ const RequestPettyCash = () => {
                         border: '1px solid rgba(0, 82, 155, 0.2)',
                       }}
                     >
-                      {/* ── left: icon + name + size ── */}
                       <Box
                         sx={{
                           display: 'flex',
@@ -879,7 +884,6 @@ const RequestPettyCash = () => {
                           ({(formData.expenses_csv.size / 1024).toFixed(1)} KB)
                         </Typography>
                       </Box>
-                      {/* ── right: preview + remove ── */}
                       <Box
                         sx={{
                           display: 'flex',
@@ -959,7 +963,6 @@ const RequestPettyCash = () => {
                   >
                     Supporting Documents (Optional)
                   </Typography>
-
                   <Box sx={styles.uploadBox}>
                     <input
                       accept="*/*"
@@ -997,7 +1000,6 @@ const RequestPettyCash = () => {
                       </Box>
                     </label>
                   </Box>
-
                   {formData.supporting_documents.length > 0 && (
                     <Box sx={{ mt: 1 }}>
                       {formData.supporting_documents.map((file, index) => (
@@ -1014,7 +1016,6 @@ const RequestPettyCash = () => {
                             border: '1px solid rgba(0, 82, 155, 0.2)',
                           }}
                         >
-                          {/* ── left: icon + name + size ── */}
                           <Box
                             sx={{
                               display: 'flex',
@@ -1042,7 +1043,6 @@ const RequestPettyCash = () => {
                               ({(file.size / 1024).toFixed(1)} KB)
                             </Typography>
                           </Box>
-                          {/* ── right: preview + remove ── */}
                           <Box
                             sx={{
                               display: 'flex',

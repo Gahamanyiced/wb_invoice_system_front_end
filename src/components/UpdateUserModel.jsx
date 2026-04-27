@@ -262,6 +262,52 @@ function PermissionGroup({ icon, title, badge, accentColor, children }) {
   );
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const buildFormData = (d) => ({
+  firstname: d.firstname || '',
+  lastname: d.lastname || '',
+  email: d.email || '',
+  department: d.department || '',
+  section: d.section || '',
+  position: d.position || '',
+  station: d.station || '',
+  role: d.role || '',
+  is_approved: d.is_approved ?? false,
+  is_petty_cash_user: d.is_petty_cash_user ?? false,
+  is_pettycash_initiator: d.is_pettycash_initiator ?? false,
+  is_custodian: d.is_custodian ?? false,
+  is_expense_creator: d.is_expense_creator ?? false,
+  is_verifier: d.is_verifier ?? false,
+  is_invoice_verifier: d.is_invoice_verifier ?? false,
+  is_invoice_user: d.is_invoice_user ?? false,
+  is_approver: d.is_approver ?? false,
+  is_first_approver: d.is_first_approver ?? false,
+  is_second_approver: d.is_second_approver ?? false,
+  is_last_approver: d.is_last_approver ?? false,
+});
+
+const buildSupplierData = (sp) => ({
+  company_name: sp.company_name || '',
+  supplier_number: sp.supplier_number || '',
+  tax_id: sp.tax_id || '',
+  service_category: sp.service_category || '',
+  contact_name: sp.contact_name || '',
+  phone_number: sp.phone_number || '',
+  street_address: sp.street_address || '',
+  city: sp.city || '',
+  country: sp.country || '',
+  bank_name: sp.bank_name || '',
+  account_name: sp.account_name || '',
+  account_number: sp.account_number || '',
+  payment_currency: sp.payment_currency || '',
+  iban: sp.iban || '',
+  swift_code: sp.swift_code || '',
+  sort_code: sp.sort_code || '',
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function UpdateUserModel({
   defaultValues,
   open,
@@ -270,98 +316,30 @@ function UpdateUserModel({
 }) {
   const dispatch = useDispatch();
 
-  const [formData, setFormData] = useState({
-    firstname: '',
-    lastname: '',
-    email: '',
-    department: '',
-    section: '',
-    position: '',
-    station: '',
-    role: '',
-    is_approved: false,
-    is_petty_cash_user: false,
-    is_pettycash_initiator: false,
-    is_custodian: false,
-    is_expense_creator: false,
-    is_verifier: false,
-    is_invoice_verifier: false,
-    is_invoice_user: false,
-    is_approver: false,
-    is_first_approver: false,
-    is_second_approver: false,
-    is_last_approver: false,
-  });
-
-  const [supplierData, setSupplierData] = useState({
-    company_name: '',
-    supplier_number: '',
-    tax_id: '',
-    service_category: '',
-    contact_name: '',
-    phone_number: '',
-    street_address: '',
-    city: '',
-    country: '',
-    bank_name: '',
-    account_name: '',
-    account_number: '',
-    payment_currency: '',
-    iban: '',
-    swift_code: '',
-    sort_code: '',
-  });
+  const [formData, setFormData] = useState(buildFormData({}));
+  const [supplierData, setSupplierData] = useState(buildSupplierData({}));
 
   const hasSupplierProfile = defaultValues?.supplier_profile;
 
   useEffect(() => {
     if (defaultValues) {
-      setFormData({
-        firstname: defaultValues.firstname || '',
-        lastname: defaultValues.lastname || '',
-        email: defaultValues.email || '',
-        department: defaultValues.department || '',
-        section: defaultValues.section || '',
-        position: defaultValues.position || '',
-        station: defaultValues.station || '',
-        role: defaultValues.role || '',
-        is_approved: defaultValues.is_approved ?? false,
-        is_petty_cash_user: defaultValues.is_petty_cash_user ?? false,
-        is_pettycash_initiator: defaultValues.is_pettycash_initiator ?? false,
-        is_custodian: defaultValues.is_custodian ?? false,
-        is_expense_creator: defaultValues.is_expense_creator ?? false,
-        is_verifier: defaultValues.is_verifier ?? false,
-        is_invoice_verifier: defaultValues.is_invoice_verifier ?? false,
-        is_invoice_user: defaultValues.is_invoice_user ?? false,
-        is_approver: defaultValues.is_approver ?? false,
-        is_first_approver: defaultValues.is_first_approver ?? false,
-        is_second_approver: defaultValues.is_second_approver ?? false,
-        is_last_approver: defaultValues.is_last_approver ?? false,
-      });
+      setFormData(buildFormData(defaultValues));
       if (defaultValues.supplier_profile) {
-        setSupplierData({
-          company_name: defaultValues.supplier_profile.company_name || '',
-          supplier_number: defaultValues.supplier_profile.supplier_number || '',
-          tax_id: defaultValues.supplier_profile.tax_id || '',
-          service_category:
-            defaultValues.supplier_profile.service_category || '',
-          contact_name: defaultValues.supplier_profile.contact_name || '',
-          phone_number: defaultValues.supplier_profile.phone_number || '',
-          street_address: defaultValues.supplier_profile.street_address || '',
-          city: defaultValues.supplier_profile.city || '',
-          country: defaultValues.supplier_profile.country || '',
-          bank_name: defaultValues.supplier_profile.bank_name || '',
-          account_name: defaultValues.supplier_profile.account_name || '',
-          account_number: defaultValues.supplier_profile.account_number || '',
-          payment_currency:
-            defaultValues.supplier_profile.payment_currency || '',
-          iban: defaultValues.supplier_profile.iban || '',
-          swift_code: defaultValues.supplier_profile.swift_code || '',
-          sort_code: defaultValues.supplier_profile.sort_code || '',
-        });
+        setSupplierData(buildSupplierData(defaultValues.supplier_profile));
       }
     }
   }, [defaultValues]);
+
+  // ── Reset form to original defaultValues then close ───────────────────────
+  const handleCloseWithReset = () => {
+    if (defaultValues) {
+      setFormData(buildFormData(defaultValues));
+      if (defaultValues.supplier_profile) {
+        setSupplierData(buildSupplierData(defaultValues.supplier_profile));
+      }
+    }
+    handleClose();
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -375,7 +353,7 @@ function UpdateUserModel({
     setSupplierData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // ── Submit — check the action result and show toast accordingly ───────────
+  // ── Submit ────────────────────────────────────────────────────────────────
   const submit = async (event) => {
     event.preventDefault();
     const dataToSubmit = {
@@ -389,10 +367,9 @@ function UpdateUserModel({
 
     if (updateUser.fulfilled.match(result)) {
       toast.success('User updated successfully');
-      handleClose();
+      handleCloseWithReset();
       setUpdateTrigger((prev) => !prev);
     } else {
-      // result.payload is the string already extracted by extractErrorMessage
       toast.error(result.payload || 'Failed to update user');
     }
   };
@@ -420,7 +397,7 @@ function UpdateUserModel({
   return (
     <Modal
       open={open}
-      onClose={handleClose}
+      onClose={handleCloseWithReset}
       aria-labelledby="update-user-modal-title"
     >
       <Box sx={style.modal}>
@@ -444,7 +421,7 @@ function UpdateUserModel({
           <IconButton
             edge="end"
             color="inherit"
-            onClick={handleClose}
+            onClick={handleCloseWithReset}
             size="small"
           >
             <CloseIcon fontSize="small" />
@@ -713,6 +690,7 @@ function UpdateUserModel({
                         accentColor={PRIMARY}
                       />
                     </PermissionGroup>
+
                     {/* Approval */}
                     <PermissionGroup
                       icon={
@@ -757,6 +735,7 @@ function UpdateUserModel({
                         accentColor="#2e7d32"
                       />
                     </PermissionGroup>
+
                     {/* Invoice */}
                     <PermissionGroup
                       icon={
@@ -1009,7 +988,7 @@ function UpdateUserModel({
         <Box sx={style.footer}>
           <Button
             variant="outlined"
-            onClick={handleClose}
+            onClick={handleCloseWithReset}
             sx={{
               borderRadius: '8px',
               borderColor: BORDER,

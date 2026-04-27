@@ -496,7 +496,9 @@ export default function Sidebar() {
                       All Invoices
                     </SubMenuItem>
                   )}
-                  {(user?.role === 'supplier' || isSignerAdmin) && (
+                  {(user?.role === 'supplier' ||
+                    user?.role === 'staff' ||
+                    isSignerAdmin) && (
                     <SubMenuItem
                       className={activeDashboardOption === 2 ? 'active' : ''}
                       onClick={() => goDashboard(2)}
@@ -556,7 +558,9 @@ export default function Sidebar() {
                       All Invoices
                     </SubMenuItem>
                   )}
-                  {(user?.role === 'supplier' || isSignerAdmin) && (
+                  {(user?.role === 'supplier' ||
+                    user?.role === 'staff' ||
+                    isSignerAdmin) && (
                     <SubMenuItem
                       className={activeInvoiceOption === 2 ? 'active' : ''}
                       onClick={() => goInvoice(2)}

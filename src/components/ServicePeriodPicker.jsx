@@ -4,6 +4,12 @@
 // Click first date = start, click second = end. Range is highlighted between.
 // Past dates are fully selectable (invoices can cover past periods).
 // No MUI X, no date-fns, no extra dependencies.
+//
+// Responsive fixes:
+//   • Popover Paper: overflow: 'auto', maxHeight: '90vh' — scrollable on short screens
+//   • Calendar area: flexWrap: 'wrap' + minWidth on each month — stacks on narrow screens
+//   • Header bar: position: 'sticky', top: 0 — stays visible while scrolling
+//   • Footer: position: 'sticky', bottom: 0 — Apply button always visible
 
 import { useState, useRef } from 'react';
 import {
@@ -434,11 +440,13 @@ export default function ServicePeriodPicker({
             mt: 0.5,
             borderRadius: 2,
             boxShadow: '0 12px 40px rgba(0,0,0,0.18)',
-            overflow: 'hidden',
+            // ↓ FIX: scrollable on short screens — Paper scrolls instead of clipping
+            overflow: 'auto',
+            maxHeight: '90vh',
           },
         }}
       >
-        {/* Header bar */}
+        {/* Header bar — sticky so it stays visible while scrolling */}
         <Box
           sx={{
             bgcolor: '#00529B',
@@ -448,6 +456,10 @@ export default function ServicePeriodPicker({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            // ↓ FIX: sticks to top of the scrollable Popover
+            position: 'sticky',
+            top: 0,
+            zIndex: 2,
           }}
         >
           <Typography variant="subtitle2" fontWeight={600}>
@@ -464,9 +476,10 @@ export default function ServicePeriodPicker({
 
         {/* Calendar area */}
         <Box sx={{ p: 2.5 }}>
-          <Box sx={{ display: 'flex', gap: 3 }}>
+          {/* ↓ FIX: flexWrap so months stack vertically on narrow/short screens */}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
             {/* Left month */}
-            <Box>
+            <Box sx={{ minWidth: 280 }}>
               <Box
                 sx={{
                   display: 'flex',
@@ -500,11 +513,18 @@ export default function ServicePeriodPicker({
               />
             </Box>
 
-            {/* Divider */}
-            <Box sx={{ width: '1px', bgcolor: '#e0e0e0', mx: 0.5 }} />
+            {/* Divider — hidden when stacked vertically */}
+            <Box
+              sx={{
+                width: '1px',
+                bgcolor: '#e0e0e0',
+                mx: 0.5,
+                display: { xs: 'none', sm: 'block' },
+              }}
+            />
 
             {/* Right month */}
-            <Box>
+            <Box sx={{ minWidth: 280 }}>
               <Box
                 sx={{
                   display: 'flex',
@@ -538,15 +558,21 @@ export default function ServicePeriodPicker({
             </Box>
           </Box>
 
-          {/* Footer */}
+          {/* Footer — sticky so Apply is always visible without scrolling */}
           <Box
             sx={{
               mt: 2.5,
               pt: 2,
+              pb: 0.5,
               borderTop: '1px solid #e0e0e0',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              // ↓ FIX: always visible at bottom of the scrollable Popover
+              position: 'sticky',
+              bottom: 0,
+              bgcolor: '#fff',
+              zIndex: 1,
             }}
           >
             <Button
