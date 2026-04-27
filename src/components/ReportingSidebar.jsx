@@ -23,7 +23,6 @@ import {
   ExpandLess,
   ExpandMore,
   Download as DownloadIcon,
-  FilterList as FilterIcon,
   AccountBalanceWallet as WalletIcon,
   ReceiptOutlined as InvoiceIcon,
 } from '@mui/icons-material';
@@ -35,34 +34,34 @@ import EnhancedDownloadComponent from './EnhancedDownloadComponent';
 import useCOAData from '../hooks/useCOAData';
 import TuneIcon from '@mui/icons-material/Tune';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import ExcelJS from 'exceljs';
 
-// ── Petty Cash CSV Download — Flat Ledger Format ──────────────────────────────
+// ── Petty Cash XLSX Download — Flat Ledger Format with Bold ──────────────────
 //
 // Output shape per group (station + period + custodian + currency):
 //
-//   RWANDAIR PETTY CASH
-//   STATION : <station>
-//   PERIOD: <period>
-//   CUSTODIAN: <name>
-//   ISSUED BY: <name(s)>            ← only if present
-//   CURRENCY: <currency>
+//   RWANDAIR PETTY CASH                              ← bold
+//   STATION : <station>                              ← bold
+//   PERIOD: <period>                                 ← bold
+//   CUSTODIAN: <n>                                   ← bold
+//   ISSUED BY: <name(s)>                             ← bold (if present)
+//   CURRENCY: <currency>                             ← bold
 //   (blank row)
-//   DATE | Description | Dr | Cr | BALANCE
-//   (blank) | Opening balance | <opening_balance> | |        ← ONE per group
-//   <date>  | Replenishment   | <amount> | | <running_bal>  ┐ all records
-//   <date>  | <expense_desc>  | | <cr> | <running_bal>      ┘ flattened
+//   DATE | Description | Dr | Cr | BALANCE          ← bold
+//   (blank) | Opening balance | <opening_balance>||| ← normal
+//   <date>  | Replenishment | <amount>|| <bal>       ← bold
+//   <date>  | <expense_desc> || <cr> | <bal>         ← normal
 //   ...
-//   (blank) | Closing balance | | | <closing_balance>       ← ONE per group
+//   (blank) | Closing balance |||| <closing_balance> ← normal
 //
 // ─────────────────────────────────────────────────────────────────────────────
 const PettyCashReportDownload = ({ data, title }) => {
-  const handleDownloadCSV = () => {
+  const handleDownload = async () => {
     if (!data || !data.length) return;
 
     const fmt = (val) => (val == null ? '' : val);
-    const rows = [];
 
-    // ── Group records by station + period + custodian + currency ─────────────
+    // ── Group records by station + period + custodian + currency ───────────
     const groupKey = (r) =>
       [
         r.station ?? '',
@@ -73,7 +72,6 @@ const PettyCashReportDownload = ({ data, title }) => {
 
     const groups = [];
     const seen = new Map();
-
     data.forEach((record) => {
       const key = groupKey(record);
       if (!seen.has(key)) {
@@ -84,98 +82,121 @@ const PettyCashReportDownload = ({ data, title }) => {
       }
     });
 
-    // ── Render each group as a single flat ledger ─────────────────────────────
+    // ── Build workbook ─────────────────────────────────────────────────────
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'RwandAir Finance';
+    workbook.created = new Date();
+
+    const worksheet = workbook.addWorksheet('Petty Cash Report');
+
+    // Set column widths to match the template
+    worksheet.columns = [
+      { width: 16 }, // DATE
+      { width: 28 }, // Description
+      { width: 14 }, // Dr
+      { width: 14 }, // Cr
+      { width: 16 }, // BALANCE
+    ];
+
+    const boldFont = { bold: true };
+    const normalFont = { bold: false };
+
+    // Helper — add a row and optionally make it bold
+    const addRow = (values, isBold = false) => {
+      const row = worksheet.addRow(values);
+      if (isBold) row.font = boldFont;
+      else row.font = normalFont;
+      return row;
+    };
+
+    // Helper — add a blank row
+    const addBlank = () => worksheet.addRow(['', '', '', '', '']);
+
+    // ── Render each group ──────────────────────────────────────────────────
     groups.forEach((group, groupIndex) => {
       if (groupIndex > 0) {
-        rows.push(['', '', '', '', '']);
-        rows.push(['', '', '', '', '']);
+        addBlank();
+        addBlank();
       }
 
       const first = group.records[0];
       const last = group.records[group.records.length - 1];
 
-      // ── Header block ────────────────────────────────────────────────────────
-      rows.push(['RWANDAIR PETTY CASH', '', '', '', '']);
-      rows.push([`STATION : ${fmt(first.station)}`, '', '', '', '']);
-      rows.push([`PERIOD: ${fmt(first.period)}`, '', '', '', '']);
-      rows.push([`CUSTODIAN: ${fmt(first.holder?.name)}`, '', '', '', '']);
+      // Header block — all bold
+      addRow(['RWANDAIR PETTY CASH', '', '', '', ''], true);
+      addRow([`STATION : ${fmt(first.station)}`, '', '', '', ''], true);
+      addRow([`PERIOD: ${fmt(first.period)}`, '', '', '', ''], true);
+      addRow([`CUSTODIAN: ${fmt(first.holder?.name)}`, '', '', '', ''], true);
 
       const issuedByNames = [
         ...new Set(group.records.map((r) => r.issued_by?.name).filter(Boolean)),
       ];
       if (issuedByNames.length) {
-        rows.push([`ISSUED BY: ${issuedByNames.join(', ')}`, '', '', '', '']);
+        addRow(
+          [`ISSUED BY: ${issuedByNames.join(', ')}`, '', '', '', ''],
+          true,
+        );
       }
 
-      rows.push([`CURRENCY: ${fmt(first.currency)}`, '', '', '', '']);
-      rows.push(['', '', '', '', '']);
+      addRow([`CURRENCY: ${fmt(first.currency)}`, '', '', '', ''], true);
+      addBlank();
 
-      // ── Column headers ──────────────────────────────────────────────────────
-      rows.push(['DATE', 'Description', 'Dr', 'Cr', 'BALANCE']);
+      // Column headers — bold
+      addRow(['DATE', 'Description', 'Dr', 'Cr', 'BALANCE'], true);
 
-      // ── ONE opening balance from the first record ───────────────────────────
-      rows.push([
-        '',
-        'Opening balance',
-        fmt(first.opening_balance ?? 0),
-        '',
-        '',
-      ]);
+      // ONE opening balance — normal
+      addRow(
+        ['', 'Opening balance', fmt(first.opening_balance ?? 0), '', ''],
+        false,
+      );
 
-      // ── All replenishments + expenses from every record, in order ───────────
+      // All replenishments (bold) + their expenses (normal)
       group.records.forEach((record) => {
-        // Replenishment line
-        rows.push([
-          fmt(record.issue_date),
-          'Replenishment',
-          fmt(record.replenishment ?? 0),
-          '',
-          fmt(record.total_available ?? 0),
-        ]);
-
-        // Expense lines for this record
-        (record.expenses || []).forEach((exp) => {
-          rows.push([
-            fmt(exp.date),
-            fmt(exp.description),
+        // Replenishment — bold
+        addRow(
+          [
+            fmt(record.issue_date),
+            'Replenishment',
+            fmt(record.replenishment ?? 0),
             '',
-            fmt(exp.cr),
-            fmt(exp.balance),
-          ]);
+            fmt(record.total_available ?? 0),
+          ],
+          true,
+        );
+
+        // Expenses — normal
+        (record.expenses || []).forEach((exp) => {
+          addRow(
+            [
+              fmt(exp.date),
+              fmt(exp.description),
+              '',
+              fmt(exp.cr),
+              fmt(exp.balance),
+            ],
+            false,
+          );
         });
       });
 
-      // ── ONE closing balance from the last record ────────────────────────────
-      rows.push([
-        '',
-        'Closing balance',
-        '',
-        '',
-        fmt(last.closing_balance ?? 0),
-      ]);
+      // ONE closing balance — normal
+      addRow(
+        ['', 'Closing balance', '', '', fmt(last.closing_balance ?? 0)],
+        false,
+      );
     });
 
-    // ── Serialise to CSV ──────────────────────────────────────────────────────
-    const csvContent = rows
-      .map((row) =>
-        row
-          .map((cell) => {
-            const s = String(cell ?? '');
-            return s.includes(',') || s.includes('"') || s.includes('\n')
-              ? `"${s.replace(/"/g, '""')}"`
-              : s;
-          })
-          .join(','),
-      )
-      .join('\r\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // ── Write and trigger download ─────────────────────────────────────────
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = `${title.replace(/\s+/g, '_')}_${
       new Date().toISOString().split('T')[0]
-    }.csv`;
+    }.xlsx`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -188,10 +209,10 @@ const PettyCashReportDownload = ({ data, title }) => {
       color="success"
       fullWidth
       startIcon={<DownloadIcon />}
-      onClick={handleDownloadCSV}
+      onClick={handleDownload}
       disabled={!data || !data.length}
     >
-      Download CSV
+      Download Report
     </Button>
   );
 };
