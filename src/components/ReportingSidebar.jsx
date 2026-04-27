@@ -36,8 +36,26 @@ import useCOAData from '../hooks/useCOAData';
 import TuneIcon from '@mui/icons-material/Tune';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 
-// ── Petty Cash CSV Download — Ledger Format ───────────────────────────────────
-const PettyCashReportDownload = ({ data, summary, title }) => {
+// ── Petty Cash CSV Download — Flat Ledger Format ──────────────────────────────
+//
+// Output shape per group (station + period + custodian + currency):
+//
+//   RWANDAIR PETTY CASH
+//   STATION : <station>
+//   PERIOD: <period>
+//   CUSTODIAN: <name>
+//   ISSUED BY: <name(s)>            ← only if present
+//   CURRENCY: <currency>
+//   (blank row)
+//   DATE | Description | Dr | Cr | BALANCE
+//   (blank) | Opening balance | <opening_balance> | |        ← ONE per group
+//   <date>  | Replenishment   | <amount> | | <running_bal>  ┐ all records
+//   <date>  | <expense_desc>  | | <cr> | <running_bal>      ┘ flattened
+//   ...
+//   (blank) | Closing balance | | | <closing_balance>       ← ONE per group
+//
+// ─────────────────────────────────────────────────────────────────────────────
+const PettyCashReportDownload = ({ data, title }) => {
   const handleDownloadCSV = () => {
     if (!data || !data.length) return;
 
@@ -66,7 +84,7 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
       }
     });
 
-    // ── Render each group ─────────────────────────────────────────────────────
+    // ── Render each group as a single flat ledger ─────────────────────────────
     groups.forEach((group, groupIndex) => {
       if (groupIndex > 0) {
         rows.push(['', '', '', '', '']);
@@ -74,7 +92,9 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
       }
 
       const first = group.records[0];
+      const last = group.records[group.records.length - 1];
 
+      // ── Header block ────────────────────────────────────────────────────────
       rows.push(['RWANDAIR PETTY CASH', '', '', '', '']);
       rows.push([`STATION : ${fmt(first.station)}`, '', '', '', '']);
       rows.push([`PERIOD: ${fmt(first.period)}`, '', '', '', '']);
@@ -89,32 +109,32 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
 
       rows.push([`CURRENCY: ${fmt(first.currency)}`, '', '', '', '']);
       rows.push(['', '', '', '', '']);
-      // ── Column header — printed ONCE per group ──────────────────────────────
+
+      // ── Column headers ──────────────────────────────────────────────────────
       rows.push(['DATE', 'Description', 'Dr', 'Cr', 'BALANCE']);
 
-      group.records.forEach((record, recordIndex) => {
-        if (recordIndex > 0) {
-          rows.push(['', '', '', '', '']);
-        }
+      // ── ONE opening balance from the first record ───────────────────────────
+      rows.push([
+        '',
+        'Opening balance',
+        fmt(first.opening_balance ?? 0),
+        '',
+        '',
+      ]);
 
-        rows.push([
-          '',
-          'Opening balance',
-          fmt(record.opening_balance ?? 0),
-          '',
-          '',
-        ]);
+      // ── All replenishments + expenses from every record, in order ───────────
+      group.records.forEach((record) => {
+        // Replenishment line
         rows.push([
           fmt(record.issue_date),
           'Replenishment',
           fmt(record.replenishment ?? 0),
           '',
-          '',
+          fmt(record.total_available ?? 0),
         ]);
-        rows.push(['', '', '', '', fmt(record.total_available ?? 0)]);
 
-        const expenses = record.expenses || [];
-        expenses.forEach((exp) => {
+        // Expense lines for this record
+        (record.expenses || []).forEach((exp) => {
           rows.push([
             fmt(exp.date),
             fmt(exp.description),
@@ -123,17 +143,19 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
             fmt(exp.balance),
           ]);
         });
-
-        rows.push([
-          '',
-          'Closing balance',
-          '',
-          '',
-          fmt(record.closing_balance ?? 0),
-        ]);
       });
+
+      // ── ONE closing balance from the last record ────────────────────────────
+      rows.push([
+        '',
+        'Closing balance',
+        '',
+        '',
+        fmt(last.closing_balance ?? 0),
+      ]);
     });
 
+    // ── Serialise to CSV ──────────────────────────────────────────────────────
     const csvContent = rows
       .map((row) =>
         row
@@ -197,11 +219,11 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
   const [error, setError] = useState(null);
   const [showResults, setShowResults] = useState(true);
   const [reportFilters, setReportFilters] = useState({
-    supplier_name: '', // ← was supplier_id
+    supplier_name: '',
     invoice_number: '',
     invoice_owner: '',
-    created_date_from: '', // ← was created_date
-    created_date_to: '', // ← new
+    created_date_from: '',
+    created_date_to: '',
     status: '',
     year: '',
   });
@@ -221,7 +243,7 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
     date_to: '',
   });
 
-  // ── Custodians — fetched from API on drawer open ──────────────────────────
+  // ── Custodians ────────────────────────────────────────────────────────────
   const [custodians, setCustodians] = useState([]);
   const [loadingCustodians, setLoadingCustodians] = useState(false);
 
@@ -466,7 +488,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
       {/* ══════════════════════ INVOICE TAB ══════════════════════ */}
       {defaultTab === 0 && (
         <Box>
-          {/* ── Compact filter bar ───────────────────────────────── */}
           <Box
             sx={{
               mb: 2,
@@ -476,7 +497,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
               borderRadius: '10px',
             }}
           >
-            {/* Header row */}
             <Box
               sx={{ display: 'flex', alignItems: 'center', mb: 1.5, gap: 1 }}
             >
@@ -543,7 +563,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
               </IconButton>
             </Box>
 
-            {/* Active filter chips when collapsed */}
             {!filtersExpanded &&
               Object.entries(reportFilters).some(([, v]) => v !== '') && (
                 <Box
@@ -577,7 +596,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   pt: 0.5,
                 }}
               >
-                {/* Year */}
                 <TextField
                   label="Year"
                   type="number"
@@ -588,8 +606,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   placeholder="e.g. 2026"
                   sx={fieldSx}
                 />
-
-                {/* Supplier — COA dropdown, sends supplier_name (not id) in params */}
                 <Autocomplete
                   options={coaData.suppliers}
                   getOptionLabel={(opt) => opt.label || ''}
@@ -619,8 +635,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                     },
                   }}
                 />
-
-                {/* Invoice Number */}
                 <TextField
                   label="Invoice Number"
                   value={reportFilters.invoice_number}
@@ -632,8 +646,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   placeholder="e.g. INV-001"
                   sx={fieldSx}
                 />
-
-                {/* Invoice Owner */}
                 <Autocomplete
                   options={userOptions}
                   getOptionLabel={(opt) => opt.label || ''}
@@ -656,8 +668,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                     />
                   )}
                 />
-
-                {/* Created Date From */}
                 <TextField
                   label="Created Date From"
                   type="date"
@@ -670,8 +680,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   fullWidth
                   sx={fieldSx}
                 />
-
-                {/* Created Date To */}
                 <TextField
                   label="Created Date To"
                   type="date"
@@ -684,8 +692,6 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   fullWidth
                   sx={fieldSx}
                 />
-
-                {/* Status */}
                 <Autocomplete
                   options={statusOptions}
                   getOptionLabel={(opt) => opt.label || ''}
