@@ -520,47 +520,20 @@ const ManageExpenses = () => {
     setSelectedExpense(null);
   };
 
-  // ── Status chip helpers ───────────────────────────────────────────────────
-  const getStatusChip = (status) => {
-    const map = {
-      pending: { bgcolor: '#FFA726', color: 'white' },
-      approved: { bgcolor: '#66BB6A', color: 'white' },
-      denied: { bgcolor: '#EF5350', color: 'white' },
-      verified: { bgcolor: '#42A5F5', color: 'white' },
-      rolled_back: { bgcolor: '#9E9E9E', color: 'white' },
-      'to verify': { bgcolor: '#42A5F5', color: 'white' },
-      'to sign': { bgcolor: '#FF9800', color: 'white' },
-    };
-    const display = (status || 'N/A')
-      .replace(/_/g, ' ')
-      .split(' ')
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(' ');
-    return (
-      <Chip
-        label={display}
-        size="small"
-        sx={{
-          ...(map[status?.toLowerCase()] || {
-            bgcolor: '#9E9E9E',
-            color: 'white',
-          }),
-          fontWeight: 500,
-          minWidth: '80px',
-        }}
-      />
-    );
-  };
-
   // ── My approval status chip ───────────────────────────────────────────────
   // Finds the logged-in user's entry in approval_history by matching user.id,
-  // then renders a small coloured chip showing their level + status.
-  // Returns null if the user is not in the approval chain for this expense.
+  // then renders a chip showing their approval status (e.g. "To Sign").
+  // Returns a dash if the user is not in the approval chain for this expense.
   const getMyApprovalChip = (expense) => {
     const myEntry = expense.approval_history?.find(
       (h) => h.user?.id === loggedInUser?.id,
     );
-    if (!myEntry) return null;
+    if (!myEntry)
+      return (
+        <Typography variant="body2" color="text.secondary">
+          —
+        </Typography>
+      );
 
     const bgMap = {
       signed: '#1b5e20',
@@ -576,8 +549,7 @@ const ManageExpenses = () => {
         size="small"
         sx={{
           fontWeight: 700,
-          fontSize: '0.68rem',
-          height: 20,
+          fontSize: '0.75rem',
           bgcolor: bg,
           color: 'white',
           textTransform: 'capitalize',
@@ -846,9 +818,8 @@ const ManageExpenses = () => {
                   <TableCell sx={{ ...styles.headerCell, width: '90px' }}>
                     Currency
                   </TableCell>
-                  {/* ── Status column: overall status + logged-in user's own approval level ── */}
                   <TableCell sx={{ ...styles.headerCell, width: '160px' }}>
-                    Status
+                    My Status
                   </TableCell>
                   <TableCell sx={{ ...styles.headerCell, width: '150px' }}>
                     Created At
@@ -950,24 +921,9 @@ const ManageExpenses = () => {
                         />
                       </TableCell>
 
-                      {/*
-                        ── Status cell ──────────────────────────────────────────
-                        Top chip:    overall expense status (same as before)
-                        Bottom chip: logged-in user's own approval level + status,
-                                     shown only if they appear in approval_history.
-                                     Matched by user.id === loggedInUser.id.
-                      */}
+                      {/* My Status — only the logged-in user's approval history chip */}
                       <TableCell sx={{ width: '160px' }}>
-                        <Box
-                          sx={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 0.5,
-                          }}
-                        >
-                          {getStatusChip(expense.status)}
-                          {getMyApprovalChip(expense)}
-                        </Box>
+                        {getMyApprovalChip(expense)}
                       </TableCell>
 
                       <TableCell

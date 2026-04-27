@@ -134,17 +134,6 @@ const PettyCashReportDownload = ({ data, summary, title }) => {
       });
     });
 
-    if (summary) {
-      rows.push(['', '', '', '', '']);
-      rows.push(['', '', '', '', '']);
-      rows.push(['REPORT SUMMARY', '', '', '', '']);
-      rows.push(['Total Records', '', '', '', fmt(summary.total_records)]);
-      rows.push(['Total Issued', '', '', '', fmt(summary.total_issued)]);
-      rows.push(['Total Spent', '', '', '', fmt(summary.total_spent)]);
-      rows.push(['Total Remaining', '', '', '', fmt(summary.total_remaining)]);
-      rows.push([`Generated: ${new Date().toLocaleString()}`, '', '', '', '']);
-    }
-
     const csvContent = rows
       .map((row) =>
         row
@@ -668,7 +657,7 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   )}
                 />
 
-                {/* Created Date From (was Created Date) */}
+                {/* Created Date From */}
                 <TextField
                   label="Created Date From"
                   type="date"
@@ -682,7 +671,7 @@ const ReportingSidebar = ({ open, onClose, defaultTab = 0 }) => {
                   sx={fieldSx}
                 />
 
-                {/* Created Date To (new) */}
+                {/* Created Date To */}
                 <TextField
                   label="Created Date To"
                   type="date"
