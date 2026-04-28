@@ -281,10 +281,15 @@ const getPettyCashReport = async (params = {}) => {
 // ==================== 10. Petty Cash Dashboard ====================
 
 // GET /invoice/petty-cash/dashboard/
-// Returns summary stats: total_issued, total_active, total_spent, total_remaining,
-// pending_acknowledgment, pending_expenses, pending_requests, etc.
-const getPettyCashDashboard = async () => {
-  const response = await http.get('/invoice/petty-cash/dashboard/');
+// Params: year, custodian_id, date_from, date_to
+const getPettyCashDashboard = async (params = {}) => {
+  const queryParams = new URLSearchParams(
+    Object.fromEntries(
+      Object.entries(params).filter(([_, v]) => v != null && v !== ''),
+    ),
+  ).toString();
+  const url = `/invoice/petty-cash/dashboard/${queryParams ? `?${queryParams}` : ''}`;
+  const response = await http.get(url);
   return response.data;
 };
 

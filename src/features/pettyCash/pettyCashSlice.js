@@ -425,12 +425,13 @@ export const getPettyCashReport = createAsyncThunk(
 );
 
 // ==================== Petty Cash Dashboard ====================
+// Accepts optional params: { year, custodian_id, date_from, date_to }
 
 export const getPettyCashDashboard = createAsyncThunk(
   'pettyCash/getPettyCashDashboard',
-  async (_, thunkAPI) => {
+  async (params = {}, thunkAPI) => {
     try {
-      return await pettyCashService.getPettyCashDashboard();
+      return await pettyCashService.getPettyCashDashboard(params);
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }

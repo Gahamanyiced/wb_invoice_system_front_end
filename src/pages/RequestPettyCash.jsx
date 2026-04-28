@@ -393,43 +393,80 @@ const RequestPettyCash = () => {
     setSelectedRequest(null);
   };
 
-  // ── My approval status chip ───────────────────────────────────────────────
-  // Finds the logged-in user's entry in approval_history by matching user.id,
-  // then renders a chip showing their approval status (e.g. "To Sign").
-  // Returns a dash if the user is not in the approval chain for this request.
-  const getMyApprovalChip = (request) => {
-    const myEntry = request.approval_history?.find(
-      (h) => h.user?.id === loggedInUser?.id,
-    );
-    if (!myEntry)
-      return (
-        <Typography variant="body2" color="text.secondary">
-          —
-        </Typography>
-      );
-
+  // ── Overall request status chip ───────────────────────────────────────────
+  // Fallback shown when the logged-in user is not in the approval chain.
+  const getOverallStatusChip = (status) => {
     const bgMap = {
+      pending: '#FFA726',
+      approved: '#66BB6A',
+      denied: '#EF5350',
+      verified: '#42A5F5',
+      rolled_back: '#9E9E9E',
+      rollback: '#9E9E9E',
+      'to verify': '#42A5F5',
+      'to sign': '#FF9800',
+      to_sign: '#FF9800',
       signed: '#1b5e20',
-      denied: '#b71c1c',
-      pending: '#e65100',
-      to_sign: '#e65100',
-      'to sign': '#e65100',
     };
-    const bg = bgMap[myEntry.status?.toLowerCase()] || '#555';
+    const display = (status || 'N/A')
+      .replace(/_/g, ' ')
+      .split(' ')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
 
     return (
       <Chip
-        label={myEntry.status?.replace(/_/g, ' ')}
+        label={display}
         size="small"
         sx={{
-          fontWeight: 700,
-          fontSize: '0.75rem',
-          bgcolor: bg,
+          bgcolor: bgMap[status?.toLowerCase()] || '#9E9E9E',
           color: 'white',
-          textTransform: 'capitalize',
+          fontWeight: 500,
+          fontSize: '0.75rem',
+          minWidth: '80px',
         }}
       />
     );
+  };
+
+  // ── Status column chip ────────────────────────────────────────────────────
+  // Priority 1: logged-in user's own approval history entry (e.g. "To Sign",
+  //             "Signed", "Denied") — shown when the user is in the chain.
+  // Priority 2: overall request status — shown when the user is not part of
+  //             the approval chain at all (e.g. the custodian who created the
+  //             request, or an admin with no signing role).
+  const getStatusChip = (request) => {
+    const myEntry = request.approval_history?.find(
+      (h) => h.user?.id === loggedInUser?.id,
+    );
+
+    if (myEntry) {
+      const bgMap = {
+        signed: '#1b5e20',
+        denied: '#b71c1c',
+        pending: '#e65100',
+        'to sign': '#e65100',
+        to_sign: '#e65100',
+      };
+      const bg = bgMap[myEntry.status?.toLowerCase()] || '#555';
+
+      return (
+        <Chip
+          label={myEntry.status?.replace(/_/g, ' ')}
+          size="small"
+          sx={{
+            fontWeight: 700,
+            fontSize: '0.75rem',
+            bgcolor: bg,
+            color: 'white',
+            textTransform: 'capitalize',
+          }}
+        />
+      );
+    }
+
+    // Fallback: show the overall request status
+    return getOverallStatusChip(request.status);
   };
 
   const formatAmount = (amount) =>
@@ -511,8 +548,14 @@ const RequestPettyCash = () => {
                   <TableCell sx={{ ...styles.headerCell, width: '90px' }}>
                     Currency
                   </TableCell>
+                  {/*
+                    ── Status column ─────────────────────────────────────────
+                    Shows the logged-in user's personal approval status when
+                    they appear in approval_history, otherwise falls back to
+                    the overall request status (e.g. Pending, Approved).
+                  */}
                   <TableCell sx={{ ...styles.headerCell, width: '160px' }}>
-                    My Status
+                    Status
                   </TableCell>
                   <TableCell sx={{ ...styles.headerCell, width: '150px' }}>
                     Created At
@@ -579,9 +622,9 @@ const RequestPettyCash = () => {
                         />
                       </TableCell>
 
-                      {/* My Status — only the logged-in user's approval history chip */}
+                      {/* Status cell */}
                       <TableCell sx={{ width: '160px' }}>
-                        {getMyApprovalChip(request)}
+                        {getStatusChip(request)}
                       </TableCell>
 
                       <TableCell sx={{ width: '150px', fontSize: '0.82rem' }}>

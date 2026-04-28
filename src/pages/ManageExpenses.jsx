@@ -302,6 +302,54 @@ const ManageExpenses = () => {
     refreshList();
   };
 
+  // ── Bulk Action guard ─────────────────────────────────────────────────────
+  const handleOpenBulkDialog = () => {
+    // ── Guard 1: already signed ───────────────────────────────────────────
+    // Block if the user has already signed one or more of the selected expenses.
+    const alreadySigned = selectedExpenses.filter((expense) =>
+      expense.approval_history?.some(
+        (h) =>
+          h.user?.id === loggedInUser?.id &&
+          h.status?.toLowerCase() === 'signed',
+      ),
+    );
+
+    if (alreadySigned.length > 0) {
+      const count = alreadySigned.length;
+      const descriptions = alreadySigned
+        .map((e) => e.item_description || `Expense #${e.id}`)
+        .join(', ');
+      toast.error(
+        `Action blocked: You have already signed ${count > 1 ? `${count} expenses` : 'this expense'} (${descriptions}). ` +
+          `Please deselect ${count > 1 ? 'them' : 'it'} before proceeding with the bulk action.`,
+      );
+      return;
+    }
+
+    // ── Guard 2: not eligible to sign ─────────────────────────────────────
+    // The user must have a "To Sign" (or "to_sign") entry in at least one of
+    // the selected expenses. Both underscore and space variants are accepted.
+    const toSignStatuses = ['to sign', 'to_sign'];
+
+    const hasToSign = selectedExpenses.some((expense) =>
+      expense.approval_history?.some(
+        (h) =>
+          h.user?.id === loggedInUser?.id &&
+          toSignStatuses.includes(h.status?.toLowerCase()),
+      ),
+    );
+
+    if (!hasToSign) {
+      toast.error(
+        'Access denied: You are not authorised to sign the selected expenses. ' +
+          'A "To Sign" approval status is required on at least one of the selected expenses to use the bulk action.',
+      );
+      return;
+    }
+
+    setOpenBulkDialog(true);
+  };
+
   // ── Create dialog ─────────────────────────────────────────────────────────
   const handleOpenCreateDialog = () => {
     if (!isExpenseCreator) {
@@ -520,42 +568,72 @@ const ManageExpenses = () => {
     setSelectedExpense(null);
   };
 
-  // ── My approval status chip ───────────────────────────────────────────────
-  // Finds the logged-in user's entry in approval_history by matching user.id,
-  // then renders a chip showing their approval status (e.g. "To Sign").
-  // Returns a dash if the user is not in the approval chain for this expense.
-  const getMyApprovalChip = (expense) => {
-    const myEntry = expense.approval_history?.find(
-      (h) => h.user?.id === loggedInUser?.id,
-    );
-    if (!myEntry)
-      return (
-        <Typography variant="body2" color="text.secondary">
-          —
-        </Typography>
-      );
-
+  // ── Overall expense status chip ───────────────────────────────────────────
+  const getOverallStatusChip = (status) => {
     const bgMap = {
+      pending: '#FFA726',
+      approved: '#66BB6A',
+      denied: '#EF5350',
+      verified: '#42A5F5',
+      rolled_back: '#9E9E9E',
+      rollback: '#9E9E9E',
+      'to verify': '#42A5F5',
+      'to sign': '#FF9800',
       signed: '#1b5e20',
-      denied: '#b71c1c',
-      pending: '#e65100',
-      'to sign': '#e65100',
     };
-    const bg = bgMap[myEntry.status?.toLowerCase()] || '#555';
+    const display = (status || 'N/A')
+      .replace(/_/g, ' ')
+      .split(' ')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
 
     return (
       <Chip
-        label={myEntry.status}
+        label={display}
         size="small"
         sx={{
-          fontWeight: 700,
-          fontSize: '0.75rem',
-          bgcolor: bg,
+          bgcolor: bgMap[status?.toLowerCase()] || '#9E9E9E',
           color: 'white',
-          textTransform: 'capitalize',
+          fontWeight: 500,
+          fontSize: '0.75rem',
+          minWidth: '80px',
         }}
       />
     );
+  };
+
+  // ── Status column chip ────────────────────────────────────────────────────
+  const getStatusChip = (expense) => {
+    const myEntry = expense.approval_history?.find(
+      (h) => h.user?.id === loggedInUser?.id,
+    );
+
+    if (myEntry) {
+      const bgMap = {
+        signed: '#1b5e20',
+        denied: '#b71c1c',
+        pending: '#e65100',
+        'to sign': '#e65100',
+        to_sign: '#e65100',
+      };
+      const bg = bgMap[myEntry.status?.toLowerCase()] || '#555';
+
+      return (
+        <Chip
+          label={myEntry.status}
+          size="small"
+          sx={{
+            fontWeight: 700,
+            fontSize: '0.75rem',
+            bgcolor: bg,
+            color: 'white',
+            textTransform: 'capitalize',
+          }}
+        />
+      );
+    }
+
+    return getOverallStatusChip(expense.status);
   };
 
   const formatAmount = (amount) =>
@@ -568,7 +646,7 @@ const ManageExpenses = () => {
   return (
     <RootLayout>
       <Box>
-        {/* Page header */}
+        {/* ── Page header ─────────────────────────────────────────────── */}
         <Box sx={styles.header}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <IconButton
@@ -592,23 +670,8 @@ const ManageExpenses = () => {
             </Box>
           </Box>
 
+          {/* Export CSV + Add Expense only in the page header */}
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-            {selectedIds.size > 0 && (
-              <Button
-                variant="contained"
-                startIcon={<GroupsIcon />}
-                onClick={() => setOpenBulkDialog(true)}
-                sx={{
-                  bgcolor: '#6a1b9a',
-                  '&:hover': { bgcolor: '#4a148c' },
-                  textTransform: 'none',
-                  fontWeight: 600,
-                  borderRadius: '8px',
-                }}
-              >
-                Bulk Action ({selectedIds.size})
-              </Button>
-            )}
             <Button
               variant="outlined"
               startIcon={
@@ -762,21 +825,58 @@ const ManageExpenses = () => {
           </Paper>
         )}
 
-        {/* Expenses table */}
+        {/* ── Expenses table ───────────────────────────────────────────── */}
         <Paper elevation={2} sx={{ mt: 3 }}>
-          <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0' }}>
-            <Typography variant="h6" color="#00529B" fontWeight={600}>
-              Expenses
+          {/*
+            ── Table header bar ─────────────────────────────────────────────
+            "Expenses" title + selection count on the left.
+            Bulk Action button appears on the RIGHT, inline, only when rows
+            are checked — so it's always close to the table content.
+          */}
+          <Box
+            sx={{
+              p: 2,
+              borderBottom: '1px solid #e0e0e0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Typography variant="h6" color="#00529B" fontWeight={600}>
+                Expenses
+              </Typography>
               {selectedIds.size > 0 && (
                 <Typography
-                  component="span"
                   variant="body2"
-                  sx={{ ml: 1.5, color: '#6a1b9a', fontWeight: 600 }}
+                  sx={{ color: '#6a1b9a', fontWeight: 600 }}
                 >
                   {selectedIds.size} selected
                 </Typography>
               )}
-            </Typography>
+            </Box>
+
+            {/* Bulk Action — visible only when at least one row is checked */}
+            {selectedIds.size > 0 && (
+              <Button
+                variant="contained"
+                size="small"
+                startIcon={<GroupsIcon sx={{ fontSize: 16 }} />}
+                onClick={handleOpenBulkDialog}
+                sx={{
+                  bgcolor: '#6a1b9a',
+                  '&:hover': { bgcolor: '#4a148c' },
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  px: 2,
+                  py: 0.75,
+                }}
+              >
+                Bulk Action ({selectedIds.size})
+              </Button>
+            )}
           </Box>
 
           <TableContainer
@@ -819,7 +919,7 @@ const ManageExpenses = () => {
                     Currency
                   </TableCell>
                   <TableCell sx={{ ...styles.headerCell, width: '160px' }}>
-                    My Status
+                    Status
                   </TableCell>
                   <TableCell sx={{ ...styles.headerCell, width: '150px' }}>
                     Created At
@@ -920,12 +1020,9 @@ const ManageExpenses = () => {
                           }}
                         />
                       </TableCell>
-
-                      {/* My Status — only the logged-in user's approval history chip */}
                       <TableCell sx={{ width: '160px' }}>
-                        {getMyApprovalChip(expense)}
+                        {getStatusChip(expense)}
                       </TableCell>
-
                       <TableCell
                         sx={{
                           width: '150px',
