@@ -27,7 +27,11 @@ import CloseIcon from '@mui/icons-material/Close';
 import IconButton from '@mui/material/IconButton';
 
 import { useDispatch, useSelector } from 'react-redux';
-import { addInvoice, getInvoiceByUser } from '../features/invoice/invoiceSlice';
+import {
+  addInvoice,
+  getInvoiceByUser,
+  getAddressedToMeInvoices,
+} from '../features/invoice/invoiceSlice';
 import { checkHeadDepartment } from '../features/department/departmentSlice';
 import { getAllSigners } from '../features/user/userSlice';
 
@@ -220,11 +224,9 @@ export default function InvoiceModal() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   // ── Permission flags ──────────────────────────────────────────────────────
-  // Only users with is_invoice_verifier = true see the full form
-  // (GL section, Payment Terms, etc.). Everyone else — including supplier,
-  // staff, signer, signer_admin, and admin without the flag — sees the
-  // limited (supplier-style) form.
   const isInvoiceVerifier = !!user?.is_invoice_verifier;
+  // ── added: acting supplier flag ───────────────────────────────────────────
+  const isActingSupplier = !!user?.is_acting_supplier;
 
   const [open, setOpen] = useState(false);
   const [documents, setDocuments] = useState([{}]);
@@ -233,7 +235,7 @@ export default function InvoiceModal() {
   const [customTermsInput, setCustomTermsInput] = useState('');
   const [useMultipleGL, setUseMultipleGL] = useState(false);
 
-  // ── Service period — single string "YYYY-MM-DD to YYYY-MM-DD" ─────────────
+  // ── Service period ────────────────────────────────────────────────────────
   const [servicePeriod, setServicePeriod] = useState('');
 
   const [selectedSupplier, setSelectedSupplier] = useState(null);
@@ -242,6 +244,9 @@ export default function InvoiceModal() {
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [selectedAircraftType, setSelectedAircraftType] = useState(null);
   const [selectedRoute, setSelectedRoute] = useState(null);
+
+  // ── added: addressed-to signer for acting supplier ────────────────────────
+  const [addressedTo, setAddressedTo] = useState(null);
 
   const emptyGLEntry = () => ({
     gl_code: null,
@@ -257,9 +262,11 @@ export default function InvoiceModal() {
 
   const { excelData, isLoading: coaLoading } = useCOAData({ enabled: open });
 
-  // Pass isInvoiceVerifier into the validation schema selector so the correct
-  // schema (with or without GL/payment fields) is applied.
-  const validationSchema = getInvoiceValidationSchema(isInvoiceVerifier);
+  // ── added: pass isActingSupplier to schema selector ───────────────────────
+  const validationSchema = getInvoiceValidationSchema(
+    isInvoiceVerifier,
+    isActingSupplier,
+  );
 
   const {
     control,
@@ -323,7 +330,6 @@ export default function InvoiceModal() {
     }
   }, [payment_terms]);
 
-  // Keep react-hook-form in sync with the picker value
   useEffect(() => {
     setValue('service_period', servicePeriod, {
       shouldValidate: !!servicePeriod,
@@ -331,11 +337,8 @@ export default function InvoiceModal() {
   }, [servicePeriod, setValue]);
 
   const handleOpen = () => setOpen(true);
-
-  // Backdrop / ESC / header X — just hide, data stays intact
   const handleDismiss = () => setOpen(false);
 
-  // Cancel button + submit success — hide AND wipe all form state
   const handleReset = () => {
     setOpen(false);
     reset();
@@ -352,6 +355,7 @@ export default function InvoiceModal() {
     setSelectedAircraftType(null);
     setSelectedRoute(null);
     setGLEntries([emptyGLEntry()]);
+    setAddressedTo(null); // ← added
     resetInvoiceNumCheck();
   };
 
@@ -462,54 +466,55 @@ export default function InvoiceModal() {
   // ── Submit ────────────────────────────────────────────────────────────────
   const onSubmit = async (data) => {
     try {
-      if (invoiceNumStatus === 'taken') {
-        toast.error(
-          invoiceNumMessage ||
-            'This invoice number is already used. Please enter a different one.',
-        );
-        return;
-      }
-
-      // ── Service period validation ─────────────────────────────────────────
-      if (!servicePeriod || !servicePeriod.includes(' to ')) {
-        toast.error('Please select a service period date range');
-        return;
-      }
-
-      if (isInvoiceVerifier && useMultipleGL) {
-        if (!validateMultipleGLEntries()) {
+      // ── acting supplier: skip all business-rule checks ────────────────────
+      if (!isActingSupplier) {
+        if (invoiceNumStatus === 'taken') {
           toast.error(
-            'Please fill in all required GL entry fields: GL Code, Amount, Cost Center, and Location',
+            invoiceNumMessage ||
+              'This invoice number is already used. Please enter a different one.',
           );
           return;
         }
-        if (calculateTotalAmount(glEntries) <= 0) {
-          toast.error('Total GL amount must be greater than 0');
+
+        if (!servicePeriod || !servicePeriod.includes(' to ')) {
+          toast.error('Please select a service period date range');
           return;
         }
-      }
 
-      if (documents.every((doc) => !doc || !doc.name)) {
-        toast.error('Please attach at least one document');
-        return;
-      }
-
-      const hasInvalidFiles = documents.some((doc) => {
-        if (doc && doc.name) {
-          if (doc.size > 10 * 1024 * 1024) {
-            toast.error('File size must not exceed 10MB');
-            return true;
+        if (isInvoiceVerifier && useMultipleGL) {
+          if (!validateMultipleGLEntries()) {
+            toast.error(
+              'Please fill in all required GL entry fields: GL Code, Amount, Cost Center, and Location',
+            );
+            return;
+          }
+          if (calculateTotalAmount(glEntries) <= 0) {
+            toast.error('Total GL amount must be greater than 0');
+            return;
           }
         }
-        return false;
-      });
-      if (hasInvalidFiles) return;
+
+        if (documents.every((doc) => !doc || !doc.name)) {
+          toast.error('Please attach at least one document');
+          return;
+        }
+
+        const hasInvalidFiles = documents.some((doc) => {
+          if (doc && doc.name) {
+            if (doc.size > 10 * 1024 * 1024) {
+              toast.error('File size must not exceed 10MB');
+              return true;
+            }
+          }
+          return false;
+        });
+        if (hasInvalidFiles) return;
+      }
 
       const formattedData = { ...data };
       delete formattedData.next_signers_validator;
 
-      // Use the picker value as service_period
-      formattedData.service_period = servicePeriod;
+      if (servicePeriod) formattedData.service_period = servicePeriod;
 
       if (formattedData.payment_due_date)
         formattedData.payment_due_date = new Date(
@@ -582,6 +587,11 @@ export default function InvoiceModal() {
       if (next_signers.length > 0)
         formData.append('next_signers', next_signers.join(','));
 
+      // ── added: addressed_to for acting supplier ───────────────────────────
+      if (isActingSupplier && addressedTo?.id) {
+        formData.append('addressed_to_id', addressedTo.id);
+      }
+
       documents.forEach((doc) => {
         if (doc && doc.name) formData.append('documents', doc);
       });
@@ -594,6 +604,10 @@ export default function InvoiceModal() {
       toast.error(err.toString());
     }
   };
+
+  // ── Signer options for "Addressed To" autocomplete ────────────────────────
+  // Reuses the same signers list already fetched by getAllSigners()
+  const signerOptions = Array.isArray(users) ? users : users?.results || [];
 
   return (
     <>
@@ -621,8 +635,8 @@ export default function InvoiceModal() {
 
           <Box sx={style.content}>
             <form onSubmit={handleSubmit(onSubmit)} ref={formRef}>
-              {/* Validation error summary */}
-              {Object.keys(errors).length > 0 && (
+              {/* Validation error summary — hidden for acting supplier */}
+              {!isActingSupplier && Object.keys(errors).length > 0 && (
                 <Box
                   sx={{ mb: 2, p: 2, bgcolor: 'error.light', borderRadius: 1 }}
                 >
@@ -649,7 +663,7 @@ export default function InvoiceModal() {
                       value={selectedSupplier}
                       onChange={handleSupplierChange}
                       label="Supplier"
-                      required
+                      required={!isActingSupplier}
                       disabled={coaLoading}
                       error={!!errors.supplier_number}
                       helperText={errors.supplier_number?.message}
@@ -1005,12 +1019,11 @@ export default function InvoiceModal() {
                           }
                         >
                           <InputLabel sx={style.inputLabel}>
-                            Invoice Number *
+                            Invoice Number {!isActingSupplier && '*'}
                           </InputLabel>
                           <Input
                             {...field}
                             type="text"
-                            required
                             onChange={(e) => {
                               field.onChange(e);
                               checkInvoiceNum(e.target.value);
@@ -1096,15 +1109,20 @@ export default function InvoiceModal() {
                     />
                   </Grid>
 
-                  {/* ── Service Period — booking.com-style range picker ────── */}
                   <Grid item xs={12} md={6}>
                     <ServicePeriodPicker
                       value={servicePeriod}
                       onChange={setServicePeriod}
-                      required
-                      error={!!errors.service_period && !servicePeriod}
+                      required={!isActingSupplier}
+                      error={
+                        !isActingSupplier &&
+                        !!errors.service_period &&
+                        !servicePeriod
+                      }
                       helperText={
-                        !servicePeriod && errors.service_period
+                        !isActingSupplier &&
+                        !servicePeriod &&
+                        errors.service_period
                           ? errors.service_period.message
                           : ''
                       }
@@ -1156,7 +1174,7 @@ export default function InvoiceModal() {
                           error={!!errors.currency}
                         >
                           <InputLabel id="currency-label" sx={style.inputLabel}>
-                            Currency *
+                            Currency {!isActingSupplier && '*'}
                           </InputLabel>
                           <Select
                             {...field}
@@ -1191,14 +1209,13 @@ export default function InvoiceModal() {
                           error={!!errors.amount}
                         >
                           <InputLabel sx={style.inputLabel}>
-                            Amount *
+                            Amount {!isActingSupplier && '*'}
                           </InputLabel>
                           <Input
                             {...field}
                             type="number"
                             inputProps={{ step: 'any' }}
                             sx={style.formInputNumber}
-                            required
                             disabled={isInvoiceVerifier && useMultipleGL}
                             placeholder={
                               isInvoiceVerifier && useMultipleGL
@@ -1310,6 +1327,45 @@ export default function InvoiceModal() {
                 </>
               )}
 
+              {/* ── Addressed To — acting supplier only ──────────────────────── */}
+              {/* ── added ──────────────────────────────────────────────────────── */}
+              {isActingSupplier && (
+                <>
+                  <Box sx={style.section}>
+                    <Typography variant="h6" sx={style.sectionTitle}>
+                      Address Invoice To
+                    </Typography>
+                    <Grid container spacing={3}>
+                      <Grid item xs={12} md={6}>
+                        <Autocomplete
+                          options={signerOptions}
+                          value={addressedTo}
+                          onChange={(_, v) => setAddressedTo(v)}
+                          isOptionEqualToValue={(o, v) => o?.id === v?.id}
+                          getOptionLabel={(o) =>
+                            o
+                              ? `${o.firstname || ''} ${o.lastname || ''}`.trim()
+                              : ''
+                          }
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              label="Addressed To (Signer)"
+                              size="small"
+                              placeholder="Search signer by name..."
+                              InputLabelProps={{ shrink: true }}
+                              helperText="Optionally address this invoice directly to a signer"
+                            />
+                          )}
+                          noOptionsText="No signers found"
+                        />
+                      </Grid>
+                    </Grid>
+                  </Box>
+                  <Divider sx={{ my: 2 }} />
+                </>
+              )}
+
               {/* ── Attachments ──────────────────────────────────────────────── */}
               <Box sx={style.section}>
                 <Typography variant="h6" sx={style.sectionTitle}>
@@ -1373,8 +1429,9 @@ export default function InvoiceModal() {
                     variant="contained"
                     sx={style.sendButton}
                     disabled={
-                      invoiceNumStatus === 'taken' ||
-                      invoiceNumStatus === 'checking'
+                      !isActingSupplier &&
+                      (invoiceNumStatus === 'taken' ||
+                        invoiceNumStatus === 'checking')
                     }
                   >
                     Submit Invoice

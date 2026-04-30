@@ -321,8 +321,6 @@ const getSupplierInvoices = async (data) => {
 };
 
 // ── Staff Invoices ─────────────────────────────────────────────────────────────
-// GET /invoice/staff-invoices/?page=1&status=pending&...
-// Behaves identically to getSupplierInvoices but targets the staff endpoint.
 const getStaffInvoices = async (data) => {
   const filterEmpty = (obj) =>
     Object.fromEntries(
@@ -349,6 +347,12 @@ const rollbackInvoiceToSupplier = async (invoiceId, data) => {
     `/invoice/invoices/${invoiceId}/rollback-to-supplier/`,
     data,
   );
+  return response.data;
+};
+
+// ── Addressed To Me Invoices ──────────────────────────────────────────────────
+const getAddressedToMeInvoices = async () => {
+  const response = await http.get('/invoice/invoices/addressed-to-me/');
   return response.data;
 };
 
@@ -403,6 +407,8 @@ const invoiceService = {
   addressInvoiceTo,
   // Rollback Invoice To Supplier
   rollbackInvoiceToSupplier,
+  // Addressed To Me Invoices
+  getAddressedToMeInvoices,
 };
 
 export default invoiceService;

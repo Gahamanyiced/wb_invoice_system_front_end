@@ -10,6 +10,7 @@ const initialState = {
   index: null,
   cardIndex: null,
   year: null,
+  addressedToMeStats: null,
 };
 
 // get all invoiceDashboards by department and year
@@ -71,6 +72,20 @@ export const getStaffStats = createAsyncThunk(
   async (data, thunkAPI) => {
     try {
       return await dashboardService.getStaffStats(data.year);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+// ── Addressed To Me Stats thunk ───────────────────────────────────────────────
+// GET /invoice/invoices/addressed-to-me/stats/
+// dispatch(getAddressedToMeStats())
+export const getAddressedToMeStats = createAsyncThunk(
+  'invoiceDashboard/getAddressedToMeStats',
+  async (_, thunkAPI) => {
+    try {
+      return await dashboardService.getAddressedToMeStats();
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
@@ -180,6 +195,23 @@ const invoiceDashboardSlice = createSlice({
         state.error = payload;
         state.isLoading = false;
         state.invoiceDashboard = '';
+      })
+
+      // getAddressedToMeStats
+      .addCase(getAddressedToMeStats.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+        state.addressedToMeStats = null;
+      })
+      .addCase(getAddressedToMeStats.fulfilled, (state, { payload }) => {
+        state.addressedToMeStats = payload;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(getAddressedToMeStats.rejected, (state, { payload }) => {
+        state.error = payload;
+        state.isLoading = false;
+        state.addressedToMeStats = null;
       });
   },
 });

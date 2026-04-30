@@ -119,10 +119,12 @@ const PermBadge = ({ label, active }) => (
   </Box>
 );
 
-// ── All permissions including is_invoice_user ─────────────────────────────────
+// ── All permissions ───────────────────────────────────────────────────────────
+// ── added: is_acting_supplier ─────────────────────────────────────────────────
 const PERMISSIONS = [
   { key: 'is_invoice_user', label: 'Invoice User' },
   { key: 'is_invoice_verifier', label: 'Invoice Verifier' },
+  { key: 'is_acting_supplier', label: 'Acting Supplier' }, // ← added
   { key: 'is_petty_cash_user', label: 'Petty Cash User' },
   { key: 'is_pettycash_initiator', label: 'PC Initiator' },
   { key: 'is_custodian', label: 'Custodian' },

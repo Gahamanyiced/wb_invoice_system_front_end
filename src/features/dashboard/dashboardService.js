@@ -42,12 +42,21 @@ const getStaffStats = async (year) => {
   return response.data;
 };
 
+// ── Addressed To Me Stats ─────────────────────────────────────────────────────
+// GET /invoice/invoices/addressed-to-me/stats/
+const getAddressedToMeStats = async () => {
+  const response = await http.get('/invoice/invoices/addressed-to-me/stats/');
+  return response.data;
+};
+
 const dashboardService = {
   getAllInvoiceByDepartmentAndYear,
   getInvoiceOwnedByYear,
   getInvoiceToSignByYear,
   getSupplierStats,
   getStaffStats,
+  // Addressed To Me Stats
+  getAddressedToMeStats,
 };
 
 export default dashboardService;

@@ -281,6 +281,7 @@ const buildFormData = (d) => ({
   is_verifier: d.is_verifier ?? false,
   is_invoice_verifier: d.is_invoice_verifier ?? false,
   is_invoice_user: d.is_invoice_user ?? false,
+  is_acting_supplier: d.is_acting_supplier ?? false, // ← added
   is_approver: d.is_approver ?? false,
   is_first_approver: d.is_first_approver ?? false,
   is_second_approver: d.is_second_approver ?? false,
@@ -330,7 +331,6 @@ function UpdateUserModel({
     }
   }, [defaultValues]);
 
-  // ── Reset form to original defaultValues then close ───────────────────────
   const handleCloseWithReset = () => {
     if (defaultValues) {
       setFormData(buildFormData(defaultValues));
@@ -353,7 +353,6 @@ function UpdateUserModel({
     setSupplierData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // ── Submit ────────────────────────────────────────────────────────────────
   const submit = async (event) => {
     event.preventDefault();
     const dataToSubmit = {
@@ -381,16 +380,21 @@ function UpdateUserModel({
     formData.is_expense_creator,
     formData.is_verifier,
   ].filter(Boolean).length;
+
   const approvalActiveCount = [
     formData.is_approver,
     formData.is_first_approver,
     formData.is_second_approver,
     formData.is_last_approver,
   ].filter(Boolean).length;
+
+  // ── updated: include is_acting_supplier in invoice active count ───────────
   const invoiceActiveCount = [
     formData.is_invoice_verifier,
     formData.is_invoice_user,
+    formData.is_acting_supplier, // ← added
   ].filter(Boolean).length;
+
   const totalActiveCount =
     pettyCashActiveCount + approvalActiveCount + invoiceActiveCount;
 
@@ -760,6 +764,15 @@ function UpdateUserModel({
                         description="Can verify invoice submissions"
                         name="is_invoice_verifier"
                         value={formData.is_invoice_verifier}
+                        onChange={handleToggle}
+                        accentColor={INVOICE_COLOR}
+                      />
+                      {/* ── added ─────────────────────────────────────────── */}
+                      <ToggleRow
+                        label="Acting Supplier"
+                        description="Can submit invoices as a supplier"
+                        name="is_acting_supplier"
+                        value={formData.is_acting_supplier}
                         onChange={handleToggle}
                         accentColor={INVOICE_COLOR}
                       />

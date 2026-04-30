@@ -10,6 +10,7 @@ const initialState = {
   invoiceToSign: [],
   index: null,
   verifyInvoice: '',
+  addressedToMeInvoices: [],
   filters: {
     title: '',
     invoice_number: '',
@@ -491,8 +492,6 @@ export const getSupplierInvoices = createAsyncThunk(
 );
 
 // ── Staff Invoices thunk ──────────────────────────────────────────────────────
-// Mirrors getSupplierInvoices but hits /invoice/staff-invoices/
-// dispatch(getStaffInvoices({ page: 1, status: 'pending', year: 2025 }))
 export const getStaffInvoices = createAsyncThunk(
   'invoice/getStaffInvoices',
   async (data, thunkAPI) => {
@@ -522,6 +521,18 @@ export const rollbackInvoiceToSupplier = createAsyncThunk(
   async ({ invoiceId, data }, thunkAPI) => {
     try {
       return await invoiceService.rollbackInvoiceToSupplier(invoiceId, data);
+    } catch (err) {
+      return thunkAPI.rejectWithValue(extractErrorMessage(err));
+    }
+  },
+);
+
+// ── Addressed To Me Invoices thunk ────────────────────────────────────────────
+export const getAddressedToMeInvoices = createAsyncThunk(
+  'invoice/getAddressedToMeInvoices',
+  async (_, thunkAPI) => {
+    try {
+      return await invoiceService.getAddressedToMeInvoices();
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
@@ -1273,6 +1284,23 @@ const invoiceSlice = createSlice({
       .addCase(rollbackInvoiceToSupplier.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
+      })
+
+      // ── Addressed To Me Invoices ──────────────────────────────────────────
+      .addCase(getAddressedToMeInvoices.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+        state.addressedToMeInvoices = [];
+      })
+      .addCase(getAddressedToMeInvoices.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.addressedToMeInvoices = action.payload;
+        state.error = null;
+      })
+      .addCase(getAddressedToMeInvoices.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+        state.addressedToMeInvoices = [];
       });
   },
 });

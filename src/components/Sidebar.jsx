@@ -25,6 +25,7 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+// ── removed: MarkEmailReadOutlinedIcon no longer needed ──────────────────────
 
 // Redux
 import { setIndex } from '../features/invoice/invoiceSlice';
@@ -187,7 +188,15 @@ export default function Sidebar() {
   const isSigner = user?.role === 'signer';
   const isSupplier = user?.role === 'supplier';
 
-  const isInvoiceUser = isAdmin || isSupplier || !!user?.is_invoice_user;
+  // signer / signer_admin / staff are always invoice users too
+  const isInvoiceUser =
+    isAdmin ||
+    isSupplier ||
+    isSignerAdmin ||
+    isSigner ||
+    user?.role === 'staff' ||
+    !!user?.is_invoice_user;
+
   const isPettyCashUser = isAdmin || !!user?.is_petty_cash_user;
 
   const canSeeAdminTools =
@@ -203,6 +212,11 @@ export default function Sidebar() {
     (isSignerAdmin && !!user?.is_invoice_verifier) ||
     (isSigner && !!user?.is_invoice_verifier);
   const showInvoiceAdmin = isAdmin || canSeeAdminTools || canSeeDelegation;
+
+  // ── Addressed To Me — signer_admin+verifier OR any is_invoice_verifier ────
+  const canSeeAddressedToMe =
+    (isSignerAdmin && !!user?.is_invoice_verifier) ||
+    !!user?.is_invoice_verifier;
 
   // ── MODULES registry ──────────────────────────────────────────────────────
   const MODULES = [
@@ -488,7 +502,7 @@ export default function Sidebar() {
                   )}
                 </StyledNavLink>
                 <Collapse in={dashboardMenuOpen} timeout="auto" unmountOnExit>
-                  {isAdmin && (
+                  {(isAdmin || !!user?.is_invoice_verifier) && (
                     <SubMenuItem
                       className={activeDashboardOption === 1 ? 'active' : ''}
                       onClick={() => goDashboard(1)}
@@ -496,9 +510,7 @@ export default function Sidebar() {
                       All Invoices
                     </SubMenuItem>
                   )}
-                  {(user?.role === 'supplier' ||
-                    user?.role === 'staff' ||
-                    isSignerAdmin) && (
+                  {isInvoiceUser && (
                     <SubMenuItem
                       className={activeDashboardOption === 2 ? 'active' : ''}
                       onClick={() => goDashboard(2)}
@@ -506,7 +518,7 @@ export default function Sidebar() {
                       Invoices Upload
                     </SubMenuItem>
                   )}
-                  {(user?.role === 'signer' || isSignerAdmin) && (
+                  {(isSigner || isSignerAdmin) && (
                     <SubMenuItem
                       className={activeDashboardOption === 3 ? 'active' : ''}
                       onClick={() => goDashboard(3)}
@@ -522,13 +534,21 @@ export default function Sidebar() {
                       Supplier Invoices
                     </SubMenuItem>
                   )}
-                  {/* ── Staff Invoices dashboard entry (index 5) ── */}
                   {canSeeStaffInvoices && (
                     <SubMenuItem
                       className={activeDashboardOption === 5 ? 'active' : ''}
                       onClick={() => goDashboard(5)}
                     >
                       Staff Invoices
+                    </SubMenuItem>
+                  )}
+                  {/* ── added: Addressed To Me as sub-menu item (index 6) ── */}
+                  {canSeeAddressedToMe && (
+                    <SubMenuItem
+                      className={activeDashboardOption === 6 ? 'active' : ''}
+                      onClick={() => goDashboard(6)}
+                    >
+                      Addressed To Me
                     </SubMenuItem>
                   )}
                 </Collapse>
@@ -550,7 +570,7 @@ export default function Sidebar() {
                   )}
                 </StyledNavLink>
                 <Collapse in={invoiceMenuOpen} timeout="auto" unmountOnExit>
-                  {isAdmin && (
+                  {(isAdmin || !!user?.is_invoice_verifier) && (
                     <SubMenuItem
                       className={activeInvoiceOption === 1 ? 'active' : ''}
                       onClick={() => goInvoice(1)}
@@ -558,9 +578,7 @@ export default function Sidebar() {
                       All Invoices
                     </SubMenuItem>
                   )}
-                  {(user?.role === 'supplier' ||
-                    user?.role === 'staff' ||
-                    isSignerAdmin) && (
+                  {isInvoiceUser && (
                     <SubMenuItem
                       className={activeInvoiceOption === 2 ? 'active' : ''}
                       onClick={() => goInvoice(2)}
@@ -568,7 +586,7 @@ export default function Sidebar() {
                       Invoices Upload
                     </SubMenuItem>
                   )}
-                  {(user?.role === 'signer' || isSignerAdmin) && (
+                  {(isSigner || isSignerAdmin) && (
                     <SubMenuItem
                       className={activeInvoiceOption === 3 ? 'active' : ''}
                       onClick={() => goInvoice(3)}
@@ -584,13 +602,21 @@ export default function Sidebar() {
                       Supplier Invoices
                     </SubMenuItem>
                   )}
-                  {/* ── Staff Invoices invoice entry (index 5) ── */}
                   {canSeeStaffInvoices && (
                     <SubMenuItem
                       className={activeInvoiceOption === 5 ? 'active' : ''}
                       onClick={() => goInvoice(5)}
                     >
                       Staff Invoices
+                    </SubMenuItem>
+                  )}
+                  {/* ── added: Addressed To Me as sub-menu item (index 6) ── */}
+                  {canSeeAddressedToMe && (
+                    <SubMenuItem
+                      className={activeInvoiceOption === 6 ? 'active' : ''}
+                      onClick={() => goInvoice(6)}
+                    >
+                      Addressed To Me
                     </SubMenuItem>
                   )}
                 </Collapse>

@@ -1,4 +1,3 @@
-// src/validations/invoice.js
 import * as Yup from 'yup';
 
 // Base validation schema — fields every user must fill in regardless of role
@@ -63,6 +62,11 @@ const invoiceVerifierFields = {
   next_signers_validator: Yup.string().nullable().optional(),
 };
 
+// ── Acting Supplier — no validation at all ────────────────────────────────────
+// When is_acting_supplier = true every field is optional so the form can be
+// submitted completely empty.
+export const actingSupplierInvoiceValidation = Yup.object().shape({});
+
 // Limited schema — supplier, staff, signer, signer_admin, admin WITHOUT is_invoice_verifier
 export const limitedInvoiceValidation = Yup.object().shape(
   baseInvoiceValidation,
@@ -74,12 +78,21 @@ export const verifierInvoiceValidation = Yup.object().shape(
 );
 
 /**
- * Returns the correct validation schema based on whether the current user
- * is an invoice verifier.
+ * Returns the correct validation schema based on the current user's flags.
  *
- * @param {boolean} isInvoiceVerifier - pass !!user?.is_invoice_verifier
+ * Priority:
+ *  1. is_acting_supplier = true  → no validation (empty form allowed)
+ *  2. is_invoice_verifier = true → full verifier schema
+ *  3. otherwise                  → limited base schema
+ *
+ * @param {boolean} isInvoiceVerifier  - pass !!user?.is_invoice_verifier
+ * @param {boolean} isActingSupplier   - pass !!user?.is_acting_supplier
  */
-export const getInvoiceValidationSchema = (isInvoiceVerifier) => {
+export const getInvoiceValidationSchema = (
+  isInvoiceVerifier,
+  isActingSupplier,
+) => {
+  if (isActingSupplier) return actingSupplierInvoiceValidation;
   return isInvoiceVerifier
     ? verifierInvoiceValidation
     : limitedInvoiceValidation;

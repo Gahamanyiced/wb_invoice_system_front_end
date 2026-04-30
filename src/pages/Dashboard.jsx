@@ -34,7 +34,8 @@ import {
   getInvoiceOwnedByYear,
   getInvoiceToSignByYear,
   getSupplierStats,
-  getStaffStats, // ← added
+  getStaffStats,
+  getAddressedToMeStats, // ← added
   setCardIndex,
 } from '../features/dashboard/dashboardSlice';
 import { getDepartmentByErp } from '../features/department/departmentSlice';
@@ -161,29 +162,57 @@ function Dashboard() {
   const [department, setDepartment] = useState('All');
   const [year, setYear] = useState('');
 
-  const { invoiceDashboard, index: dashboardStateIndex } = useSelector(
-    (state) => state.invoiceDashboard,
-  );
+  // ── added: addressedToMeStats from Redux ──────────────────────────────────
+  const {
+    invoiceDashboard,
+    addressedToMeStats,
+    index: dashboardStateIndex,
+  } = useSelector((state) => state.invoiceDashboard);
   const { index } = useSelector((state) => state.invoice);
   const { allDepartments } = useSelector((state) => state.department);
 
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
-  // ── Permissions ───────────────────────────────────────────────────────────
-  const canSeeSupplierInvoices =
-    user?.role === 'admin' ||
-    (user?.role === 'signer_admin' && !!user?.is_invoice_verifier);
+  // ── Permission flags (mirror summary table) ───────────────────────────────
+  const isAdmin = user?.role === 'admin';
+  const isSignerAdmin = user?.role === 'signer_admin';
+  const isSigner = user?.role === 'signer';
+  const isSupplier = user?.role === 'supplier';
+  const isStaff = user?.role === 'staff';
 
-  // Staff Invoices — same permission gate as Supplier Invoices
+  // signer / signer_admin / staff are always invoice users
+  const isInvoiceUser =
+    isAdmin ||
+    isSupplier ||
+    isSignerAdmin ||
+    isSigner ||
+    isStaff ||
+    !!user?.is_invoice_user;
+
+  // All Invoices — admin OR any is_invoice_verifier
+  const canSeeAllInvoices = isAdmin || !!user?.is_invoice_verifier;
+
+  // Supplier / Staff Invoices — admin OR (signer_admin + verifier) OR any verifier
+  const canSeeSupplierInvoices =
+    isAdmin ||
+    (isSignerAdmin && !!user?.is_invoice_verifier) ||
+    !!user?.is_invoice_verifier;
+
   const canSeeStaffInvoices =
-    user?.role === 'admin' ||
-    (user?.role === 'signer_admin' && !!user?.is_invoice_verifier);
+    isAdmin ||
+    (isSignerAdmin && !!user?.is_invoice_verifier) ||
+    !!user?.is_invoice_verifier;
+
+  // Addressed To Me — signer_admin+verifier OR any is_invoice_verifier
+  const canSeeAddressedToMe =
+    (isSignerAdmin && !!user?.is_invoice_verifier) ||
+    !!user?.is_invoice_verifier;
 
   const getInvoiceIndex = () => {
     const activeIndex = dashboardStateIndex || index;
-    if (user?.role === 'admin') return activeIndex || 1;
-    if (user?.role === 'signer') return activeIndex || 3;
+    if (isAdmin) return activeIndex || 1;
+    if (isSigner || isSignerAdmin) return activeIndex || 3;
     return activeIndex || 2;
   };
 
@@ -191,45 +220,59 @@ function Dashboard() {
     const dashboardIndex = getInvoiceIndex();
     setAnotherDashboardIndex(dashboardIndex);
     if (!user) return;
-    if (user?.role === 'admin' && dashboardIndex === 1) {
+
+    // ── All Invoices (1) — admin OR is_invoice_verifier ───────────────────
+    if (dashboardIndex === 1 && canSeeAllInvoices) {
       dispatch(getAllInvoiceDashboardByDepartmentAndYear({ department, year }));
-      dispatch(getDepartmentByErp());
-    } else if (
-      (user?.role === 'signer' || user?.role === 'signer_admin') &&
-      dashboardIndex === 3
-    ) {
+      if (isAdmin) dispatch(getDepartmentByErp());
+    }
+    // ── Invoice Approval (3) — signer OR signer_admin ─────────────────────
+    else if ((isSigner || isSignerAdmin) && dashboardIndex === 3) {
       dispatch(getInvoiceToSignByYear({ id: user?.id, year }));
-    } else if (dashboardIndex === 4 && canSeeSupplierInvoices) {
+    }
+    // ── Supplier Invoices (4) ─────────────────────────────────────────────
+    else if (dashboardIndex === 4 && canSeeSupplierInvoices) {
       dispatch(getSupplierStats({ year }));
-    } else if (dashboardIndex === 5 && canSeeStaffInvoices) {
-      // ── Staff Invoices dashboard (index 5) ──────────────────────────────
+    }
+    // ── Staff Invoices (5) ────────────────────────────────────────────────
+    else if (dashboardIndex === 5 && canSeeStaffInvoices) {
       dispatch(getStaffStats({ year }));
-    } else if (dashboardIndex === 2) {
+    }
+    // ── Addressed To Me (6) ───────────────────────────────────────────────
+    else if (dashboardIndex === 6 && canSeeAddressedToMe) {
+      dispatch(getAddressedToMeStats());
+    }
+    // ── Invoices Upload (2) — all invoice users ───────────────────────────
+    else if (dashboardIndex === 2 && isInvoiceUser) {
       dispatch(getInvoiceOwnedByYear({ id: user?.id, year }));
     }
   }, [dispatch, index, dashboardStateIndex, department, year]);
 
-  const supplierCardStatusMap = {
-    2: 'pending',
-    3: 'approved',
-    4: 'denied',
-    5: 'rollback',
-    6: 'processing',
-    9: 'forwarded',
-  };
-
   const handleCardClick = (cardIndex) => {
-    if (isSupplierView) {
-      dispatch(setIndex(4));
-    }
-    if (isStaffView) {
-      dispatch(setIndex(5));
-    }
+    if (isSupplierView) dispatch(setIndex(4));
+    if (isStaffView) dispatch(setIndex(5));
+    if (isAddressedToMeView) dispatch(setIndex(6));
     dispatch(setCardIndex({ cardIndex, year }));
     navigate('/');
   };
 
-  // ── Monthly chart data ──────────────────────────────────────────────────────
+  // ── View flags ────────────────────────────────────────────────────────────
+  const isSignerView =
+    (isSigner || isSignerAdmin) && anotherDashboardIndex === 3;
+  const isSupplierView = anotherDashboardIndex === 4 && canSeeSupplierInvoices;
+  const isStaffView = anotherDashboardIndex === 5 && canSeeStaffInvoices;
+  const isAddressedToMeView =
+    anotherDashboardIndex === 6 && canSeeAddressedToMe;
+  const isOwnerView =
+    !isSignerView && !isSupplierView && !isStaffView && !isAddressedToMeView;
+
+  // ── Active stats source ───────────────────────────────────────────────────
+  // Addressed To Me uses its own separate stats key
+  const activeStats = isAddressedToMeView
+    ? addressedToMeStats
+    : invoiceDashboard;
+
+  // ── Monthly chart data ────────────────────────────────────────────────────
   const chartData = [
     'January',
     'February',
@@ -245,21 +288,14 @@ function Dashboard() {
     'December',
   ].map((month) => ({
     month: month.slice(0, 3),
-    Invoices: invoiceDashboard?.monthly_counts?.[month]?.invoices ?? 0,
+    Invoices: activeStats?.monthly_counts?.[month]?.invoices ?? 0,
   }));
 
-  // ── Stat cards config ───────────────────────────────────────────────────────
-  const isSignerView =
-    (user?.role === 'signer' || user?.role === 'signer_admin') &&
-    anotherDashboardIndex === 3;
-  const isSupplierView = anotherDashboardIndex === 4 && canSeeSupplierInvoices;
-  const isStaffView = anotherDashboardIndex === 5 && canSeeStaffInvoices; // ← added
-  const isOwnerView = !isSignerView && !isSupplierView && !isStaffView; // ← updated
-
-  // Shared card set for supplier (4) and staff (5) — same stat key names from API
-  const verifierCards = [
+  // ── Helper: build verifier-style cards from any stats object ─────────────
+  // Used for supplier (4), staff (5), and addressed-to-me (6) views
+  const buildVerifierCards = (stats) => [
     {
-      number: invoiceDashboard?.total_invoices,
+      number: stats?.total_invoices,
       label: 'Total Invoices',
       icon: <ReceiptLongIcon sx={{ fontSize: 18, color: '#1565c0' }} />,
       color: '#1565c0',
@@ -267,7 +303,7 @@ function Dashboard() {
       cardIndex: 1,
     },
     {
-      number: invoiceDashboard?.total_pending_invoices,
+      number: stats?.total_pending_invoices,
       label: 'Pending',
       icon: <PendingActionsIcon sx={{ fontSize: 18, color: '#e65100' }} />,
       color: '#e65100',
@@ -275,7 +311,7 @@ function Dashboard() {
       cardIndex: 2,
     },
     {
-      number: invoiceDashboard?.total_approved_invoices,
+      number: stats?.total_approved_invoices,
       label: 'Approved',
       icon: <CheckCircleOutlineIcon sx={{ fontSize: 18, color: '#2e7d32' }} />,
       color: '#2e7d32',
@@ -283,7 +319,7 @@ function Dashboard() {
       cardIndex: 3,
     },
     {
-      number: invoiceDashboard?.total_denied_invoices,
+      number: stats?.total_denied_invoices,
       label: 'Denied',
       icon: <CancelOutlinedIcon sx={{ fontSize: 18, color: '#c62828' }} />,
       color: '#c62828',
@@ -291,7 +327,7 @@ function Dashboard() {
       cardIndex: 4,
     },
     {
-      number: invoiceDashboard?.total_rollback_invoices,
+      number: stats?.total_rollback_invoices,
       label: 'Rollback',
       icon: <ReplayIcon sx={{ fontSize: 18, color: '#6a1b9a' }} />,
       color: '#6a1b9a',
@@ -299,7 +335,7 @@ function Dashboard() {
       cardIndex: 5,
     },
     {
-      number: invoiceDashboard?.total_processing_invoices,
+      number: stats?.total_processing_invoices,
       label: 'Processing',
       icon: <AutorenewIcon sx={{ fontSize: 18, color: '#00838f' }} />,
       color: '#00838f',
@@ -307,7 +343,7 @@ function Dashboard() {
       cardIndex: 6,
     },
     {
-      number: invoiceDashboard?.total_forwarded_invoices,
+      number: stats?.total_forwarded_invoices,
       label: 'Forwarded',
       icon: <ForwardToInboxIcon sx={{ fontSize: 18, color: '#1565c0' }} />,
       color: '#1565c0',
@@ -316,9 +352,11 @@ function Dashboard() {
     },
   ];
 
-  const cards =
-    isSupplierView || isStaffView
-      ? verifierCards
+  // ── Stat cards config ─────────────────────────────────────────────────────
+  const cards = isAddressedToMeView
+    ? buildVerifierCards(addressedToMeStats)
+    : isSupplierView || isStaffView
+      ? buildVerifierCards(invoiceDashboard)
       : [
           {
             number: invoiceDashboard?.total_invoices,
@@ -434,16 +472,18 @@ function Dashboard() {
             : []),
         ];
 
-  // ── Role label ──────────────────────────────────────────────────────────────
-  const viewLabel = isStaffView
-    ? 'Staff Invoices Overview'
-    : isSupplierView
-      ? 'Supplier Invoices Overview'
-      : isSignerView
-        ? 'Invoice Approval Overview'
-        : anotherDashboardIndex === 1
-          ? 'All Invoices Overview'
-          : 'My Invoices Overview';
+  // ── Role label ────────────────────────────────────────────────────────────
+  const viewLabel = isAddressedToMeView
+    ? 'Addressed To Me Overview'
+    : isStaffView
+      ? 'Staff Invoices Overview'
+      : isSupplierView
+        ? 'Supplier Invoices Overview'
+        : isSignerView
+          ? 'Invoice Approval Overview'
+          : anotherDashboardIndex === 1
+            ? 'All Invoices Overview'
+            : 'My Invoices Overview';
 
   return (
     <RootLayout>
@@ -474,7 +514,8 @@ function Dashboard() {
 
         {/* Year + Department filters */}
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-          {user?.role === 'admin' && anotherDashboardIndex === 1 && (
+          {/* Department filter — admin only, All Invoices view */}
+          {isAdmin && anotherDashboardIndex === 1 && (
             <Select
               value={department}
               onChange={(e) => setDepartment(e.target.value)}
@@ -497,28 +538,31 @@ function Dashboard() {
               ))}
             </Select>
           )}
-          <Select
-            value={year}
-            onChange={(e) => setYear(e.target.value)}
-            size="small"
-            displayEmpty
-            sx={{
-              fontSize: '12.5px',
-              minWidth: 110,
-              borderRadius: '8px',
-              '& fieldset': { borderColor: '#e0e8f0' },
-              '&:hover fieldset': { borderColor: '#90caf9' },
-            }}
-          >
-            <MenuItem value="" sx={{ fontSize: '12.5px' }}>
-              All Years
-            </MenuItem>
-            {years.map((y, i) => (
-              <MenuItem key={i} value={y} sx={{ fontSize: '12.5px' }}>
-                {y}
+          {/* Year filter — hidden for Addressed To Me (endpoint takes no year) */}
+          {!isAddressedToMeView && (
+            <Select
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              size="small"
+              displayEmpty
+              sx={{
+                fontSize: '12.5px',
+                minWidth: 110,
+                borderRadius: '8px',
+                '& fieldset': { borderColor: '#e0e8f0' },
+                '&:hover fieldset': { borderColor: '#90caf9' },
+              }}
+            >
+              <MenuItem value="" sx={{ fontSize: '12.5px' }}>
+                All Years
               </MenuItem>
-            ))}
-          </Select>
+              {years.map((y, i) => (
+                <MenuItem key={i} value={y} sx={{ fontSize: '12.5px' }}>
+                  {y}
+                </MenuItem>
+              ))}
+            </Select>
+          )}
         </Box>
       </Box>
 

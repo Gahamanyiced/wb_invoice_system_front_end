@@ -51,7 +51,8 @@ import {
   getUserProcessingInvoices,
   getUserRollBackedInvoices,
   getSupplierInvoices,
-  getStaffInvoices, // ← added
+  getStaffInvoices,
+  getAddressedToMeInvoices,
 } from '../features/invoice/invoiceSlice';
 import ViewInvoiceModal from '../components/ViewInvoiceModal';
 import UpdateInvoiceModal from '../components/UpdateInvoiceModal';
@@ -110,7 +111,9 @@ export default function Invoice() {
   const [closeInvoiceTrackingModalTrigger, setCloseInvoiceTrackingTrigger] =
     useState(false);
   const { allUsers } = useSelector((state) => state.user);
-  const { invoices, index, filters } = useSelector((state) => state.invoice);
+  const { invoices, addressedToMeInvoices, index, filters } = useSelector(
+    (state) => state.invoice,
+  );
   console.log('invoices', invoices);
   const { cardIndex, year } = useSelector((state) => state.invoiceDashboard);
 
@@ -201,28 +204,59 @@ export default function Invoice() {
 
   const dataFiltered = filterData(searchQuery, invoices);
 
+  // ── Permission flags ──────────────────────────────────────────────────────
+  const isAdmin = user?.role === 'admin';
+  const isSignerAdmin = user?.role === 'signer_admin';
+  const isSigner = user?.role === 'signer';
+  const isSupplier = user?.role === 'supplier';
+  const isStaff = user?.role === 'staff';
+
+  // signer / signer_admin / staff are always invoice users too
+  const isInvoiceUser =
+    isAdmin ||
+    isSupplier ||
+    isSignerAdmin ||
+    isSigner ||
+    isStaff ||
+    !!user?.is_invoice_user;
+
   const getInvoiceIndex = () => {
-    if (user?.role === 'admin') {
-      return index || 1;
-    } else if (user?.role === 'signer' || user?.role === 'signer_admin') {
-      return index || 3;
-    } else {
-      return index || 2;
-    }
+    if (isAdmin) return index || 1;
+    if (isSigner || isSignerAdmin) return index || 3;
+    return index || 2;
   };
 
-  // Mirrors canSeeSupplierInvoices from Sidebar:
-  // admin OR (signer_admin + is_invoice_verifier)
+  // ── Per-table permission flags (mirror the sidebar summary table) ─────────
+  //
+  // | Role                        | All Inv | Upload | Approval | Sup/Staff | AddrToMe |
+  // | admin                       |   ✅    |   ✅   |    —     |    ✅     |    —     |
+  // | supplier                    |   —     |   ✅   |    —     |    —      |    —     |
+  // | staff (always invoice user) |   —     |   ✅   |    —     |    —      |    —     |
+  // | signer (always inv user)    |   —     |   ✅   |    ✅    |    —      |    —     |
+  // | signer_admin (always inv u) |   —     |   ✅   |    ✅    |✅(verif.) |✅(verif.)|
+  // | any + is_invoice_verifier   |   ✅    |   ✅   |    —     |    ✅     |    ✅    |
+
+  // All Invoices — admin OR any is_invoice_verifier
+  const canSeeAllInvoices = isAdmin || !!user?.is_invoice_verifier;
+
+  // Supplier Invoices — admin OR (signer_admin + is_invoice_verifier) OR any is_invoice_verifier
   const canSeeSupplierInvoices =
-    user?.role === 'admin' ||
-    (user?.role === 'signer_admin' && !!user?.is_invoice_verifier);
+    isAdmin ||
+    (isSignerAdmin && !!user?.is_invoice_verifier) ||
+    !!user?.is_invoice_verifier;
 
-  // Staff Invoices — same permission gate as Supplier Invoices
+  // Staff Invoices — same gate as Supplier Invoices
   const canSeeStaffInvoices =
-    user?.role === 'admin' ||
-    (user?.role === 'signer_admin' && !!user?.is_invoice_verifier);
+    isAdmin ||
+    (isSignerAdmin && !!user?.is_invoice_verifier) ||
+    !!user?.is_invoice_verifier;
 
-  // Shared card→status map used by both supplier (4) and staff (5) views
+  // Addressed To Me — signer_admin+verifier OR any is_invoice_verifier
+  const canSeeAddressedToMe =
+    (isSignerAdmin && !!user?.is_invoice_verifier) ||
+    !!user?.is_invoice_verifier;
+
+  // Shared card→status map used by supplier (4), staff (5), and addressed-to-me (6) views
   const cardStatusMap = {
     2: 'pending',
     3: 'approved',
@@ -239,8 +273,13 @@ export default function Invoice() {
 
     if (!user) return;
 
+    // ── Addressed To Me (index 6) ─────────────────────────────────────────────
+    if (invoiceIndex === 6 && canSeeAddressedToMe) {
+      dispatch(getAddressedToMeInvoices());
+      return;
+    }
+
     // ── Staff Invoices (index 5) ─────────────────────────────────────────────
-    // Available to admin OR signer_admin with is_invoice_verifier.
     if (invoiceIndex === 5 && canSeeStaffInvoices) {
       const statusFromCard = cardIndex ? cardStatusMap[cardIndex] : undefined;
       dispatch(
@@ -255,15 +294,11 @@ export default function Invoice() {
     }
 
     // ── Supplier Invoices (index 4) ──────────────────────────────────────────
-    // Available to admin OR signer_admin with is_invoice_verifier.
-    // cardIndex maps to a status filter matching the dashboard cards:
-    //   2=pending, 3=approved, 4=denied, 5=rollback, 6=processing, 9=forwarded
     if (invoiceIndex === 4 && canSeeSupplierInvoices) {
       const statusFromCard = cardIndex ? cardStatusMap[cardIndex] : undefined;
       dispatch(
         getSupplierInvoices({
           ...params,
-          // Only inject cardIndex status if not already set by the filter panel
           ...(statusFromCard && !filters.status
             ? { status: statusFromCard }
             : {}),
@@ -272,7 +307,8 @@ export default function Invoice() {
       return;
     }
 
-    if (user.role === 'admin' && invoiceIndex === 1) {
+    // ── All Invoices (index 1) — admin OR is_invoice_verifier ────────────────
+    if (invoiceIndex === 1 && canSeeAllInvoices) {
       switch (cardIndex) {
         case 1:
           dispatch(getAllInvoice(params));
@@ -298,10 +334,11 @@ export default function Invoice() {
         default:
           dispatch(getAllInvoice(params));
       }
-    } else if (
-      (user?.role === 'signer' || user?.role === 'signer_admin') &&
-      invoiceIndex === 3
-    ) {
+      return;
+    }
+
+    // ── Invoice Approval (index 3) — signer OR signer_admin ──────────────────
+    if ((isSigner || isSignerAdmin) && invoiceIndex === 3) {
       switch (cardIndex) {
         case 1:
           dispatch(getInvoiceToSign(params));
@@ -321,7 +358,11 @@ export default function Invoice() {
         default:
           dispatch(getInvoiceToSign(params));
       }
-    } else if (invoiceIndex === 2) {
+      return;
+    }
+
+    // ── Invoices Upload (index 2) — all invoice users ─────────────────────────
+    if (invoiceIndex === 2 && isInvoiceUser) {
       switch (cardIndex) {
         case 1:
           dispatch(getInvoiceByUser(params));
@@ -372,28 +413,28 @@ export default function Invoice() {
     filters,
   ]);
 
+  // ── Active dataset — addressed-to-me (index 6) uses its own state key ─────
+  const activeInvoices =
+    indexInvoice === 6 && canSeeAddressedToMe
+      ? addressedToMeInvoices
+      : invoices;
+
   const handlePageChange = (event, value) => {
     setPage(value);
   };
 
   const handleUpdate = (data) => {
     if (
-      ((user?.role === 'staff' ||
-        user?.role === 'supplier' ||
-        user?.role === 'signer_admin') &&
-        isInvoiceEditable(data)) ||
-      (user?.role === 'admin' &&
-        indexInvoice === 2 &&
-        isInvoiceEditable(data)) ||
-      (user?.role === 'signer' &&
-        indexInvoice === 2 &&
-        isInvoiceEditable(data)) ||
-      // Supplier Invoices view (index 4) — admin or signer_admin with is_invoice_verifier
+      // Upload view (index 2) — all invoice users can edit their own
+      (isInvoiceUser && indexInvoice === 2 && isInvoiceEditable(data)) ||
+      // Supplier Invoices view (index 4)
       (canSeeSupplierInvoices &&
         indexInvoice === 4 &&
         isInvoiceEditable(data)) ||
-      // Staff Invoices view (index 5) — same permission gate
-      (canSeeStaffInvoices && indexInvoice === 5 && isInvoiceEditable(data))
+      // Staff Invoices view (index 5)
+      (canSeeStaffInvoices && indexInvoice === 5 && isInvoiceEditable(data)) ||
+      // Addressed To Me view (index 6)
+      (canSeeAddressedToMe && indexInvoice === 6 && isInvoiceEditable(data))
     ) {
       setSelectedUpdate(data);
       setOpenUpdate(true);
@@ -505,9 +546,6 @@ export default function Invoice() {
   };
 
   // ── GL line field resolvers ───────────────────────────────────────────────
-  // API now returns _detail nested objects alongside raw IDs.
-  // Always prefer _detail; fall back to raw value if detail is absent.
-
   const resolveGLCode = (line) => {
     if (line?.gl_account_detail)
       return `${line.gl_account_detail.gl_code} - ${line.gl_account_detail.gl_description}`;
@@ -651,41 +689,47 @@ export default function Invoice() {
   };
 
   const getReportTitle = () => {
-    let title = 'Invoices Report';
-    if (user?.role === 'admin' && indexInvoice === 1) {
-      title = 'All Invoices Report';
+    // ── Addressed To Me (index 6) ─────────────────────────────────────────
+    if (indexInvoice === 6 && canSeeAddressedToMe)
+      return 'Addressed To Me Invoices';
+    // ── All Invoices (index 1) ────────────────────────────────────────────
+    if (indexInvoice === 1 && canSeeAllInvoices) {
+      let title = 'All Invoices Report';
       if (cardIndex === 2) title = 'Pending Invoices Report';
       if (cardIndex === 3) title = 'Approved Invoices Report';
       if (cardIndex === 4) title = 'Denied Invoices Report';
       if (cardIndex === 5) title = 'Rollbacked Invoices Report';
       if (cardIndex === 6) title = 'Processing Invoices Report';
       if (cardIndex === 9) title = 'Forwarded Invoices Report';
-    } else if (
-      (user?.role === 'signer' || user?.role === 'signer_admin') &&
-      indexInvoice === 3
-    ) {
-      title = 'Invoices To Sign Report';
+      return title;
+    }
+    // ── Invoice Approval (index 3) ────────────────────────────────────────
+    if ((isSigner || isSignerAdmin) && indexInvoice === 3) {
+      let title = 'Invoices To Sign Report';
       if (cardIndex === 2) title = 'Pending Invoices To Sign Report';
       if (cardIndex === 4) title = 'Denied Invoices To Sign Report';
       if (cardIndex === 7) title = 'Invoices With To Sign Status Report';
       if (cardIndex === 8) title = 'Signed Invoices Report';
-    } else if (indexInvoice === 4 && canSeeSupplierInvoices) {
-      title = 'Supplier Invoices Report';
-    } else if (indexInvoice === 5 && canSeeStaffInvoices) {
-      title = 'Staff Invoices Report';
-    } else {
-      title = 'My Invoices Report';
-      if (cardIndex === 2) title = 'My Pending Invoices Report';
-      if (cardIndex === 3) title = 'My Approved Invoices Report';
-      if (cardIndex === 4) title = 'My Denied Invoices Report';
-      if (cardIndex === 5) title = 'My Rollbacked Invoices Report';
-      if (cardIndex === 6) title = 'My Processing Invoices Report';
-      if (cardIndex === 9) title = 'My Forwarded Invoices Report';
+      return title;
     }
+    // ── Supplier Invoices (index 4) ───────────────────────────────────────
+    if (indexInvoice === 4 && canSeeSupplierInvoices)
+      return 'Supplier Invoices Report';
+    // ── Staff Invoices (index 5) ──────────────────────────────────────────
+    if (indexInvoice === 5 && canSeeStaffInvoices)
+      return 'Staff Invoices Report';
+    // ── Invoices Upload (index 2) — default ──────────────────────────────
+    let title = 'My Invoices Report';
+    if (cardIndex === 2) title = 'My Pending Invoices Report';
+    if (cardIndex === 3) title = 'My Approved Invoices Report';
+    if (cardIndex === 4) title = 'My Denied Invoices Report';
+    if (cardIndex === 5) title = 'My Rollbacked Invoices Report';
+    if (cardIndex === 6) title = 'My Processing Invoices Report';
+    if (cardIndex === 9) title = 'My Forwarded Invoices Report';
     return title;
   };
 
-  // Render expanded GL lines — read from _detail objects
+  // Render expanded GL lines
   const renderExpandedGLLines = (glLines) => {
     return glLines.map((line, idx) => (
       <TableRow
@@ -717,7 +761,9 @@ export default function Invoice() {
         >
           {line?.gl_amount || '-'}
         </TableCell>
-        <TableCell colSpan={4} />
+        {/* ── added: empty cell to align with the now-permanent Addressed To column ── */}
+        <TableCell />
+        <TableCell colSpan={2} />
       </TableRow>
     ));
   };
@@ -744,9 +790,6 @@ export default function Invoice() {
   };
 
   // ── Resolve status for display ────────────────────────────────────────────
-  // For Invoice Approval view (index 3): find the login user's entry in
-  // invoice_histories and show that status instead of the invoice status.
-  // For all other views: use invoice.status as-is.
   const getDisplayStatus = (invoice) => {
     if (indexInvoice !== 3) return invoice?.status;
     const histories = invoice?.invoice_histories || [];
@@ -754,10 +797,12 @@ export default function Invoice() {
     return match ? match.status : invoice?.status;
   };
 
-  // True when the current view is a verifier panel (supplier OR staff)
+  // ── Verifier view: supplier (4), staff (5), addressed-to-me (6) ───────────
+  // Used only for Address & Change Status action buttons
   const isVerifierView =
     (indexInvoice === 4 && canSeeSupplierInvoices) ||
-    (indexInvoice === 5 && canSeeStaffInvoices);
+    (indexInvoice === 5 && canSeeStaffInvoices) ||
+    (indexInvoice === 6 && canSeeAddressedToMe);
 
   return (
     <RootLayout>
@@ -789,24 +834,26 @@ export default function Invoice() {
               variant="caption"
               sx={{ color: '#888', fontSize: '12px' }}
             >
-              {invoices?.count ?? 0} invoice{invoices?.count !== 1 ? 's' : ''}{' '}
-              found
+              {activeInvoices?.count ?? 0} invoice
+              {activeInvoices?.count !== 1 ? 's' : ''} found
             </Typography>
           </Box>
           <EnhancedDownloadComponent
-            invoices={invoices}
+            invoices={activeInvoices}
             title={getReportTitle()}
           />
         </Box>
         <Divider sx={{ mt: 1.5 }} />
       </Box>
 
-      {/* ── Filters ──────────────────────────────────────────────────────── */}
-      <FilterPanel
-        filters={filters}
-        onFilterChange={handleFilterChange}
-        config={filterConfig}
-      />
+      {/* ── Filters — hidden for addressed-to-me (no server-side filtering) ── */}
+      {indexInvoice !== 6 && (
+        <FilterPanel
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          config={filterConfig}
+        />
+      )}
 
       {/* ── Table ────────────────────────────────────────────────────────── */}
       <Paper
@@ -839,18 +886,16 @@ export default function Invoice() {
                 <TableCell sx={styles.header}>GL Amount</TableCell>
                 <TableCell sx={styles.header}>Total Amount</TableCell>
                 <TableCell sx={styles.header}>Status</TableCell>
-                {/* Addressed To — shown for supplier (4) and staff (5) verifier views */}
-                {isVerifierView && (
-                  <TableCell sx={styles.header}>Addressed To</TableCell>
-                )}
+                {/* ── Addressed To — now visible on ALL sub-menus ── */}
+                <TableCell sx={styles.header}>Addressed To</TableCell>
                 <TableCell sx={styles.header}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {invoices?.results?.length === 0 && (
+              {activeInvoices?.results?.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={20}
+                    colSpan={17}
                     align="center"
                     sx={{ py: 6, color: '#999' }}
                   >
@@ -858,15 +903,13 @@ export default function Invoice() {
                   </TableCell>
                 </TableRow>
               )}
-              {invoices?.results?.map((item) => {
+              {activeInvoices?.results?.map((item) => {
                 const invoice = normalizeInvoiceData(item);
                 const glDisplay = getGLLinesDisplay(invoice, false);
                 const glLines = getGLLines(invoice);
                 const hasMultipleGLLines = glLines.length > 1;
                 const isExpanded = expandedRows.has(invoice.id);
                 const totalAmount = getTotalAmount(invoice);
-                // For Invoice Approval (index 3): show the login user's own signing status
-                // from invoice_histories. For all other views: use invoice.status.
                 const status = getDisplayStatus(invoice);
                 const currency = invoice?.currency;
                 const sc = statusColor(status);
@@ -1083,47 +1126,43 @@ export default function Invoice() {
                           </Typography>
                         </Box>
                       </TableCell>
-                      {/* Addressed To — supplier (4) and staff (5) verifier views */}
-                      {isVerifierView && (
-                        <TableCell
-                          sx={{ fontSize: '12px', color: '#444', py: 1.2 }}
-                        >
-                          {invoice?.is_addressed_to?.name ? (
+                      {/* ── Addressed To — visible on ALL sub-menus ── */}
+                      <TableCell
+                        sx={{ fontSize: '12px', color: '#444', py: 1.2 }}
+                      >
+                        {invoice?.is_addressed_to?.name ? (
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.5,
+                            }}
+                          >
                             <Box
                               sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 0.5,
+                                width: 6,
+                                height: 6,
+                                borderRadius: '50%',
+                                bgcolor: '#1565c0',
+                                flexShrink: 0,
+                              }}
+                            />
+                            <Typography
+                              sx={{
+                                fontSize: '11.5px',
+                                color: '#1565c0',
+                                fontWeight: 600,
                               }}
                             >
-                              <Box
-                                sx={{
-                                  width: 6,
-                                  height: 6,
-                                  borderRadius: '50%',
-                                  bgcolor: '#1565c0',
-                                  flexShrink: 0,
-                                }}
-                              />
-                              <Typography
-                                sx={{
-                                  fontSize: '11.5px',
-                                  color: '#1565c0',
-                                  fontWeight: 600,
-                                }}
-                              >
-                                {invoice.is_addressed_to.name}
-                              </Typography>
-                            </Box>
-                          ) : (
-                            <Typography
-                              sx={{ fontSize: '11px', color: '#bbb' }}
-                            >
-                              —
+                              {invoice.is_addressed_to.name}
                             </Typography>
-                          )}
-                        </TableCell>
-                      )}
+                          </Box>
+                        ) : (
+                          <Typography sx={{ fontSize: '11px', color: '#bbb' }}>
+                            —
+                          </Typography>
+                        )}
+                      </TableCell>
                       {/* Actions */}
                       <TableCell
                         sx={{ py: 1, whiteSpace: 'nowrap' }}
@@ -1150,13 +1189,11 @@ export default function Invoice() {
                             />
                           </Tooltip>
 
-                          {(user?.role === 'staff' ||
-                            user?.role === 'supplier' ||
-                            user?.role === 'signer_admin' ||
-                            (user?.role === 'admin' && indexInvoice === 2) ||
-                            (user?.role === 'signer' && indexInvoice === 2) ||
+                          {/* Edit — upload view (2), verifier views (4,5,6) */}
+                          {((isInvoiceUser && indexInvoice === 2) ||
                             (canSeeSupplierInvoices && indexInvoice === 4) ||
-                            (canSeeStaffInvoices && indexInvoice === 5)) && (
+                            (canSeeStaffInvoices && indexInvoice === 5) ||
+                            (canSeeAddressedToMe && indexInvoice === 6)) && (
                             <Tooltip title="Edit">
                               <Chip
                                 onClick={(e) => {
@@ -1171,6 +1208,7 @@ export default function Invoice() {
                             </Tooltip>
                           )}
 
+                          {/* Delete — upload view only */}
                           {indexInvoice === 2 && (
                             <Tooltip title="Delete">
                               <Chip
@@ -1199,7 +1237,7 @@ export default function Invoice() {
                             />
                           </Tooltip>
 
-                          {/* Address & Change Status — supplier (4) and staff (5) verifier views */}
+                          {/* Address & Change Status — verifier views (4, 5, 6) */}
                           {isVerifierView && (
                             <Tooltip title="Address to Signer">
                               <Chip
@@ -1256,11 +1294,11 @@ export default function Invoice() {
         }}
       >
         <Typography variant="caption" sx={{ color: '#888', fontSize: '12px' }}>
-          Page {page} of {Math.ceil((invoices?.count || 0) / 10) || 1}{' '}
-          &nbsp;·&nbsp; {invoices?.count ?? 0} total records
+          Page {page} of {Math.ceil((activeInvoices?.count || 0) / 10) || 1}{' '}
+          &nbsp;·&nbsp; {activeInvoices?.count ?? 0} total records
         </Typography>
         <Pagination
-          count={Math.ceil(invoices?.count / 10) || 1}
+          count={Math.ceil(activeInvoices?.count / 10) || 1}
           page={page}
           onChange={handlePageChange}
           showFirstButton

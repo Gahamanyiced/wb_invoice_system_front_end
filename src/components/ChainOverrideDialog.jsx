@@ -87,6 +87,7 @@ const resolveChainInvoiceId = (invoice) => {
   if (fromHistory) return fromHistory; // ← FALLBACK 1
   return invoice?.invoice?.id || invoice?.id; // ← FALLBACK 2
 };
+
 // ═════════════════════════════════════════════════════════════════════════════
 // Tab panels
 // ═════════════════════════════════════════════════════════════════════════════
@@ -219,8 +220,13 @@ function ChangeStatusTab({ invoice, invoiceId, onSuccess }) {
   const histories = invoice?.invoice_histories || [];
   const loggedInUser = JSON.parse(localStorage.getItem('user'));
   const isAdmin = loggedInUser?.role === 'admin';
+  // ── added: invoice verifier can also target the invoice itself ────────────
+  const isInvoiceVerifier = !!loggedInUser?.is_invoice_verifier;
+  const canTargetInvoice = isAdmin || isInvoiceVerifier;
 
-  const [target, setTarget] = useState(isAdmin ? 'invoice' : 'history');
+  const [target, setTarget] = useState(
+    canTargetInvoice ? 'invoice' : 'history',
+  );
   const [historyId, setHistoryId] = useState('');
   const [newStatus, setNewStatus] = useState('');
   const [reason, setReason] = useState('');
@@ -248,7 +254,8 @@ function ChangeStatusTab({ invoice, invoiceId, onSuccess }) {
     const res = await dispatch(chainChangeStatus({ invoiceId, data: payload }));
     if (res.meta.requestStatus === 'fulfilled') {
       toast.success('Status changed successfully');
-      setTarget('invoice');
+      // ── updated: reset to correct default based on permission ─────────────
+      setTarget(canTargetInvoice ? 'invoice' : 'history');
       setHistoryId('');
       setNewStatus('');
       setReason('');
@@ -277,7 +284,8 @@ function ChangeStatusTab({ invoice, invoiceId, onSuccess }) {
         size="small"
         fullWidth
       >
-        {isAdmin && <MenuItem value="invoice">Invoice</MenuItem>}
+        {/* ── updated: show "Invoice" target to admin OR invoice verifier ── */}
+        {canTargetInvoice && <MenuItem value="invoice">Invoice</MenuItem>}
         <MenuItem value="history">Signer History Entry</MenuItem>
       </TextField>
 
