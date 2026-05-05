@@ -17,10 +17,10 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import SendIcon from '@mui/icons-material/Send';
 import PersonSearchIcon from '@mui/icons-material/PersonSearch';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import { addressInvoiceTo } from '../features/invoice/invoiceSlice';
-import http from '../http-common';
+import { getAllUsersWithNoPagination } from '../features/user/userSlice';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fullName = (u) =>
@@ -34,42 +34,37 @@ export default function AddressInvoiceDialog({
 }) {
   const dispatch = useDispatch();
 
-  const [signers, setSigners] = useState([]);
-  const [loadingSigners, setLoadingSigners] = useState(false);
+  // addressedToUsers is written by getAllUsersWithNoPagination({ ...params })
+  // in its own dedicated slice key — never collides with state.users or state.allUsers
+  const { addressedToUsers, isLoading: loadingSigners } = useSelector(
+    (state) => state.user,
+  );
+
   const [selectedSigner, setSelectedSigner] = useState(null);
   const [reason, setReason] = useState('');
   const [reasonError, setReasonError] = useState('');
   const [signerError, setSignerError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // ── Fetch signers on open ─────────────────────────────────────────────────
+  // ── Fetch filtered signer list whenever the dialog opens ─────────────────
   useEffect(() => {
     if (!open) return;
+
     setSelectedSigner(null);
     setReason('');
     setReasonError('');
     setSignerError('');
 
-    const fetchSigners = async () => {
-      setLoadingSigners(true);
-      try {
-        const res = await http.get('/auth/user-list/', {
-          params: { is_approved: true, role: 'signer_admin' },
-        });
-
-        const results = res.data?.results ?? res.data ?? [];
-        setSigners(results);
-      } catch (err) {
-        console.error('Failed to fetch signers:', err);
-        toast.error('Failed to load signers list');
-        setSigners([]);
-      } finally {
-        setLoadingSigners(false);
-      }
-    };
-
-    fetchSigners();
-  }, [open]);
+    // Calls GET /auth/all-users/?is_approved=true&role=signer_admin&is_invoice_verifier=true
+    // Result is stored in state.user.addressedToUsers
+    dispatch(
+      getAllUsersWithNoPagination({
+        is_approved: true,
+        role: 'signer_admin',
+        is_invoice_verifier: true,
+      }),
+    );
+  }, [open, dispatch]);
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
@@ -219,7 +214,7 @@ export default function AddressInvoiceDialog({
             Select Signer <span style={{ color: 'red' }}>*</span>
           </Typography>
           <Autocomplete
-            options={signers}
+            options={addressedToUsers}
             loading={loadingSigners}
             value={selectedSigner}
             onChange={(_, newValue) => {

@@ -1,20 +1,16 @@
 import http from '../../http-common';
 
 const getAllSigners = async (data = {}) => {
-  // Filter out empty values
   const filterEmpty = (obj) =>
     Object.fromEntries(
-      Object.entries(obj).filter(([_, v]) => v !== '' && v != null)
+      Object.entries(obj).filter(([_, v]) => v !== '' && v != null),
     );
 
   const filteredData = filterEmpty(data);
-
-  // Use URLSearchParams to convert the data object into a query string
   const queryParams = new URLSearchParams(filteredData).toString();
 
-  // If there are query params, append them to the URL
-  const url = queryParams 
-    ? `/auth/signer-list-no-pagination/?${queryParams}` 
+  const url = queryParams
+    ? `/auth/signer-list-no-pagination/?${queryParams}`
     : '/auth/signer-list-no-pagination/';
 
   const response = await http.get(url);
@@ -38,32 +34,40 @@ const getDceoSigner = async () => {
 
 const getDepartmentNextSigners = async (data) => {
   const response = await http.get(
-    `/user/signers_exclude_department/?department_name=${data}`
+    `/user/signers_exclude_department/?department_name=${data}`,
   );
-
   return response.data;
 };
 
 const getAllUsers = async (data) => {
-  // Optionally, remove any filters that are empty (this step is optional)
   const filterEmpty = (obj) =>
     Object.fromEntries(
-      Object.entries(obj).filter(([_, v]) => v !== '' && v != null)
+      Object.entries(obj).filter(([_, v]) => v !== '' && v != null),
     );
 
   const filteredData = filterEmpty(data);
-
-  // Use URLSearchParams to convert the data object into a query string
   const queryParams = new URLSearchParams(filteredData).toString();
 
   const response = await http.get(`/auth/user-list/?${queryParams}`);
-  console.log('response.data', response.data);
-
   return response.data;
 };
 
-const getAllUsersWithNoPagination = async () => {
-  const response = await http.get('/auth/all-users/');
+// Always calls /auth/all-users/ — accepts optional filter params
+// e.g. { is_approved: true, role: 'signer_admin', is_invoice_verifier: true }
+const getAllUsersWithNoPagination = async (data = {}) => {
+  const filterEmpty = (obj) =>
+    Object.fromEntries(
+      Object.entries(obj).filter(([_, v]) => v !== '' && v != null),
+    );
+
+  const filteredData = filterEmpty(data);
+  const queryParams = new URLSearchParams(filteredData).toString();
+
+  const url = queryParams
+    ? `/auth/all-users/?${queryParams}`
+    : '/auth/all-users/';
+
+  const response = await http.get(url);
   return response.data;
 };
 

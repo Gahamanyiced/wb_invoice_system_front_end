@@ -4,8 +4,8 @@ import { extractErrorMessage } from '../../utils';
 
 const initialState = {
   users: [],
-  allUsers: [],
-  addressedToUsers: [], // ← dedicated key for getAllUsers results
+  allUsers: [], // populated by getAllUsersWithNoPagination() — no params
+  addressedToUsers: [], // populated by getAllUsersWithNoPagination({ ...params }) — with params
   user: '',
   isLoading: false,
   error: null,
@@ -16,7 +16,7 @@ const initialState = {
   },
 };
 
-//get all signers with optional filters
+// get all signers with optional filters
 export const getAllSigners = createAsyncThunk(
   'user/getAllSigners',
   async (data, thunkAPI) => {
@@ -28,7 +28,7 @@ export const getAllSigners = createAsyncThunk(
   },
 );
 
-//get next signers
+// get next signers
 export const getNextSigners = createAsyncThunk(
   'user/getNextSigners',
   async (data, thunkAPI) => {
@@ -40,7 +40,7 @@ export const getNextSigners = createAsyncThunk(
   },
 );
 
-//get Ceo signer
+// get CEO signer
 export const getCeoSigner = createAsyncThunk(
   'user/getCeoSigner',
   async (_, thunkAPI) => {
@@ -52,7 +52,7 @@ export const getCeoSigner = createAsyncThunk(
   },
 );
 
-//get DCeo signer
+// get DCEO signer
 export const getDceoSigner = createAsyncThunk(
   'user/getDceoSigner',
   async (_, thunkAPI) => {
@@ -64,7 +64,7 @@ export const getDceoSigner = createAsyncThunk(
   },
 );
 
-//get next signers by department
+// get next signers by department
 export const getDepartmentNextSigners = createAsyncThunk(
   'user/getDepartmentNextSigners',
   async (data, thunkAPI) => {
@@ -76,8 +76,8 @@ export const getDepartmentNextSigners = createAsyncThunk(
   },
 );
 
-// GET /auth/user-list/?${queryParams}
-// Stores result in addressedToUsers to avoid colliding with state.users
+// GET /auth/user-list/?${queryParams} — paginated, used by admin user-management pages
+// result → state.users
 export const getAllUsers = createAsyncThunk(
   'user/getAllUsers',
   async (data, thunkAPI) => {
@@ -89,19 +89,21 @@ export const getAllUsers = createAsyncThunk(
   },
 );
 
-// GET /auth/all-users/ (no pagination)
+// GET /auth/all-users/  (always this endpoint, with optional query params)
+// • Called WITHOUT params → result stored in state.allUsers  (admin/department/section pages)
+// • Called WITH params    → result stored in state.addressedToUsers  ("Address Invoice To" dropdowns)
 export const getAllUsersWithNoPagination = createAsyncThunk(
   'user/getAllUsersWithNoPagination',
-  async (_, thunkAPI) => {
+  async (data = {}, thunkAPI) => {
     try {
-      return await userService.getAllUsersWithNoPagination();
+      return await userService.getAllUsersWithNoPagination(data);
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
   },
 );
 
-//update user role
+// update user role
 export const updateUser = createAsyncThunk(
   'user/updateUser',
   async (data, thunkAPI) => {
@@ -113,7 +115,7 @@ export const updateUser = createAsyncThunk(
   },
 );
 
-//update supplier
+// update supplier profile
 export const updateSupplier = createAsyncThunk(
   'user/updateSupplier',
   async (data, thunkAPI) => {
@@ -124,6 +126,10 @@ export const updateSupplier = createAsyncThunk(
     }
   },
 );
+
+// Helper: did the thunk receive any filter params?
+const hasFilterParams = (arg) =>
+  arg != null && typeof arg === 'object' && Object.keys(arg).length > 0;
 
 export const userSlice = createSlice({
   name: 'user',
@@ -142,7 +148,7 @@ export const userSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // getAllSigners
+      // ── getAllSigners ────────────────────────────────────────────────────
       .addCase(getAllSigners.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -159,7 +165,7 @@ export const userSlice = createSlice({
         state.users = [];
       })
 
-      // getNextSigners
+      // ── getNextSigners ───────────────────────────────────────────────────
       .addCase(getNextSigners.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -176,7 +182,7 @@ export const userSlice = createSlice({
         state.users = [];
       })
 
-      // getCeoSigner
+      // ── getCeoSigner ─────────────────────────────────────────────────────
       .addCase(getCeoSigner.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -193,7 +199,7 @@ export const userSlice = createSlice({
         state.users = '';
       })
 
-      // getDceoSigner
+      // ── getDceoSigner ────────────────────────────────────────────────────
       .addCase(getDceoSigner.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -210,7 +216,7 @@ export const userSlice = createSlice({
         state.users = '';
       })
 
-      // getDepartmentNextSigners
+      // ── getDepartmentNextSigners ─────────────────────────────────────────
       .addCase(getDepartmentNextSigners.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -227,44 +233,55 @@ export const userSlice = createSlice({
         state.users = [];
       })
 
-      // getAllUsers → writes to addressedToUsers (not users)
+      // ── getAllUsers (paginated admin list) → state.users ─────────────────
       .addCase(getAllUsers.pending, (state) => {
         state.isLoading = true;
         state.error = null;
-        state.addressedToUsers = [];
+        state.users = [];
       })
       .addCase(getAllUsers.fulfilled, (state, action) => {
         state.isLoading = false;
         state.error = null;
-        // Support both paginated { results: [] } and plain array responses
-        state.addressedToUsers = Array.isArray(action.payload)
-          ? action.payload
-          : action.payload?.results || [];
+        state.users = action.payload;
       })
       .addCase(getAllUsers.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
-        state.addressedToUsers = [];
+        state.users = [];
       })
 
-      // getAllUsersWithNoPagination
-      .addCase(getAllUsersWithNoPagination.pending, (state) => {
+      // ── getAllUsersWithNoPagination → /auth/all-users/?[params] ───────────
+      // With params    → state.addressedToUsers  (Address Invoice To dropdowns)
+      // Without params → state.allUsers          (admin / department / section pages)
+      .addCase(getAllUsersWithNoPagination.pending, (state, action) => {
         state.isLoading = true;
         state.error = null;
-        state.allUsers = [];
+        if (hasFilterParams(action.meta.arg)) {
+          state.addressedToUsers = [];
+        } else {
+          state.allUsers = [];
+        }
       })
       .addCase(getAllUsersWithNoPagination.fulfilled, (state, action) => {
         state.isLoading = false;
         state.error = null;
-        state.allUsers = action.payload;
+        if (hasFilterParams(action.meta.arg)) {
+          state.addressedToUsers = action.payload;
+        } else {
+          state.allUsers = action.payload;
+        }
       })
       .addCase(getAllUsersWithNoPagination.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
-        state.allUsers = [];
+        if (hasFilterParams(action.meta.arg)) {
+          state.addressedToUsers = [];
+        } else {
+          state.allUsers = [];
+        }
       })
 
-      // updateUser
+      // ── updateUser ───────────────────────────────────────────────────────
       .addCase(updateUser.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -281,7 +298,7 @@ export const userSlice = createSlice({
         state.user = '';
       })
 
-      // updateSupplier
+      // ── updateSupplier ───────────────────────────────────────────────────
       .addCase(updateSupplier.pending, (state) => {
         state.isLoading = true;
         state.error = null;
