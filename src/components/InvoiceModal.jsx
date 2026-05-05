@@ -33,7 +33,7 @@ import {
   getAddressedToMeInvoices,
 } from '../features/invoice/invoiceSlice';
 import { checkHeadDepartment } from '../features/department/departmentSlice';
-import { getAllSigners } from '../features/user/userSlice';
+import { getAllSigners, getAllUsers } from '../features/user/userSlice';
 
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -220,12 +220,12 @@ export default function InvoiceModal() {
 
   const { isLoading } = useSelector((state) => state.invoice);
   const { isHeadDepartment } = useSelector((state) => state.department);
-  const { users } = useSelector((state) => state.user);
+  const { users, addressedToUsers } = useSelector((state) => state.user);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   // ── Permission flags ──────────────────────────────────────────────────────
   const isInvoiceVerifier = !!user?.is_invoice_verifier;
-  // ── added: acting supplier flag ───────────────────────────────────────────
+  // ── acting supplier flag ───────────────────────────────────────────────────
   const isActingSupplier = !!user?.is_acting_supplier;
 
   const [open, setOpen] = useState(false);
@@ -245,7 +245,7 @@ export default function InvoiceModal() {
   const [selectedAircraftType, setSelectedAircraftType] = useState(null);
   const [selectedRoute, setSelectedRoute] = useState(null);
 
-  // ── added: addressed-to signer for acting supplier ────────────────────────
+  // ── addressed-to signer for acting supplier ────────────────────────────────
   const [addressedTo, setAddressedTo] = useState(null);
 
   const emptyGLEntry = () => ({
@@ -262,7 +262,7 @@ export default function InvoiceModal() {
 
   const { excelData, isLoading: coaLoading } = useCOAData({ enabled: open });
 
-  // ── added: pass isActingSupplier to schema selector ───────────────────────
+  // ── pass isActingSupplier to schema selector ───────────────────────────────
   const validationSchema = getInvoiceValidationSchema(
     isInvoiceVerifier,
     isActingSupplier,
@@ -319,6 +319,14 @@ export default function InvoiceModal() {
   useEffect(() => {
     dispatch(checkHeadDepartment());
     dispatch(getAllSigners());
+    // Fetch all users filtered for "Addressed To" dropdown (acting supplier use case)
+    dispatch(
+      getAllUsers({
+        is_approved: true,
+        role: 'signer_admin',
+        is_invoice_verifier: true,
+      }),
+    );
   }, [dispatch]);
 
   useEffect(() => {
@@ -355,7 +363,7 @@ export default function InvoiceModal() {
     setSelectedAircraftType(null);
     setSelectedRoute(null);
     setGLEntries([emptyGLEntry()]);
-    setAddressedTo(null); // ← added
+    setAddressedTo(null);
     resetInvoiceNumCheck();
   };
 
@@ -587,7 +595,7 @@ export default function InvoiceModal() {
       if (next_signers.length > 0)
         formData.append('next_signers', next_signers.join(','));
 
-      // ── added: addressed_to for acting supplier ───────────────────────────
+      // ── addressed_to for acting supplier ──────────────────────────────────
       if (isActingSupplier && addressedTo?.id) {
         formData.append('addressed_to_id', addressedTo.id);
       }
@@ -605,9 +613,9 @@ export default function InvoiceModal() {
     }
   };
 
-  // ── Signer options for "Addressed To" autocomplete ────────────────────────
-  // Reuses the same signers list already fetched by getAllSigners()
-  const signerOptions = Array.isArray(users) ? users : users?.results || [];
+  // ── "Addressed To" options: from getAllUsers({ is_approved, role, is_invoice_verifier })
+  // Stored in addressedToUsers to avoid colliding with state.users used by getAllSigners
+  const addressedToOptions = addressedToUsers;
 
   return (
     <>
@@ -1328,7 +1336,6 @@ export default function InvoiceModal() {
               )}
 
               {/* ── Addressed To — acting supplier only ──────────────────────── */}
-              {/* ── added ──────────────────────────────────────────────────────── */}
               {isActingSupplier && (
                 <>
                   <Box sx={style.section}>
@@ -1338,7 +1345,7 @@ export default function InvoiceModal() {
                     <Grid container spacing={3}>
                       <Grid item xs={12} md={6}>
                         <Autocomplete
-                          options={signerOptions}
+                          options={addressedToOptions}
                           value={addressedTo}
                           onChange={(_, v) => setAddressedTo(v)}
                           isOptionEqualToValue={(o, v) => o?.id === v?.id}

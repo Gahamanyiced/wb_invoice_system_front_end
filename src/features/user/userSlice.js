@@ -5,6 +5,7 @@ import { extractErrorMessage } from '../../utils';
 const initialState = {
   users: [],
   allUsers: [],
+  addressedToUsers: [], // ← dedicated key for getAllUsers results
   user: '',
   isLoading: false,
   error: null,
@@ -24,7 +25,7 @@ export const getAllSigners = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
 //get next signers
@@ -36,7 +37,7 @@ export const getNextSigners = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
 //get Ceo signer
@@ -48,7 +49,7 @@ export const getCeoSigner = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
 //get DCeo signer
@@ -60,10 +61,10 @@ export const getDceoSigner = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
-//get next signers
+//get next signers by department
 export const getDepartmentNextSigners = createAsyncThunk(
   'user/getDepartmentNextSigners',
   async (data, thunkAPI) => {
@@ -72,9 +73,11 @@ export const getDepartmentNextSigners = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
+// GET /auth/user-list/?${queryParams}
+// Stores result in addressedToUsers to avoid colliding with state.users
 export const getAllUsers = createAsyncThunk(
   'user/getAllUsers',
   async (data, thunkAPI) => {
@@ -83,9 +86,10 @@ export const getAllUsers = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
+// GET /auth/all-users/ (no pagination)
 export const getAllUsersWithNoPagination = createAsyncThunk(
   'user/getAllUsersWithNoPagination',
   async (_, thunkAPI) => {
@@ -94,7 +98,7 @@ export const getAllUsersWithNoPagination = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
 //update user role
@@ -106,7 +110,7 @@ export const updateUser = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
 //update supplier
@@ -118,7 +122,7 @@ export const updateSupplier = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(extractErrorMessage(err));
     }
-  }
+  },
 );
 
 export const userSlice = createSlice({
@@ -223,21 +227,24 @@ export const userSlice = createSlice({
         state.users = [];
       })
 
-      // getAllUsers
+      // getAllUsers → writes to addressedToUsers (not users)
       .addCase(getAllUsers.pending, (state) => {
         state.isLoading = true;
         state.error = null;
-        state.users = [];
+        state.addressedToUsers = [];
       })
       .addCase(getAllUsers.fulfilled, (state, action) => {
         state.isLoading = false;
         state.error = null;
-        state.users = action.payload;
+        // Support both paginated { results: [] } and plain array responses
+        state.addressedToUsers = Array.isArray(action.payload)
+          ? action.payload
+          : action.payload?.results || [];
       })
       .addCase(getAllUsers.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
-        state.users = [];
+        state.addressedToUsers = [];
       })
 
       // getAllUsersWithNoPagination
@@ -273,6 +280,7 @@ export const userSlice = createSlice({
         state.error = action.payload;
         state.user = '';
       })
+
       // updateSupplier
       .addCase(updateSupplier.pending, (state) => {
         state.isLoading = true;
